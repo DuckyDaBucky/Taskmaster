@@ -1,4 +1,4 @@
-# Taskmaster: Hackathon Run Guide
+# Taskmaster: Run Guide
 
 ## 1. Required Terminals
 You must run:
