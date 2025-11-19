@@ -23,6 +23,7 @@ export interface UserData {
   streak?: number;
   level?: number;
   password?: string; // For login validation
+  friendsList?: string[]; // Array of friend user IDs
 }
 
 export interface ClassData {
@@ -509,6 +510,17 @@ class MockDatabase {
   // Resource endpoints
   getResourcesByClassId(classId: string): ResourceData[] {
     return Array.from(this.resources.values()).filter((res) => res.class === classId);
+  }
+
+  createResource(resourceData: Partial<ResourceData>): ResourceData {
+    const resourceId = `resource-${Date.now()}`;
+    const newResource: ResourceData = {
+      _id: resourceId,
+      urls: resourceData.urls || [],
+      class: resourceData.class || "",
+    };
+    this.resources.set(resourceId, newResource);
+    return newResource;
   }
 
   // Flashcard endpoints

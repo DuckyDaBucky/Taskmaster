@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import auth from '../middleware/auth.js';
 
 import {
     createEvent,
@@ -9,9 +10,10 @@ import {
 
 const router = Router();
 
-router.post('/', createEvent);
-router.post('/editEvent/:eventid', editEventById);
-router.get('/getAllEvents/:userid', getEventsByUserId);
-router.get('/deleteEvent/:eventid', deleteEventById);
+// All routes require authentication for data isolation
+router.post('/', auth, createEvent);
+router.post('/editEvent/:eventid', auth, editEventById);
+router.get('/getAllEvents/:userid', auth, getEventsByUserId);
+router.get('/deleteEvent/:eventid', auth, deleteEventById);
 
 export default router;

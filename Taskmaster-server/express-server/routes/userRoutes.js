@@ -8,7 +8,8 @@ import {
     createUser,
     getUserByME,
     getUserbyId,
-    addFriend
+    addFriend,
+    addHamizAsFriend
 } from "../controllers/userController.js";
 
 import multer from "multer";
@@ -34,7 +35,8 @@ router.get("/email/:email", getUserbyEmail); //Get user by email
 router.post("/", createUser); //POST user, for signup only
 router.patch("/update/:userid", updateProfile); //UPDATE user details (legacy)
 router.delete("/delete/:userid", deleteUser); //DELETE user by id
-router.patch("/add/:friendid/:userid", addFriend); //PATCH friendlist with new friend
+router.patch("/add/:friendid/:userid", auth, addFriend); //PATCH friendlist with new friend - REQUIRES AUTH
+router.post("/add-hamiz", auth, addHamizAsFriend); //POST add Hamiz Iqbal as friend - REQUIRES AUTH
 
 router.post( //POST Syllabus pdf and generate class details
   "/aisyllabus/:userId/api/upload",

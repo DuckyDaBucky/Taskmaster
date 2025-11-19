@@ -348,6 +348,196 @@ class ApiService {
     return response.data;
   }
 
+  // ===== Task Creation =====
+  async createTask(classId: string, taskData: {
+    title: string;
+    deadline?: string;
+    topic?: string;
+    status?: "pending" | "completed" | "overdue";
+    points?: number;
+    textbook?: string;
+  }, token?: string): Promise<TasksData> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return mockDB.createTask({
+        ...taskData,
+        class: classId,
+        _id: `task-${Date.now()}`,
+      });
+    }
+
+    const response = await apiClient.post(`/task/classid/${classId}`, taskData, {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  // ===== Event Creation =====
+  async createEvent(eventData: {
+    title: string;
+    start: Date | string;
+    end: Date | string;
+    taskInput?: string;
+    classInput?: string;
+    repeatWeekly?: boolean;
+    notes?: string[];
+    color?: string;
+  }, token?: string): Promise<any> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return { id: `event-${Date.now()}`, ...eventData };
+    }
+
+    const payload = {
+      ...eventData,
+      start: eventData.start instanceof Date ? eventData.start.toISOString() : eventData.start,
+      end: eventData.end instanceof Date ? eventData.end.toISOString() : eventData.end,
+    };
+
+    const response = await apiClient.post("/event", payload, {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  async getEvents(userId: string, token?: string): Promise<any[]> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return [];
+    }
+
+    const response = await apiClient.get(`/event/getAllEvents/${userId}`, {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  async updateEvent(eventId: string, eventData: {
+    title?: string;
+    start?: Date | string;
+    end?: Date | string;
+    taskInput?: string;
+    classInput?: string;
+    repeatWeekly?: boolean;
+    notes?: string[];
+    color?: string;
+  }, token?: string): Promise<any> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return { id: eventId, ...eventData };
+    }
+
+    const payload = {
+      ...eventData,
+      start: eventData.start instanceof Date ? eventData.start.toISOString() : eventData.start,
+      end: eventData.end instanceof Date ? eventData.end.toISOString() : eventData.end,
+    };
+
+    const response = await apiClient.post(`/event/editEvent/${eventId}`, payload, {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  async deleteEvent(eventId: string, token?: string): Promise<void> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return Promise.resolve();
+    }
+
+    await apiClient.get(`/event/deleteEvent/${eventId}`, {
+      headers: { "x-auth-token": authToken },
+    });
+  }
+
+  // ===== Class Creation =====
+  async createClass(classData: {
+    name: string;
+    professor?: string;
+    timing?: string;
+    location?: string;
+    topics?: string[];
+    textbooks?: string[];
+    gradingPolicy?: string;
+    contactInfo?: string;
+  }, token?: string): Promise<ClassData> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      const user = mockDB.getUserByToken(authToken);
+      if (!user) throw new Error("Unauthorized");
+      return mockDB.createClass(classData, user._id);
+    }
+
+    const response = await apiClient.post("/class", classData, {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  async getAllClasses(token?: string): Promise<ClassData[]> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      const user = mockDB.getUserByToken(authToken);
+      if (!user) return [];
+      return mockDB.getClassesByUserId(user._id);
+    }
+
+    const response = await apiClient.get<ClassData[]>("/class", {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  // ===== Resource Creation =====
+  async createResource(classId: string, resourceData: {
+    urls?: string[];
+    websites?: string[];
+  }, token?: string): Promise<ResourceData> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return mockDB.createResource({ ...resourceData, class: classId });
+    }
+
+    const response = await apiClient.post(`/resources/classid/${classId}`, resourceData, {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  // ===== Friend Management =====
+  async addHamizAsFriend(token?: string): Promise<any> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return { message: "Hamiz Iqbal added as friend successfully" };
+    }
+
+    const response = await apiClient.post("/user/add-hamiz", {}, {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  async getFriends(userId: string, token?: string): Promise<UserData[]> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return [];
+    }
+
+    // TODO: Fetch friends individually to return UserData[]
+    // For now, return empty array as friendsList contains user IDs, not full UserData objects
+    return [];
+  }
+
   // ===== ML Service Endpoints (Port 6005) =====
   async setPoints(): Promise<void> {
     if (USE_MOCK_DB) {

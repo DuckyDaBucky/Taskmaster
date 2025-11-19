@@ -108,14 +108,38 @@ const deleteFlashCards = async(req, res) => {
     }
 };
 
-//POST flash cards
+//POST flash cards - ENFORCE USER OWNERSHIP
 const generateFlashCards = async(req, res) => {
     try {
-        const id = req.params.classid;
-        await flashCardGeneration(id);
+        const userId = req.user?._id; // Get from auth middleware
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        const classId = req.params.classid;
+        
+        if (!classId) {
+            return res.status(400).json({ message: "Class ID is required" });
+        }
+
+        // Verify class belongs to user
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        if (classDoc.user && classDoc.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: "Access denied. This class does not belong to you." });
+        }
+
+        console.log("🔥 Generating flashcards for class:", classId);
+        await flashCardGeneration(classId);
+        console.log("✅ Flashcards generated successfully");
         res.status(200).json({message: "Flash cards successfully created"});
 
     } catch (error) {
+        console.error("❌ Error generating flashcards:", error);
         res.status(500).json({message: error.message});
     }
 }

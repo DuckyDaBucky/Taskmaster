@@ -159,17 +159,46 @@ const getResourcesByClassId = async(req, res) => {
     }
 }
 
-//Create resource by class ID
+//Create resource by class ID - ENFORCE USER OWNERSHIP
 const createResourceByClassId = async(req, res) => {
     try {
-        const {urls} = req.body;
-        const {id} = req.params.id;
+        const userId = req.user?._id; // Get from auth middleware
         
-        const newResource = new Resource({urls, class: id});
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        console.log("🔥 CREATE RESOURCE PAYLOAD:", req.body);
+        
+        const {urls, websites} = req.body;
+        const classId = req.params.id;
+        
+        if (!classId) {
+            return res.status(400).json({ message: "Class ID is required" });
+        }
+
+        // Verify class belongs to user
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        if (classDoc.user && classDoc.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: "Access denied. This class does not belong to you." });
+        }
+        
+        const newResource = new Resource({
+            urls: urls || [], 
+            websites: websites || [],
+            class: classId
+        });
+        
         const savedResource = await newResource.save();
+        console.log("✅ Resource created successfully:", savedResource._id);
         res.status(201).json(savedResource);
 
     } catch (error) {
+        console.error("❌ Error creating resource:", error);
         res.status(500).json({message: error.message});
     }
 };

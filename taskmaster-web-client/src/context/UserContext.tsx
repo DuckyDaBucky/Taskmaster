@@ -26,6 +26,7 @@ interface UserData {
   streak?: number;
   level?: number;
   };
+  friendsList?: string[]; // Array of friend user IDs
 }
 
 // Define the structure for personality data (remains the same)

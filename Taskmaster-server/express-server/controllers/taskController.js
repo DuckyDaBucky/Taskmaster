@@ -140,23 +140,51 @@ const getTaskByClassId = async(req, res) => {
     }
 };
 
- //Create task by ID
+ //Create task by ID - ENFORCE USER OWNERSHIP
 const createTaskByClassId = async(req, res) => {
     try {
+        const userId = req.user?._id; // Get from auth middleware
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        console.log("🔥 CREATE TASK PAYLOAD:", req.body);
+        
         const {deadline, topic, title, resources, status, points, textbook} = req.body;
         const classId = req.params.id;
 
-        if(!classId)
-        {
-            return res.status(404).json({message: "Class ID is required"});
+        if(!classId) {
+            return res.status(400).json({message: "Class ID is required"});
         }
 
-        const newTask = new Task({deadline, topic, title, resources, status, points, textbook, class: classId});
+        // Verify class belongs to user
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        if (classDoc.user && classDoc.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: "Access denied. This class does not belong to you." });
+        }
+
+        const newTask = new Task({
+            deadline, 
+            topic, 
+            title, 
+            resources: resources || [], 
+            status: status || 'pending', 
+            points, 
+            textbook, 
+            class: classId
+        });
 
         const savedTask = await newTask.save();
+        console.log("✅ Task created successfully:", savedTask._id);
         res.status(201).json(savedTask);
 
     } catch (error) {
+        console.error("❌ Error creating task:", error);
         res.status(500).json({message: error.message});
     }
 };

@@ -151,21 +151,112 @@ const deleteUser = async (req, res) => {
 
 const addFriend = async (req, res) => {
     try {
-        const curUser = await User.findById({_id: req.params.userid});
+        const userId = req.user?._id; // Get from auth middleware
+        const friendId = req.params.friendid;
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        // ENFORCE: Users can only add friends to their own account
+        const requestedUserId = req.params.userid;
+        if (requestedUserId !== userId.toString()) {
+            return res.status(403).json({ message: "Access denied. You can only add friends to your own account." });
+        }
+
+        const curUser = await User.findById(userId);
         if (!curUser) {
-            return res.status(404).json({ message: "Critical Error 404, User not found" });
+            return res.status(404).json({ message: "User not found" });
         }
 
-        const friend = await User.findById({_id: req.params.friendid});
+        const friend = await User.findById(friendId);
         if (!friend) {
-            return res.status(404).json({ message: "Critical Error 404, Friend not found" });
+            return res.status(404).json({ message: "Friend not found" });
         }
 
-        const updatedProfile = await User.findOneAndUpdate({_id: req.params.userid},{ $addToSet: { friendsList: req.params.friendid } },{ new: true });
-        const friendProfile = await User.findOneAndUpdate({_id: req.params.friendid},{ $addToSet: { friendsList: req.params.userid } },{ new: true });
+        // Prevent self-friending
+        if (userId.toString() === friendId) {
+            return res.status(400).json({ message: "Cannot add yourself as a friend" });
+        }
+
+        const updatedProfile = await User.findOneAndUpdate(
+            {_id: userId},
+            { $addToSet: { friendsList: friendId } },
+            { new: true }
+        );
+        
+        const friendProfile = await User.findOneAndUpdate(
+            {_id: friendId},
+            { $addToSet: { friendsList: userId } },
+            { new: true }
+        );
+        
         res.status(200).json(updatedProfile);
 
     } catch (error) {
+        console.error("❌ Error adding friend:", error);
+        res.status(500).json({ message: error.message });
+    }
+}
+
+// Special function to add "Hamiz Iqbal" as a friend
+const addHamizAsFriend = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        // Find or create Hamiz Iqbal
+        let hamiz = await User.findOne({ $or: [{ userName: "hamiz_iqbal" }, { email: "hamiz@taskmaster.com" }] });
+        
+        if (!hamiz) {
+            // Create Hamiz Iqbal if he doesn't exist
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash("password123", salt);
+            
+            hamiz = new User({
+                userName: "hamiz_iqbal",
+                firstName: "Hamiz",
+                lastName: "Iqbal",
+                email: "hamiz@taskmaster.com",
+                password: hashedPassword,
+            });
+            await hamiz.save();
+            console.log("✅ Created Hamiz Iqbal user");
+        }
+
+        // Check if already friends
+        const currentUser = await User.findById(userId);
+        if (currentUser.friendsList && currentUser.friendsList.includes(hamiz._id)) {
+            return res.status(200).json({ 
+                message: "Hamiz Iqbal is already your friend",
+                user: currentUser 
+            });
+        }
+
+        // Add Hamiz to current user's friends list
+        const updatedUser = await User.findOneAndUpdate(
+            {_id: userId},
+            { $addToSet: { friendsList: hamiz._id } },
+            { new: true }
+        ).select('-password');
+
+        // Add current user to Hamiz's friends list
+        await User.findOneAndUpdate(
+            {_id: hamiz._id},
+            { $addToSet: { friendsList: userId } },
+            { new: true }
+        );
+
+        res.status(200).json({ 
+            message: "Hamiz Iqbal added as friend successfully",
+            user: updatedUser 
+        });
+
+    } catch (error) {
+        console.error("❌ Error adding Hamiz as friend:", error);
         res.status(500).json({ message: error.message });
     }
 }
@@ -179,5 +270,6 @@ export {
     createUser,
     getUserByME,
     getUserbyId,
-    addFriend
+    addFriend,
+    addHamizAsFriend
 }
