@@ -34,13 +34,6 @@ const ThemeLogo: React.FC<ThemeLogoProps> = ({
           accent: '#a5b4fc', // indigo-300
           text: '#f8fafc', // slate-50
         };
-      case 'clean': // Beige theme
-        return {
-          primary: '#a16207', // amber-700
-          secondary: '#b45309', // amber-600
-          accent: '#d97706', // amber-600
-          text: '#292524', // stone-800
-        };
       default:
         return {
           primary: '#4f46e5', // indigo-600
@@ -61,8 +54,6 @@ const ThemeLogo: React.FC<ThemeLogoProps> = ({
         return 'brightness(1) saturate(1)';
       case 'dark':
         return 'brightness(1.2) saturate(0.8) hue-rotate(10deg)';
-      case 'clean': // Beige theme
-        return 'brightness(0.9) saturate(0.7) hue-rotate(30deg) sepia(0.3)';
       default:
         return 'brightness(1) saturate(1)';
     }

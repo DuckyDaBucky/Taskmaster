@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import { ThemeContext } from "../context/ThemeContext";
-import Sidebar from "./Sidebar";
+import { Sidebar } from "./Sidebar";
 import { Outlet } from "react-router-dom";
 import AnimatedBackground from "../components/AnimatedBackground";
 import { theme } from "../constants/theme";
@@ -14,7 +14,7 @@ function PageLayout() {
       className="relative flex flex-col h-screen overflow-hidden"
       style={{ backgroundColor: theme.colors.background }}
     >
-      {currentTheme !== "clean" && <AnimatedBackground />}
+      {currentTheme !== "light" && <AnimatedBackground />}
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
