@@ -1,4 +1,4 @@
-import type { TasksData } from "../pages/Tasks";
+import type { TasksData } from "../services/mockDatabase";
 
 let tasksCache: TasksData[] = [];
 

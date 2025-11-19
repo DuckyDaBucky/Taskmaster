@@ -17,34 +17,6 @@ const ThemeLogo: React.FC<ThemeLogoProps> = ({
 }) => {
   const { theme } = useTheme();
   
-  // Define theme-specific colors for different parts of the logo
-  const getLogoColors = () => {
-    switch (theme) {
-      case 'light':
-        return {
-          primary: '#4f46e5', // indigo-600
-          secondary: '#6366f1', // indigo-500
-          accent: '#818cf8', // indigo-400
-          text: '#1e293b', // slate-800
-        };
-      case 'dark':
-        return {
-          primary: '#818cf8', // indigo-400
-          secondary: '#6366f1', // indigo-500
-          accent: '#a5b4fc', // indigo-300
-          text: '#f8fafc', // slate-50
-        };
-      default:
-        return {
-          primary: '#4f46e5', // indigo-600
-          secondary: '#6366f1', // indigo-500
-          accent: '#818cf8', // indigo-400
-          text: '#1e293b', // slate-800
-        };
-    }
-  };
-
-  const colors = getLogoColors();
 
   // CSS filter approach for the PNG logo
   const getFilterStyle = () => {
