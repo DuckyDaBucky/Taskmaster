@@ -45,7 +45,7 @@ export const TaskCard = ({ task, index, onClick }: TaskCardProps) => {
         {task.title}
       </h3>
       <p className="text-sm" style={{ color: theme.colors.textSecondary }}>
-        <strong style={{ color: theme.colors.textPrimary }}>Class:</strong> {task.className || "N/A"}
+        <strong style={{ color: theme.colors.textPrimary }}>Class:</strong> {task.class || "N/A"}
       </p>
       <p className="text-sm" style={{ color: theme.colors.textSecondary }}>
         <strong style={{ color: theme.colors.textPrimary }}>Topic:</strong> {task.topic || "General"}
