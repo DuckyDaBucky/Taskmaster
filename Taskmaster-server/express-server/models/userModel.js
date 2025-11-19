@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
 
 //Generate token to store in localstorage
 userSchema.methods.generateAuthToken = function () {
-    return jwt.sign({ _id: this._id }, "secretstring1234");
+    return jwt.sign({ _id: this._id }, process.env.JWT_SECRET);
 }
 
 export default mongoose.model('User', userSchema);

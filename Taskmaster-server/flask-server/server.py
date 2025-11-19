@@ -7,6 +7,11 @@ from flask import Flask, jsonify, request, make_response
 from flask_restful import Resource, Api
 from flask_cors import CORS
 from bson.objectid import ObjectId
+import os
+from dotenv import load_dotenv
+
+# Load .env from one directory up
+load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
 
 app = Flask(__name__)
 CORS(app, resources={r'/*': {'origins': '*'}}, supports_credentials=True)

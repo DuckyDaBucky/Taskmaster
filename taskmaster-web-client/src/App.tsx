@@ -1,17 +1,17 @@
-import PageLayout from "./components/PageLayout";
+import { PageLayout } from "./components/layout/PageLayout";
 import Login from "./pages/Login";
-import SignUp from "./pages/Signup";
-import Dashboard from "./pages/Dashboard";
-import Calendar from "./pages/Calendar";
+import SignUp from "./pages/SignUp";
+import DashboardPage from "./pages/dashboard/DashboardPage";
+import CalendarPage from "./pages/calendar/CalendarPage";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Classes from "./pages/Classes";
-import Friends from "./pages/Friends";
-import Settings from "./pages/Settings";
+import ClassesPage from "./pages/classes/ClassesPage";
+import FriendsPage from "./pages/friends/FriendsPage";
+import SettingsPage from "./pages/settings/SettingsPage";
 import SplashPage from "./pages/SplashPage";
-import Tasks from "./pages/Tasks";
-import FlashCards from "./pages/FlashCards";
-import Resources from "./pages/Resources";
-import Profile from "./pages/Profile";
+import TasksPage from "./pages/tasks/TasksPage";
+import FlashCardsPage from "./pages/flashcards/FlashCardsPage";
+import ResourcesPage from "./pages/resources/ResourcesPage";
+import ProfilePage from "./pages/profile/ProfilePage";
 import { ThemeProvider } from "./context/ThemeContext";
 import { UserProvider } from "./context/UserContext";
 
@@ -27,15 +27,15 @@ function App() {
 
             {/* Routes using shared layout */}
             <Route element={<PageLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/calendar" element={<Calendar />} />
-              <Route path="/classes" element={<Classes />} />
-              <Route path="/friends" element={<Friends />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/tasks" element={<Tasks />} />
-              <Route path="/flashcards" element={<FlashCards />} />
-              <Route path="/resources" element={<Resources />} />
-              <Route path="/profile" element={<Profile />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/classes" element={<ClassesPage />} />
+              <Route path="/friends" element={<FriendsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/flashcards" element={<FlashCardsPage />} />
+              <Route path="/resources" element={<ResourcesPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
             </Route>
           </Routes>
         </Router>

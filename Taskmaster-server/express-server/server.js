@@ -14,7 +14,13 @@ import resourceRoutes from "./routes/resourceRoutes.js";
 import flashCardRoutes from "./routes/flashCardRoutes.js";
 import eventRoutes from './routes/eventRoutes.js';
 
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '../.env') });
 const app = express();
 const PORT = 3000;
 
@@ -105,7 +111,7 @@ io.on("connection", (socket) => {
 
       const chat = await storeMessage(userId, friendId, text);
       const lastMsg = chat.messages[chat.messages.length - 1];
-      
+
       io.emit("message", {
         message: lastMsg,
         senderId: userId,

@@ -1,134 +1,122 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-/* Import Satoshi/Inter if using fontsource: */
-/* @import "@fontsource/satoshi"; */
-/* @import "@fontsource/inter"; */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* Define CSS Variables for Themes */
-  :root, html.light {
-    /* Modern Clean Dashboard Theme */
-    --background: 240 20% 97%;          /* #F3F4FB - very light lavender-gray */
-    --foreground: 216 13% 19%;          /* #2B2D33 - near-black text */
-    --card: 0 0% 100%;                  /* #FFFFFF */
-    --card-foreground: 216 13% 19%;     /* #2B2D33 */
-    --popover: 0 0% 100%;
-    --popover-foreground: 216 13% 19%;
-    --primary: 240 100% 73%;           /* #6B6BFF - soft cool purple */
-    --primary-foreground: 0 0% 100%;    /* White */
-    --primary-hover: 240 75% 67%;       /* #5A5AE3 */
-    --secondary: 240 20% 96%;           /* #F5F6FA - surface-muted */
-    --secondary-foreground: 216 13% 19%;
-    --muted: 240 20% 96%;               /* #F5F6FA */
-    --muted-foreground: 215 16% 47%;     /* #6C7080 - text-secondary */
-    --accent: 240 95% 95%;              /* #E8EAFF - active background */
-    --accent-foreground: 240 100% 73%;   /* #6B6BFF */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 227 15% 91%;              /* #E3E4EC */
-    --input: 227 15% 91%;               /* #E3E4EC */
-    --ring: 240 100% 73%;               /* #6B6BFF */
-    --radius: 0.5rem;                   /* 8px */
-    --font-sans: "Roboto";
-    --shadow-soft: 0px 2px 6px rgba(0, 0, 0, 0.06);
-    --shadow-card: 0px 2px 6px rgba(0, 0, 0, 0.06);
-    --text-primary: 216 13% 19%;        /* #2B2D33 */
-    --text-secondary: 215 16% 47%;      /* #6C7080 */
-    --text-emphasis: hsl(var(--foreground));
-    --sidebar-bg: 240 30% 98%;          /* #F8F9FC */
+  :root {
+    /* Default (Electric) - Fallback */
+    --bg-app: #020617;
+    /* Slate 950 */
+    --bg-surface: #0f172a;
+    /* Slate 900 */
+    --border: #1e293b;
+    /* Slate 800 */
+    --primary: #3b82f6;
+    /* Blue 500 */
+    --accent: #06b6d4;
+    /* Cyan 500 */
+    --text-primary: #f8fafc;
+    /* Slate 50 */
+    --text-secondary: #94a3b8;
+    /* Slate 400 */
   }
 
-  html.dark {
-    /* Dark Theme - Using Purple */
-    --background: 240 10% 3.9%;     /* near black */
-    --foreground: 0 0% 98%;        /* near white */
-    /* Make card background same gray as sidebar/inputs */
-    --card: 240 3.7% 15.9%;       /* Dark Gray - Unified */
-    --card-foreground: 0 0% 98%;    /* Ensure text contrast */
-    --popover: 240 3.7% 15.9%;      /* Dark Gray - Unified */
-    --popover-foreground: 0 0% 98%;
-    --primary: 262 80% 68%;       /* Brighter Purple */
-    --primary-foreground: 262 80% 15%; /* Dark Purple text */
-    --secondary: 240 3.7% 15.9%;    /* dark gray */
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;  /* light gray */
-    --accent: 262 80% 25%;        /* Darker Purple for hover/accent */
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 262 80% 68%;         /* Brighter Purple focus ring */
-    --font-sans: "Roboto";
-    --shadow-soft: 0 4px 14px 0 rgba(0, 0, 0, 0.05);
-    --radius: 0.5rem;
-    --text-emphasis: hsl(var(--foreground)); /* Default emphasis to foreground */
+  [data-theme="default"] {
+    --bg-app: #020617;
+    --bg-surface: #0f172a;
+    --border: #1e293b;
+    --primary: #3b82f6;
+    --accent: #06b6d4;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
   }
 
-  html.clean {
-    /* Clean Theme - Beige-Core */
-    --background: 39 51% 93%;    /* #f5efe4 - shell-beige */
-    --foreground: 0 0% 16%;      /* #2a2a2a - text-main */
-    --card: 36 67% 97%;          /* #fdfaf5 - content-bg */
-    --card-foreground: 0 0% 16%; /* #2a2a2a */
-    --popover: 36 67% 97%;
-    --popover-foreground: 0 0% 16%;
-    --primary: 34 33% 78%;      /* #ddb892 - accent-sand */
-    --primary-foreground: 0 0% 100%; /* White text on accent */
-    --secondary: 36 41% 90%;    /* #eaddd0 - sidebar-beige */
-    --secondary-foreground: 0 0% 16%; /* #2a2a2a */
-    --muted: 36 41% 90%;
-    --muted-foreground: 0 0% 64%;  /* #a3a3a3 - neutral-dark */
-    --accent: 36 41% 93%;       /* Lighter beige hover #ede8e1 (derived) */
-    --accent-foreground: 0 0% 16%; /* #2a2a2a */
-    --destructive: 0 84.2% 60.2%; /* Keep default destructive */
-    --destructive-foreground: 0 0% 100%;
-    --border: 36 41% 90%;       /* #eaddd0 - Use sidebar beige for borders? */
-    --input: 0 0% 100%;          /* White input backgrounds */
-    --ring: 34 33% 78%;         /* #ddb892 - accent-sand for focus */
-    --radius: 1rem;             /* Matches rounded-2xl */
-    --font-sans: "Satoshi", "Roboto", sans-serif; /* Ensure Satoshi is loaded */
-    --shadow-soft: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* Tailwind shadow-md */
-
-    /* Custom Variables for Clean Theme */
-    --text-emphasis: 12 18% 36%; /* #6b4f4b - text-brown-dark */
-    --sidebar-bg: 36 41% 90%;    /* #eaddd0 - Explicit sidebar bg */
-    --content-bg: 36 67% 97%;    /* #fdfaf5 - Explicit content bg */
-    --shell-bg: 39 51% 93%;      /* #f5efe4 - Explicit shell bg */
+  [data-theme="light"] {
+    --bg-app: #f8fafc;
+    /* Slate 50 */
+    --bg-surface: #ffffff;
+    /* White */
+    --border: #e2e8f0;
+    /* Slate 200 */
+    --primary: #3b82f6;
+    /* Blue 500 */
+    --accent: #06b6d4;
+    /* Cyan 500 */
+    --text-primary: #0f172a;
+    /* Slate 900 */
+    --text-secondary: #64748b;
+    /* Slate 500 */
   }
 
-  /* Apply base styles using variables */
+  [data-theme="dark"] {
+    --bg-app: #020617;
+    /* Slate 950 */
+    --bg-surface: #0f172a;
+    /* Slate 900 */
+    --border: #1e293b;
+    /* Slate 800 */
+    --primary: #3b82f6;
+    /* Blue 500 */
+    --accent: #06b6d4;
+    /* Cyan 500 */
+    --text-primary: #f8fafc;
+    /* Slate 50 */
+    --text-secondary: #94a3b8;
+    /* Slate 400 */
+  }
+
+  [data-theme="frost"] {
+    --bg-app: #1e1b4b;
+    /* Deepest Indigo */
+    --bg-surface: #312e81;
+    /* Dark Indigo */
+    --border: #4338ca;
+    /* Indigo 600 */
+    --primary: #a5b4fc;
+    /* Indigo 300 */
+    --accent: #e0e7ff;
+    /* Indigo 100 */
+    --text-primary: #e0e7ff;
+    --text-secondary: #818cf8;
+  }
+
+  [data-theme="retro"] {
+    --bg-app: #244855;
+    --bg-surface: #2D5A6A;
+    --border: #90AEAD;
+    --primary: #E64833;
+    --accent: #FBE9D0;
+    --text-primary: #FBE9D0;
+    /* Cream text for contrast */
+    --text-secondary: #90AEAD;
+  }
+
+  [data-theme="aqua"] {
+    --bg-app: #003135;
+    --bg-surface: #024950;
+    --border: #0FA4AF;
+    --primary: #0FA4AF;
+    --accent: #964734;
+    --text-primary: #e0f2f1;
+    --text-secondary: #80cbc4;
+  }
+
+  [data-theme="earth"] {
+    --bg-app: #3E362E;
+    --bg-surface: #52463A;
+    --border: #865D36;
+    --primary: #AC8968;
+    --accent: #A69080;
+    --text-primary: #f5f5f5;
+    --text-secondary: #d7ccc8;
+  }
+
   body {
-    @apply bg-background text-foreground font-sans;
-    transition: background-color 0.3s ease, color 0.3s ease, font-family 0.3s ease;
-  }
-
-  /* Ensure inputs and buttons inherit font */
-  input, textarea, select, button {
-      font-family: inherit;
+    @apply bg-background text-foreground font-sans antialiased;
+    /* Force grid pattern */
+    background-image: linear-gradient(to right, #80808012 1px, transparent 1px), linear-gradient(to bottom, #80808012 1px, transparent 1px);
+    background-size: 24px 24px;
   }
 }
-
-@layer components {
-  /* Updated btn-sky to use theme variables */
-  .btn-sky {
-    /* Example: Using primary color for background */
-    @apply px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-md transition;
-    /* Adjust hover state (e.g., hover:bg-accent) if needed */
-  }
-}
-
-@layer utilities {
-  /* Custom utility for emphasis text color */
-  .text-emphasis {
-    color: hsl(var(--text-emphasis));
-  }
-}
-
-/* Note for developers: Theme switching is handled by adding 'light', 'dark', or 'clean' class to the <html> element. */
-/* CSS variables in @layer base define the colors, fonts, etc. for each theme. */
-/* Components should use theme-aware Tailwind classes (bg-background, text-primary, etc.) */
