@@ -1,4 +1,5 @@
 import express from 'express';
+import auth from '../middleware/auth.js';
 
 import {
     createResource,
@@ -13,28 +14,28 @@ import {
 
 const router = express.Router();
 
-// GET all resources
-router.get('/', getAllResources);
+// GET all resources - REQUIRES AUTH for data isolation
+router.get('/', auth, getAllResources);
 
-// GET a single resource by ID
-router.get('/single/:id', getResourceById);
+// GET a single resource by ID - REQUIRES AUTH for data isolation
+router.get('/single/:id', auth, getResourceById);
 
-// Get all resources for a certain class
-router.get('/class/:id', getResourcesByClassId);
+// Get all resources for a certain class - REQUIRES AUTH for data isolation
+router.get('/class/:id', auth, getResourcesByClassId);
 
-// POST a new resource
-router.post('/', createResource);
+// POST a new resource - REQUIRES AUTH for data isolation
+router.post('/', auth, createResource);
 
-// DELETE a resource by ID
-router.delete('/:id', deleteResource);
+// DELETE a resource by ID - REQUIRES AUTH for data isolation
+router.delete('/:id', auth, deleteResource);
 
-// UPDATE a resource by ID
-router.patch('/:id', updateResource);
+// UPDATE a resource by ID - REQUIRES AUTH for data isolation
+router.patch('/:id', auth, updateResource);
 
 //Get all tasks by syllabus path (Not using in final proj)
 router.post('/syllabus', parseSyllabus)
 
-// Create resource by class ID
-router.post('/classid/:id', createResourceByClassId);
+// Create resource by class ID - REQUIRES AUTH for data isolation
+router.post('/classid/:id', auth, createResourceByClassId);
 
 export default router;

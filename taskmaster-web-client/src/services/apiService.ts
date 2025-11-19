@@ -32,19 +32,106 @@ const getToken = (config?: AxiosRequestConfig): string | null => {
   return localStorage.getItem("token");
 };
 
+// ===== Request Interceptor: Inject JWT Token =====
+apiClient.interceptors.request.use(
+  (config) => {
+    // Skip token injection for auth endpoints (login) and signup
+    const isAuthEndpoint = config.url?.includes("/auth");
+    const isSignupEndpoint = config.url?.includes("/user") && config.method === "post";
+    
+    if (isAuthEndpoint || isSignupEndpoint) {
+      // Still ensure CORS-friendly headers are set
+      if (config.headers) {
+        config.headers["Content-Type"] = "application/json";
+      }
+      return config;
+    }
+
+    const token = localStorage.getItem("token");
+    if (token && config.headers) {
+      config.headers["x-auth-token"] = token;
+    }
+    
+    // Ensure Content-Type is set for all requests
+    if (config.headers && !config.headers["Content-Type"] && config.data) {
+      config.headers["Content-Type"] = "application/json";
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+mlClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token && config.headers) {
+      config.headers["x-auth-token"] = token;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// ===== Response Interceptor: Handle 401 Unauthorized =====
+const handle401 = () => {
+  // Clear authentication data
+  localStorage.removeItem("token");
+  localStorage.removeItem("userData");
+  
+  // Redirect to login page
+  if (window.location.pathname !== "/login" && window.location.pathname !== "/signup") {
+    window.location.href = "/login";
+  }
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      handle401();
+    }
+    return Promise.reject(error);
+  }
+);
+
+mlClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      handle401();
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ===== API Service Class =====
 class ApiService {
   // ===== Auth Endpoints =====
-  async login(email: string, password: string): Promise<string> {
+  async login(emailOrUsername: string, password: string, isEmail: boolean = true): Promise<string> {
     if (USE_MOCK_DB) {
-      const token = mockDB.login(email, password);
+      const token = mockDB.login(emailOrUsername, password);
       if (!token) {
         throw new Error("Invalid email or password");
       }
       return token;
     }
 
-    const response = await axios.post(`${API_BASE_URL}/auth`, { email, password });
+    // Use apiClient but interceptor will skip token injection for /auth
+    // Send email or userName based on what was provided
+    const payload = isEmail 
+      ? { email: emailOrUsername, password }
+      : { userName: emailOrUsername, password };
+    
+    const response = await apiClient.post("/auth", payload, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
     return response.data;
   }
 
@@ -55,12 +142,28 @@ class ApiService {
     firstName?: string;
     lastName?: string;
     username?: string;
+    userName?: string;
   }): Promise<string> {
     if (USE_MOCK_DB) {
       return mockDB.signup(userData);
     }
 
-    const response = await apiClient.post("/user", userData);
+    // Map to backend expected format
+    const backendData = {
+      userName: userData.userName || userData.username || "",
+      firstName: userData.firstName || "",
+      lastName: userData.lastName || "",
+      email: userData.email,
+      password: userData.password,
+    };
+
+    console.log("Sending signup request to backend:", { ...backendData, password: "[REDACTED]" });
+    const response = await apiClient.post("/user", backendData, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    console.log("Backend signup response:", response.data);
     return response.data;
   }
 
@@ -79,6 +182,29 @@ class ApiService {
     const response = await apiClient.get<UserData>("/user/me", {
       headers: { "x-auth-token": authToken },
     });
+    return response.data;
+  }
+
+  async updateProfile(profileData: { firstName?: string; lastName?: string; pfp?: string }): Promise<any> {
+    if (USE_MOCK_DB) {
+      // Mock implementation
+      return { ...profileData };
+    }
+
+    const token = getToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const response = await apiClient.patch(
+      "/user/me",
+      profileData,
+      {
+        headers: {
+          "x-auth-token": token,
+        },
+      }
+    );
     return response.data;
   }
 
@@ -144,7 +270,7 @@ class ApiService {
       return mockDB.getTasksByClassId(classId);
     }
 
-    const response = await apiClient.get<TasksData[]>(`/tasks/classid/${classId}`, {
+    const response = await apiClient.get<TasksData[]>(`/task/classid/${classId}`, {
       headers: { "x-auth-token": authToken },
     });
     return response.data;
@@ -163,7 +289,7 @@ class ApiService {
       return updated;
     }
 
-    const response = await apiClient.patch(`/tasks/${taskId}`, updates, {
+    const response = await apiClient.patch(`/task/${taskId}`, updates, {
       headers: { "x-auth-token": authToken },
     });
     return response.data;
@@ -201,7 +327,7 @@ class ApiService {
     }
 
     const response = await apiClient.get<FlashcardsData[]>(
-      `/cards/class/${classId}`,
+      `/flashcard/class/${classId}`,
       {
         headers: { "x-auth-token": authToken },
       }
@@ -216,7 +342,7 @@ class ApiService {
       return mockDB.generateFlashcards(classId);
     }
 
-    const response = await apiClient.post(`/cards/${classId}`, {}, {
+    const response = await apiClient.post(`/flashcard/${classId}`, {}, {
       headers: { "x-auth-token": authToken },
     });
     return response.data;

@@ -42,27 +42,41 @@ const getUserByME = async (req, res) => {
 const createUser = async (req, res) => {
     try {
         const { userName, firstName, lastName, password, email } = req.body;
+        
+        console.log("Signup request received:", { userName, firstName, lastName, email });
+    
+        // Validate required fields
+        if (!userName || !firstName || !lastName || !email || !password) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
     
         //No duplicates check for email or username
         const checkUserEmail = await User.findOne({email});
         const checkUserName = await User.findOne({userName});
     
         if(checkUserName){
+          console.log("Username already taken:", userName);
           return res.status(400).json({message: "Username already taken"});
         }
 
         if(checkUserEmail){
+          console.log("Email already taken:", email);
           return res.status(400).json({message: "Email already taken"});
         }
     
         const salt = await bcrypt.genSalt(10); //Protect against dictionary attack
         const hashedPassword = await bcrypt.hash(password, salt); //Hash password with salt
         const newUser = new User({ userName, firstName, lastName, password: hashedPassword, email });
+        
+        console.log("Saving user to MongoDB...");
         const savedUser = await newUser.save();
+        console.log("User saved successfully:", savedUser._id);
     
         const token = savedUser.generateAuthToken();
+        console.log("Token generated, returning to client");
         return res.status(201).send( token ); //Return token using usermodel gen token
       } catch (error) {
+        console.error("Error creating user:", error);
         res.status(500).json({ message: error.message });
       }
 };
@@ -80,6 +94,35 @@ const updateProfile = async (req, res) => {
             friendsList: friendsList
         };
         const updatedProfile = await User.findOneAndUpdate({_id: req.params.userid}, update,{ new: true });
+
+        if (!updatedProfile) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json(updatedProfile);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+//UPDATE current user profile (authenticated user) - ENFORCE OWNERSHIP
+const updateMyProfile = async (req, res) => {
+    try {
+        const userId = req.user?._id; // Get from auth middleware
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        const { firstName, lastName, pfp } = req.body;
+        
+        // Only allow updating firstName, lastName, and pfp (not userName or email for security)
+        const update = {};
+        if (firstName !== undefined) update.firstName = firstName;
+        if (lastName !== undefined) update.lastName = lastName;
+        if (pfp !== undefined) update.pfp = pfp;
+        
+        const updatedProfile = await User.findByIdAndUpdate(userId, update, { new: true }).select('-password');
 
         if (!updatedProfile) {
             return res.status(404).json({ message: "User not found" });
@@ -131,6 +174,7 @@ const addFriend = async (req, res) => {
 export {
     getUserbyEmail,
     updateProfile,
+    updateMyProfile,
     deleteUser,
     createUser,
     getUserByME,

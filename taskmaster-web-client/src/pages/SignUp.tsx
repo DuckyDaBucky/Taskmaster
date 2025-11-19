@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { apiService } from "../services/apiService";
+import { Link } from "react-router-dom";
+import { authService } from "../services/authService";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FieldValues, useForm } from "react-hook-form";
@@ -22,7 +22,6 @@ const signupSchema = z.object({
 type SignupFormData = z.infer<typeof signupSchema>;
 
 function Signup() {
-  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
@@ -31,28 +30,34 @@ function Signup() {
     resolver: zodResolver(signupSchema),
   });
   const [formError, setFormError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const onSubmit = async (data: FieldValues) => {
+    setIsLoading(true);
+    setFormError(false);
+    
     try {
-      console.log(data);
-      const token = await apiService.signup({
-        email: data.email,
-        password: data.password,
-        name: data.name,
+      await authService.signup({
+        userName: data.userName,
         firstName: data.firstName,
         lastName: data.lastName,
-        username: data.username,
+        email: data.email,
+        password: data.password,
       });
-      if (token) {
-        localStorage.setItem("token", token);
-        navigate("/dashboard");
-      } else {
-        console.error("No token received from the server.");
-        setFormError(true);
-      }
+      // Reload to refresh UserContext and all components
+      window.location.href = "/dashboard";
     } catch (error: any) {
       console.error("Error submitting form: ", error);
       setFormError(true);
+      // Show alert for server errors
+      if (error.message.includes("Server error")) {
+        alert("Server error occurred. Please try again later.");
+      } else if (error.message) {
+        alert(error.message);
+      }
+      // DO NOT navigate on error
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -256,12 +261,23 @@ function Signup() {
 
             <motion.button
               type="submit"
+              disabled={isLoading}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.6 }}
-              className="col-span-2 w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 rounded-md hover:from-blue-700 hover:to-purple-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              className="col-span-2 w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 rounded-md hover:from-blue-700 hover:to-purple-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign Up
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Creating account...
+                </span>
+              ) : (
+                "Sign Up"
+              )}
             </motion.button>
           </form>
 

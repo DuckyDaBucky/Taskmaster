@@ -1,44 +1,78 @@
 import FlashCards from '../models/flashCardsModel.js';
+import Class from '../models/classModel.js';
 import flashCardGeneration from './flashcard_LLM/flashCardGenerator.js'
 
-//Get all FlashCards
+//Get all FlashCards - ENFORCE USER OWNERSHIP
 const getAllFlashCards = async(req, res) => {
     try {
-        const flashCards = await FlashCards.find();
-        res.status(200).json(flashCards);
+        const userId = req.user?._id; // Get from auth middleware
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        // Get all classes for this user
+        const userClasses = await Class.find({ user: userId });
+        const classIds = userClasses.map(c => c._id);
+        
+        // Get all flashcards that belong to user's classes
+        const flashCards = await FlashCards.find({ class: { $in: classIds } });
+        res.status(200).json(flashCards || []);
 
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-//Get FlashCards by ID
+//Get FlashCards by ID - ENFORCE USER OWNERSHIP
 const getFlashCardsById = async(req, res) => {
     try {
-        const flashCards = await FlashCards.findById(req.params.id);
-        if (!flashCards)
-        {
+        const userId = req.user?._id; // Get from auth middleware
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        const flashCard = await FlashCards.findById(req.params.id);
+        if (!flashCard) {
             return res.status(404).json({ message: "Flash Card not found" });
         }
 
-        res.status(200).json(flashCards);
+        // Verify flashcard belongs to user's class
+        const classDoc = await Class.findById(flashCard.class);
+        if (!classDoc || (classDoc.user && classDoc.user.toString() !== userId.toString())) {
+            return res.status(403).json({ message: "Access denied. This flashcard does not belong to you." });
+        }
+
+        res.status(200).json(flashCard);
 
     } catch (error) {
         res.status(500).json({message: error.message});
     }
 };
 
-//Update class
+//Update flashcard - ENFORCE USER OWNERSHIP
 const updateFlashCards = async(req, res) => {
     try {
-        const {topic, question, answer} = req.body;
-        const updatedFlashCard = await FlashCards.findByIdAndUpdate(req.params.id, {topic, question, answer}, {new: true});
+        const userId = req.user?._id; // Get from auth middleware
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
 
-        if (!updatedFlashCard)
-        {
+        // First verify ownership
+        const flashCard = await FlashCards.findById(req.params.id);
+        if (!flashCard) {
             return res.status(404).json({ message: "Flash Card not found" });
         }
 
+        const classDoc = await Class.findById(flashCard.class);
+        if (!classDoc || (classDoc.user && classDoc.user.toString() !== userId.toString())) {
+            return res.status(403).json({ message: "Access denied. This flashcard does not belong to you." });
+        }
+
+        const {topic, question, answer} = req.body;
+        const updatedFlashCard = await FlashCards.findByIdAndUpdate(req.params.id, {topic, question, answer}, {new: true});
         res.status(200).json(updatedFlashCard);
 
     } catch (error) {
@@ -46,15 +80,28 @@ const updateFlashCards = async(req, res) => {
     }
 };
 
-//Delete class
+//Delete flashcard - ENFORCE USER OWNERSHIP
 const deleteFlashCards = async(req, res) => {
     try {
-        const deletedClass = await FlashCards.findByIdAndDelete(req.params.id);
-        if (!deletedClass)
-        {
-            return res.status(404).json({message: "Class not found"});
+        const userId = req.user?._id; // Get from auth middleware
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
         }
-        res.status(200).json({message: "Class deleted successfully"});
+
+        // First verify ownership
+        const flashCard = await FlashCards.findById(req.params.id);
+        if (!flashCard) {
+            return res.status(404).json({message: "Flashcard not found"});
+        }
+
+        const classDoc = await Class.findById(flashCard.class);
+        if (!classDoc || (classDoc.user && classDoc.user.toString() !== userId.toString())) {
+            return res.status(403).json({ message: "Access denied. This flashcard does not belong to you." });
+        }
+
+        const deletedFlashCard = await FlashCards.findByIdAndDelete(req.params.id);
+        res.status(200).json({message: "Flashcard deleted successfully"});
 
     } catch (error) {
         res.status(500).json({message: error.message});
@@ -74,14 +121,27 @@ const generateFlashCards = async(req, res) => {
 }
 
 const getAllCardsbyClassId = async (req, res) => {
-    console.log("Class id");
     try {
-        const flashcards = await FlashCards.find({class: req.params.id});
-        if (!flashcards)
-        {
-            return res.status(404).json({ message: "Cards not found by classid" });
+        const classId = req.params.id;
+        const userId = req.user?._id; // Get from auth middleware if available
+        
+        // Verify class belongs to user
+        if (userId) {
+            const classDoc = await Class.findById(classId);
+            if (!classDoc) {
+                return res.status(404).json({ message: "Class not found" });
+            }
+            
+            // Check if class belongs to user
+            if (classDoc.user && classDoc.user.toString() !== userId.toString()) {
+                return res.status(403).json({ message: "Access denied. This class does not belong to you." });
+            }
         }
-        res.status(200).json(flashcards);
+        
+        const flashcards = await FlashCards.find({class: classId});
+        
+        // Return empty array if no flashcards found (not an error)
+        res.status(200).json(flashcards || []);
 
     } catch (error) {
         res.status(500).json({message: error.message});

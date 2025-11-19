@@ -3,6 +3,7 @@ import auth from '../middleware/auth.js'
 import {
     getUserbyEmail,
     updateProfile,
+    updateMyProfile,
     deleteUser,
     createUser,
     getUserByME,
@@ -27,10 +28,11 @@ const upload = multer({ storage: storage });
 
 const router = Router();
 router.get("/me", auth, getUserByME); //Get userid by deciphered local storage web token
+router.patch("/me", auth, updateMyProfile); //UPDATE current authenticated user profile
 router.get("/userLookUp/:userid", getUserbyId); //Get friends by id, can be used to lookup as any user as well
 router.get("/email/:email", getUserbyEmail); //Get user by email
 router.post("/", createUser); //POST user, for signup only
-router.patch("/update/:userid", updateProfile); //UPDATE user details
+router.patch("/update/:userid", updateProfile); //UPDATE user details (legacy)
 router.delete("/delete/:userid", deleteUser); //DELETE user by id
 router.patch("/add/:friendid/:userid", addFriend); //PATCH friendlist with new friend
 

@@ -22,9 +22,33 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 const app = express();
+
+// MANUAL CORS OVERRIDE - MUST BE FIRST MIDDLEWARE
+app.use((req, res, next) => {
+  console.log("🔥 RECEIVED:", req.method, req.url);
+  
+  // Set CORS headers for ALL requests
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, PATCH, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-auth-token");
+  res.header("Access-Control-Allow-Credentials", "true");
+
+  // Handle preflight OPTIONS requests immediately
+  if (req.method === "OPTIONS") {
+    console.log("✅ Preflight OPTIONS request - returning 200");
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
 const PORT = 3000;
 
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-auth-token"]
+}));
 mongoose
   .connect(process.env.DB_URL)
   .then(() => console.log("Connected to MongoDB"))
@@ -127,7 +151,11 @@ io.on("connection", (socket) => {
   });
 });
 
+// Parse JSON bodies - MUST come after CORS middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
 app.use("/user", userRoutes);
 app.use("/auth", authRoutes);
 app.use("/class", classRoutes);

@@ -24,15 +24,16 @@ const seedDB = async () => {
         console.log('Data wiped');
 
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash('password123', salt);
+        const hashedPasswordDemo = await bcrypt.hash('password123', salt);
+        const hashedPasswordDummy = await bcrypt.hash('passwordpassword', salt);
 
-        // Create User
+        // Create Demo User
         const user = await User.create({
             userName: 'demo_user',
             firstName: 'Demo',
             lastName: 'User',
             email: 'demo@taskmaster.com',
-            password: hashedPassword,
+            password: hashedPasswordDemo,
             streak: 5,
             points: 120,
             level: 2,
@@ -43,7 +44,26 @@ const seedDB = async () => {
                 privateSpace: 1
             }
         });
-        console.log('User created');
+        console.log('Demo user created');
+
+        // Create Dummy User
+        const dummyUser = await User.create({
+            userName: 'dummy_user',
+            firstName: 'Dummy',
+            lastName: 'User',
+            email: 'dummy@taskmaster.com',
+            password: hashedPasswordDummy,
+            streak: 0,
+            points: 0,
+            level: 1,
+            preferences: {
+                personality: 0.5,
+                time: 1,
+                inPerson: 0.5,
+                privateSpace: 0.5
+            }
+        });
+        console.log('Dummy user created');
 
         // Create Classes
         const class1 = await Class.create({

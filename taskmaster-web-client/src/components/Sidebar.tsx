@@ -11,10 +11,13 @@ import {
   Settings, 
   LogOut 
 } from "lucide-react";
+import { useUser } from "../context/UserContext";
+import { authService } from "../services/authService";
 
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout: logoutUserContext } = useUser();
 
   const menuItems = [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -64,10 +67,20 @@ export const Sidebar: React.FC = () => {
       <div className="mt-auto border-t border-border-color p-4 space-y-2">
         {/* Profile Row */}
         <div className="flex items-center gap-3 px-2 py-2 mb-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white font-bold text-xs">
-            U
-          </div>
-          <span className="text-sm text-foreground font-medium">User Name</span>
+          {(user as any)?.pfp ? (
+            <img 
+              src={(user as any).pfp} 
+              alt={user?.firstName || user?.username || user?.email || "User"} 
+              className="w-8 h-8 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white font-bold text-xs">
+              {(user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0] || "U").toUpperCase()}
+            </div>
+          )}
+          <span className="text-sm text-foreground font-medium">
+            {user?.firstName || user?.username || user?.email || "User"}
+          </span>
         </div>
 
         {/* System Links */}
@@ -80,7 +93,15 @@ export const Sidebar: React.FC = () => {
         </button>
         
         <button 
-          onClick={() => navigate("/login")}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("Logout button clicked");
+            // Clear UserContext state first
+            logoutUserContext();
+            // Then clear localStorage and redirect
+            authService.logout();
+          }}
           className="w-full flex items-center gap-3 px-4 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-background hover:text-destructive transition-colors"
         >
           <LogOut size={18} />

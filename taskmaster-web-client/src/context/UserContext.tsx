@@ -87,9 +87,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({
         .getUserMe(token)
         .then((fetchedUserData) => {
           // --- Refine fetched data (optional, e.g., ensure email exists) ---
+          // Map backend userName to username for consistency
           const refinedUserData: UserData = {
             ...fetchedUserData,
             email: fetchedUserData.email || "no-email@example.com", // Ensure email has a fallback
+            username: (fetchedUserData as any).userName || fetchedUserData.username, // Map userName from backend
             // You could add similar checks/defaults for other fields if needed
           };
           // --- End Refinement ---

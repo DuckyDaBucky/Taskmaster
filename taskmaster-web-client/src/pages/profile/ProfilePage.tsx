@@ -1,25 +1,142 @@
-import React from "react";
-import { MapPin, Link as LinkIcon, Calendar, Edit } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { MapPin, Link as LinkIcon, Calendar, Edit, Save, X } from "lucide-react";
+import { useUser } from "../../context/UserContext";
+import { authService } from "../../services/authService";
 
 const ProfilePage: React.FC = () => {
+  const { user, setUserState } = useUser();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    pfp: "",
+  });
+
+  // Initialize form data from user
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        pfp: (user as any).pfp || "",
+      });
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    setIsLoading(true);
+    try {
+      const updatedUser = await authService.updateProfile(formData);
+      
+      // Update UserContext
+      setUserState({
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        ...((updatedUser.pfp && { profileImageUrl: updatedUser.pfp }) || {}),
+      });
+      
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      alert("Failed to update profile. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    // Reset form data to original user data
+    if (user) {
+      setFormData({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        pfp: (user as any).pfp || "",
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const displayName = user?.firstName || user?.username || user?.email || "User";
+  const fullName = user?.firstName && user?.lastName 
+    ? `${user.firstName} ${user.lastName}` 
+    : displayName;
+  const initials = user?.firstName && user?.lastName
+    ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+    : (user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0] || "U").toUpperCase();
+  const avatarUrl = (user as any)?.pfp || user?.profileImageUrl;
+
   return (
     <div className="space-y-6">
       {/* Header / Banner */}
       <div className="relative mb-16">
         <div className="h-48 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-md w-full"></div>
         <div className="absolute -bottom-12 left-8 flex items-end gap-4">
-          <div className="w-32 h-32 rounded-full bg-card border-4 border-background flex items-center justify-center text-4xl font-bold text-foreground shadow-lg">
-            U
+          <div className="relative">
+            {avatarUrl ? (
+              <img 
+                src={avatarUrl} 
+                alt={fullName} 
+                className="w-32 h-32 rounded-full border-4 border-background object-cover shadow-lg"
+              />
+            ) : (
+              <div className="w-32 h-32 rounded-full bg-card border-4 border-background flex items-center justify-center text-4xl font-bold text-foreground shadow-lg">
+                {initials}
+              </div>
+            )}
           </div>
           <div className="mb-2">
-            <h1 className="text-2xl font-bold text-foreground">User Name</h1>
-            <p className="text-muted-foreground">Computer Science Student</p>
+            {isEditing ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="First Name"
+                  className="px-3 py-1 bg-background border border-border rounded text-foreground text-xl font-bold"
+                />
+                <input
+                  type="text"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  placeholder="Last Name"
+                  className="px-3 py-1 bg-background border border-border rounded text-foreground text-sm text-muted-foreground"
+                />
+              </div>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold text-foreground">{fullName}</h1>
+                <p className="text-muted-foreground">{user?.email || "No email"}</p>
+              </>
+            )}
           </div>
         </div>
         <div className="absolute top-4 right-4">
-          <button className="px-4 py-2 bg-background/20 backdrop-blur-sm hover:bg-background/30 text-white border border-white/20 rounded-md text-sm font-medium transition-colors flex items-center gap-2">
-            <Edit size={16} /> Edit Profile
-          </button>
+          {isEditing ? (
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={isLoading}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white border border-white/20 rounded-md text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                <Save size={16} /> {isLoading ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={isLoading}
+                className="px-4 py-2 bg-background/20 backdrop-blur-sm hover:bg-background/30 text-white border border-white/20 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <X size={16} /> Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="px-4 py-2 bg-background/20 backdrop-blur-sm hover:bg-background/30 text-white border border-white/20 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              <Edit size={16} /> Edit Profile
+            </button>
+          )}
         </div>
       </div>
 
@@ -28,24 +145,56 @@ const ProfilePage: React.FC = () => {
         <div className="space-y-6">
           <div className="bg-card border border-border rounded-md p-6 space-y-4">
             <h3 className="font-semibold text-foreground">About</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Passionate about algorithms and web development. Currently studying at Tech University.
-            </p>
-            
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <MapPin size={16} />
-                <span>San Francisco, CA</span>
+            {isEditing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-muted-foreground mb-1 block">Avatar URL</label>
+                  <input
+                    type="text"
+                    value={formData.pfp}
+                    onChange={(e) => setFormData({ ...formData, pfp: e.target.value })}
+                    placeholder="https://example.com/avatar.jpg"
+                    className="w-full px-3 py-2 bg-background border border-border rounded text-foreground text-sm"
+                  />
+                </div>
+                {formData.pfp && (
+                  <div className="mt-2">
+                    <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+                    <img 
+                      src={formData.pfp} 
+                      alt="Preview" 
+                      className="w-16 h-16 rounded-full object-cover border border-border"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <LinkIcon size={16} />
-                <a href="#" className="text-primary hover:underline">github.com/username</a>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Calendar size={16} />
-                <span>Joined September 2023</span>
-              </div>
-            </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {user?.firstName && user?.lastName
+                    ? `${user.firstName} ${user.lastName} is a student using TaskMaster to organize their academic life.`
+                    : "Student using TaskMaster to organize academic life."}
+                </p>
+                
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <MapPin size={16} />
+                    <span>Location not set</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <LinkIcon size={16} />
+                    <span className="text-primary">{user?.email || "No email"}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <Calendar size={16} />
+                    <span>Member since {user ? new Date().getFullYear() : "2024"}</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="bg-card border border-border rounded-md p-6">
@@ -64,15 +213,15 @@ const ProfilePage: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-card border border-border rounded-md p-6 text-center">
-              <h4 className="text-2xl font-bold text-foreground">128</h4>
+              <h4 className="text-2xl font-bold text-foreground">-</h4>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Tasks Done</p>
             </div>
             <div className="bg-card border border-border rounded-md p-6 text-center">
-              <h4 className="text-2xl font-bold text-foreground">85%</h4>
+              <h4 className="text-2xl font-bold text-foreground">-</h4>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Avg Grade</p>
             </div>
             <div className="bg-card border border-border rounded-md p-6 text-center">
-              <h4 className="text-2xl font-bold text-foreground">12</h4>
+              <h4 className="text-2xl font-bold text-foreground">-</h4>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Projects</p>
             </div>
           </div>

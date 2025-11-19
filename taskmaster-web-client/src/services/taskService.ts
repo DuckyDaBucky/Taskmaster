@@ -1,46 +1,22 @@
-import axios from "axios";
-import { TASKS, Task } from "../database/tasksDB";
-
-const API_URL = "http://localhost:5000";
+import { apiClient } from "./apiService";
+import { Task } from "../database/tasksDB";
 
 export const taskService = {
     getTasks: async (): Promise<Task[]> => {
-        try {
-            const response = await axios.get<Task[]>(`${API_URL}/tasks`);
-            return response.data;
-        } catch (error) {
-            console.warn("Backend failed, falling back to static data:", error);
-            return TASKS;
-        }
+        // Use apiClient which has token injection and 401 handling
+        const response = await apiClient.get<Task[]>("/tasks");
+        return response.data;
     },
 
     getTasksByClassId: async (classId: string): Promise<Task[]> => {
-        try {
-            const response = await axios.get<Task[]>(`${API_URL}/tasks/class/${classId}`);
-            return response.data;
-        } catch (error) {
-            console.warn("Backend failed, falling back to static data:", error);
-            return TASKS.filter((task) => task.class === classId);
-        }
+        // Use apiClient which has token injection and 401 handling
+        const response = await apiClient.get<Task[]>(`/tasks/class/${classId}`);
+        return response.data;
     },
 
     createTask: async (task: Partial<Task>): Promise<Task> => {
-        try {
-            const response = await axios.post<Task>(`${API_URL}/tasks`, task);
-            return response.data;
-        } catch (error) {
-            console.warn("Backend failed, falling back to static mock:", error);
-            // Return a mock task for now since we can't persist to static array
-            return {
-                _id: `mock-task-${Date.now()}`,
-                deadline: task.deadline || new Date().toISOString(),
-                topic: task.topic || "General",
-                title: task.title || "New Task",
-                status: task.status || "pending",
-                points: task.points || 0,
-                textbook: task.textbook || null,
-                class: task.class || "",
-            };
-        }
+        // Use apiClient which has token injection and 401 handling
+        const response = await apiClient.post<Task>("/tasks", task);
+        return response.data;
     },
 };

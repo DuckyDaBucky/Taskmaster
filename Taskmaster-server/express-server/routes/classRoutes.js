@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import auth from '../middleware/auth.js';
 
 import { 
     createClass, 
@@ -12,25 +13,25 @@ import {
 
 const router = Router();
 
-// GET all classs (don't use on client side)
-router.get('/', getAllClasses);
+// GET all classes - REQUIRES AUTH for data isolation
+router.get('/', auth, getAllClasses);
 
-// GET a single class by ID
-router.get('/single/:id', getClassById);
+// GET a single class by ID - REQUIRES AUTH for data isolation
+router.get('/single/:id', auth, getClassById);
 
-// GET all class by userId
-router.get('/user/:userid', getAllClassesbyUserid);
+// GET all class by userId - REQUIRES AUTH for data isolation
+router.get('/user/:userid', auth, getAllClassesbyUserid);
 
-// POST a new class
-router.post('/', createClass);
+// POST a new class - REQUIRES AUTH for data isolation
+router.post('/', auth, createClass);
 
-// DELETE a class by ID
-router.delete('/:id', deleteClass);
+// DELETE a class by ID - REQUIRES AUTH for data isolation
+router.delete('/:id', auth, deleteClass);
 
 //Get all tasks by syllabus path (Not being used in final)
 router.post('/syllabus', parseSyllabus)
 
-// UPDATE a class by ID
-router.patch('/:id', updateClass);
+// UPDATE a class by ID - REQUIRES AUTH for data isolation
+router.patch('/:id', auth, updateClass);
 
 export default router;

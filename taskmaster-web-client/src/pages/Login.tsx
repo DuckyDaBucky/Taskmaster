@@ -1,20 +1,20 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { apiService } from "../services/apiService";
+import { authService } from "../services/authService";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FieldValues, useForm } from "react-hook-form";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(9, "Password must be at least 9 characters"),
+  emailOrUsername: z.string().min(1, "Email or username is required"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
 function Login() {
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     register,
     handleSubmit,
@@ -23,38 +23,37 @@ function Login() {
     resolver: zodResolver(loginSchema),
   });
   const [setInvalidPass, setSetInvalidPass] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Temporary bypass function for development
-  const handleBypassAuth = () => {
-    // Set a dummy token
-    localStorage.setItem("token", "dev-bypass-token");
-    
-    // Set dummy user data
-    const dummyUser = {
-      _id: "dev-user-id",
-      name: "Dev User",
-      email: "dev@example.com",
-      username: "devuser"
-    };
-    localStorage.setItem("userData", JSON.stringify(dummyUser));
-    
-    // Navigate to dashboard
-    navigate("/dashboard");
-  };
+  // Prevent auto-login if user just logged out
+  useEffect(() => {
+    // If coming from logout, ensure everything is cleared
+    if (searchParams.get('logout') === 'true') {
+      localStorage.removeItem("token");
+      localStorage.removeItem("userData");
+      localStorage.removeItem("personalityData");
+      // Remove the query parameter from URL
+      window.history.replaceState({}, '', '/login');
+    }
+  }, [searchParams]);
 
   const onSubmit = async (data: FieldValues) => {
+    setIsLoading(true);
+    setSetInvalidPass(false);
+    
     try {
-      const token = await apiService.login(data.email, data.password);
-      if (token) {
-        localStorage.setItem("token", token);
-        navigate("/dashboard");
-      } else {
-        console.error("No token received from server");
-        setSetInvalidPass(true);
-      }
+      // Check if input is email or username
+      const emailOrUsername = data.emailOrUsername;
+      const isEmail = emailOrUsername.includes("@");
+      
+      await authService.login(emailOrUsername, data.password, isEmail);
+      // Reload to refresh UserContext and all components
+      window.location.href = "/dashboard";
     } catch (error: any) {
       console.error("Login error: ", error.message || error);
       setSetInvalidPass(true);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -126,21 +125,21 @@ function Login() {
               transition={{ duration: 0.5, delay: 0.2 }}
             >
               <label
-                htmlFor="email"
+                htmlFor="emailOrUsername"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Email Address
+                Email or Username
               </label>
               <input
-                type="email"
-                id="email"
-                {...register("email")}
+                type="text"
+                id="emailOrUsername"
+                {...register("emailOrUsername")}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="you@example.com"
+                placeholder="you@example.com or username"
               />
-              {errors.email && (
-                <p className="text-red-500 text-sm">{errors.email.message}</p>
+              {errors.emailOrUsername && (
+                <p className="text-red-500 text-sm">{errors.emailOrUsername.message}</p>
               )}
             </motion.div>
 
@@ -170,24 +169,23 @@ function Login() {
 
             <motion.button
               type="submit"
+              disabled={isLoading}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.6 }}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 rounded-md hover:from-blue-700 hover:to-purple-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 rounded-md hover:from-blue-700 hover:to-purple-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
-            </motion.button>
-
-            {/* Temporary Dev Bypass Button */}
-            <motion.button
-              type="button"
-              onClick={handleBypassAuth}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.7 }}
-              className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-2 rounded-md hover:from-orange-600 hover:to-red-600 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-50 mt-2 text-sm"
-            >
-              🔓 Dev Bypass (Temporary)
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                "Sign In"
+              )}
             </motion.button>
 
             <motion.div
