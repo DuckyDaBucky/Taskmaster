@@ -168,7 +168,7 @@ const createResourceByClassId = async(req, res) => {
             return res.status(401).json({ message: "Authentication required" });
         }
 
-        console.log("🔥 CREATE RESOURCE PAYLOAD:", req.body);
+        console.log("CREATE RESOURCE PAYLOAD:", req.body);
         
         const {urls, websites} = req.body;
         const classId = req.params.id;
@@ -187,18 +187,81 @@ const createResourceByClassId = async(req, res) => {
             return res.status(403).json({ message: "Access denied. This class does not belong to you." });
         }
         
+        // Handle file upload if present
+        let fileData = null;
+        if (req.file) {
+            fileData = {
+                filename: req.file.filename,
+                originalName: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                path: req.file.path
+            };
+        }
+
         const newResource = new Resource({
             urls: urls || [], 
             websites: websites || [],
-            class: classId
+            files: fileData ? [fileData] : [],
+            class: classId,
+            user: userId
         });
         
         const savedResource = await newResource.save();
-        console.log("✅ Resource created successfully:", savedResource._id);
+        console.log("Resource created successfully:", savedResource._id);
+        
+        // Log activity
+        try {
+            const { createActivity } = await import('./activityController.js');
+            await createActivity(userId, 'resource_added', `Added resource`, { resourceId: savedResource._id, classId: classId });
+        } catch (error) {
+            console.error("Error logging activity:", error);
+        }
+        
         res.status(201).json(savedResource);
 
     } catch (error) {
-        console.error("❌ Error creating resource:", error);
+        console.error("Error creating resource:", error);
+        res.status(500).json({message: error.message});
+    }
+};
+
+//Smart upload - AI auto-classifies files
+const smartUploadResource = async(req, res) => {
+    try {
+        const userId = req.user?._id;
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        // TODO: Use Gemini to analyze file and determine class
+        // For now, create a resource without a class (will need manual assignment)
+        const newResource = new Resource({
+            urls: [],
+            websites: [],
+            files: [{
+                filename: req.file.filename,
+                originalName: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                path: req.file.path
+            }],
+            user: userId
+            // class will be null - user can assign later or AI can determine
+        });
+        
+        const savedResource = await newResource.save();
+        console.log("Smart upload resource created:", savedResource._id);
+        
+        res.status(201).json(savedResource);
+
+    } catch (error) {
+        console.error("Error in smart upload:", error);
         res.status(500).json({message: error.message});
     }
 };
@@ -229,5 +292,6 @@ export {
     deleteResource,
     getResourcesByClassId,
     createResourceByClassId,
+    smartUploadResource,
     parseSyllabus
 };

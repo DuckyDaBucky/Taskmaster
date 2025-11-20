@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { StatsWidget } from "./StatsWidget";
 import { RecentActivityWidget } from "./RecentActivityWidget";
+import { ActivityChart } from "./ActivityChart";
+import { ProgressChart } from "./ProgressChart";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
-import type { TasksData } from "../../services/mockDatabase";
+import type { TasksData } from "../../services/types";
 
 const DashboardPage: React.FC = () => {
   const { user } = useUser();
@@ -19,20 +21,8 @@ const DashboardPage: React.FC = () => {
 
       try {
         setIsLoading(true);
-        // Get all classes for the user
-        const classes = await apiService.getClassesByUserId(user._id);
-        
-        // Fetch tasks for each class
-        const allTasks: TasksData[] = [];
-        for (const classItem of classes) {
-          try {
-            const classTasks = await apiService.getTasksByClassId(classItem._id);
-            allTasks.push(...classTasks);
-          } catch (error) {
-            console.error(`Error fetching tasks for class ${classItem._id}:`, error);
-          }
-        }
-        
+        // Fetch all tasks (includes personal tasks)
+        const allTasks = await apiService.getAllTasks();
         setTasks(allTasks);
       } catch (error) {
         console.error("Error fetching tasks:", error);
@@ -59,16 +49,12 @@ const DashboardPage: React.FC = () => {
         </button>
       </div>
 
-      <StatsWidget tasks={tasks} isLoading={isLoading} />
+      <StatsWidget tasks={tasks} isLoading={isLoading} user={user} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-surface border border-border-color rounded-md p-6 h-64 flex items-center justify-center text-muted-foreground">
-            Chart Placeholder (Activity)
-          </div>
-          <div className="bg-surface border border-border-color rounded-md p-6 h-64 flex items-center justify-center text-muted-foreground">
-            Chart Placeholder (Progress)
-          </div>
+          <ActivityChart tasks={tasks} isLoading={isLoading} />
+          <ProgressChart tasks={tasks} isLoading={isLoading} />
         </div>
         
         <div>

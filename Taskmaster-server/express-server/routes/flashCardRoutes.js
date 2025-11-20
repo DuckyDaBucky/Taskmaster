@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import auth from '../middleware/auth.js';
 
-import { 
+import {
     getAllFlashCards,
     getFlashCardsById,
     updateFlashCards,
     deleteFlashCards,
     generateFlashCards,
-    getAllCardsbyClassId
+    getAllCardsbyClassId,
+    cleanupFlashcards,
+    createManualFlashCards
 } from '../controllers/flashGenerationController.js';
 
 const router = Router();
@@ -27,9 +29,13 @@ router.delete('/:id', auth, deleteFlashCards);
 // UPDATE a flashcard by ID - REQUIRES AUTH for data isolation
 router.patch('/:id', auth, updateFlashCards);
 
-// Generate Flash Cards by classid - REQUIRES AUTH for data isolation
+// Manual flashcard creation - MUST come before /:classid route
+router.post("/manual/:classid", auth, createManualFlashCards);
+
+// Generate Flash Cards by classid (Auto mode) - REQUIRES AUTH for data isolation
 router.post("/:classid", auth, generateFlashCards);
 
-
+// Cleanup hardcoded flashcards - REQUIRES AUTH
+router.delete("/cleanup/hardcoded", auth, cleanupFlashcards);
 
 export default router;

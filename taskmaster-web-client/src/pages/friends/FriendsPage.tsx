@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { FriendCard } from "./FriendCard";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
-import { apiClient } from "../../services/apiService";
 
 interface Friend {
   id: string;
@@ -29,35 +28,18 @@ const FriendsPage: React.FC = () => {
 
       try {
         setIsLoading(true);
-        // Fetch user data with friends list
-        const userData = await apiService.getUserMe();
+        // Fetch friends list directly from the backend
+        const friendsList = await apiService.getFriends(user._id);
         
-        // If friendsList exists and is populated, fetch friend details
-        if (userData.friendsList && Array.isArray(userData.friendsList) && userData.friendsList.length > 0) {
-          const friendDetails: Friend[] = [];
-          
-          for (const friendId of userData.friendsList) {
-            try {
-              const friendData = await apiClient.get(`/user/userLookUp/${friendId}`, {
-                headers: { "x-auth-token": localStorage.getItem("token") || "" },
-              });
-              
-              const friend = friendData.data;
-              friendDetails.push({
-                id: friend._id,
-                name: `${friend.firstName || ""} ${friend.lastName || ""}`.trim() || friend.userName || friend.email,
-                status: "offline" as const,
-                avatarColor: `bg-${["blue", "green", "purple", "red", "orange", "cyan"][Math.floor(Math.random() * 6)]}-600`,
-              });
-            } catch (error) {
-              console.error(`Error fetching friend ${friendId}:`, error);
-            }
-          }
-          
-          setFriends(friendDetails);
-        } else {
-          setFriends([]);
-        }
+        // Convert to Friend format
+        const friendDetails: Friend[] = friendsList.map((friend: any) => ({
+          id: friend._id,
+          name: `${friend.firstName || ""} ${friend.lastName || ""}`.trim() || friend.userName || friend.email,
+          status: "offline" as const,
+          avatarColor: `bg-${["blue", "green", "purple", "red", "orange", "cyan"][Math.floor(Math.random() * 6)]}-600`,
+        }));
+        
+        setFriends(friendDetails);
       } catch (error) {
         console.error("Error fetching friends:", error);
         setError("Failed to load friends");
@@ -80,31 +62,15 @@ const FriendsPage: React.FC = () => {
       setSuccessMessage("Hamiz Iqbal added as friend successfully!");
 
       // Refresh friends list
-      const userData = await apiService.getUserMe();
-      
-      if (userData.friendsList && Array.isArray(userData.friendsList) && userData.friendsList.length > 0) {
-        const friendDetails: Friend[] = [];
-        
-        for (const friendId of userData.friendsList) {
-          try {
-            const friendData = await apiClient.get(`/user/userLookUp/${friendId}`, {
-              headers: { "x-auth-token": localStorage.getItem("token") || "" },
-            });
-            
-            const friend = friendData.data;
-            friendDetails.push({
-              id: friend._id,
-              name: `${friend.firstName || ""} ${friend.lastName || ""}`.trim() || friend.userName || friend.email,
-              status: "offline" as const,
-              avatarColor: `bg-${["blue", "green", "purple", "red", "orange", "cyan"][Math.floor(Math.random() * 6)]}-600`,
-            });
-          } catch (error) {
-            console.error(`Error fetching friend ${friendId}:`, error);
-          }
-        }
-        
-        setFriends(friendDetails);
-      }
+      if (!user?._id) return;
+      const friendsList = await apiService.getFriends(user._id);
+      const friendDetails: Friend[] = friendsList.map((friend: any) => ({
+        id: friend._id,
+        name: `${friend.firstName || ""} ${friend.lastName || ""}`.trim() || friend.userName || friend.email,
+        status: "offline" as const,
+        avatarColor: `bg-${["blue", "green", "purple", "red", "orange", "cyan"][Math.floor(Math.random() * 6)]}-600`,
+      }));
+      setFriends(friendDetails);
     } catch (error: any) {
       console.error("Error adding Hamiz:", error);
       setError(error.response?.data?.message || "Failed to add Hamiz Iqbal as friend");

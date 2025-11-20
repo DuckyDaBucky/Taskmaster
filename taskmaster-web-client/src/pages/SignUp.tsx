@@ -51,9 +51,9 @@ function Signup() {
       setFormError(true);
       // Show alert for server errors
       if (error.message.includes("Server error")) {
-        alert("Server error occurred. Please try again later.");
+        console.error("Server error occurred. Please try again later.");
       } else if (error.message) {
-        alert(error.message);
+        console.error(error.message);
       }
       // DO NOT navigate on error
     } finally {

@@ -30,12 +30,12 @@ const FriendCard: React.FC<FriendCardProps> = ({ friend, isSelected, onClick }) 
         }`}
       ></span>
 
-      {/* Username and match icon */}
+      {/* Username */}
       <div className="flex items-center gap-1 text-sm font-medium text-foreground truncate">
         <span>{friend.username}</span>
         {friend.matched && (
-          <span className="text-yellow-400" title="Matched Friend">
-            ⭐
+          <span className="text-xs text-muted-foreground" title="Matched Friend">
+            (Matched)
           </span>
         )}
       </div>

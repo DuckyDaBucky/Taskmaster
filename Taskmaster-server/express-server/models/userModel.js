@@ -13,11 +13,12 @@ const userSchema = new mongoose.Schema({
     pfp: String,
 
     //For Gameify
-    streak: Number,
+    streak: { type: Number, default: 0 },
+    lastLoginDate: Date,
+    loginDates: [Date], // Array of dates user logged in
     lastTaskDate: Date,
-    points: Number,
-    streak: Number,
-    level: Number,
+    points: { type: Number, default: 0 },
+    level: { type: Number, default: 1 },
     groupNumber: Number,
 
     //For friend matchmaking

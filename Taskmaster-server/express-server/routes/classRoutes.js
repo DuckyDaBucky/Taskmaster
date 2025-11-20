@@ -8,13 +8,17 @@ import {
     getAllClassesbyUserid,
     updateClass, 
     deleteClass,
-    parseSyllabus 
+    parseSyllabus,
+    getPersonalClassId
 } from '../controllers/classController.js';
 
 const router = Router();
 
-// GET all classes - REQUIRES AUTH for data isolation
+// GET all classes (excludes Personal) - REQUIRES AUTH for data isolation
 router.get('/', auth, getAllClasses);
+
+// GET Personal class ID - REQUIRES AUTH
+router.get('/personal', auth, getPersonalClassId);
 
 // GET a single class by ID - REQUIRES AUTH for data isolation
 router.get('/single/:id', auth, getClassById);

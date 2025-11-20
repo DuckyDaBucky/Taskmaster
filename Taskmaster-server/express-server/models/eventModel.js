@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const eventModel = mongoose.Schema({
     title: String,
+    description: { type: String }, // AI-generated description/summary from LangChain/Gemini
     task: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
     course: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
     repeatWeekly: Boolean,

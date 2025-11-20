@@ -39,7 +39,7 @@ const ProfilePage: React.FC = () => {
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to update profile:", error);
-      alert("Failed to update profile. Please try again.");
+      console.error("Failed to update profile. Please try again.");
     } finally {
       setIsLoading(false);
     }

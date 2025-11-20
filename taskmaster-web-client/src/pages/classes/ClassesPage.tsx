@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { MoreVertical, Plus, X } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { MoreVertical, Plus, X, Edit, Trash2 } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
-import type { ClassData } from "../../services/mockDatabase";
+import type { ClassData } from "../../services/types";
 
 const ClassesPage: React.FC = () => {
   const { user } = useUser();
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: "",
     professor: "",
@@ -22,6 +25,23 @@ const ClassesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(null);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showDropdown]);
+
   useEffect(() => {
     const fetchClasses = async () => {
       if (!user?._id) {
@@ -33,6 +53,7 @@ const ClassesPage: React.FC = () => {
         setIsLoading(true);
         const userClasses = await apiService.getAllClasses();
         setClasses(userClasses);
+        setError(null);
       } catch (error) {
         console.error("Error fetching classes:", error);
         setError("Failed to load classes");
@@ -44,9 +65,42 @@ const ClassesPage: React.FC = () => {
     fetchClasses();
   }, [user?._id]);
 
-  const handleCreateClass = async (e: React.FormEvent) => {
+  const handleOpenEditModal = (classItem: ClassData) => {
+    setEditingClassId(classItem._id);
+    setFormData({
+      name: classItem.name || "",
+      professor: classItem.professor || "",
+      timing: classItem.timing || "",
+      location: classItem.location || "",
+      topics: classItem.topics?.join(", ") || "",
+      textbooks: classItem.textbooks?.join(", ") || "",
+      gradingPolicy: classItem.gradingPolicy || "",
+      contactInfo: classItem.contactInfo || "",
+    });
+    setShowDropdown(null);
+    setError(null);
+    setShowModal(true);
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditingClassId(null);
+    setFormData({
+      name: "",
+      professor: "",
+      timing: "",
+      location: "",
+      topics: "",
+      textbooks: "",
+      gradingPolicy: "",
+      contactInfo: "",
+    });
+    setError(null);
+    setShowModal(true);
+  };
+
+  const handleSaveClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) {
+    if (!formData.name.trim()) {
       setError("Please enter a class name");
       return;
     }
@@ -56,27 +110,31 @@ const ClassesPage: React.FC = () => {
       setError(null);
 
       const classData = {
-        name: formData.name,
-        professor: formData.professor || undefined,
-        timing: formData.timing || undefined,
-        location: formData.location || undefined,
-        topics: formData.topics
-          ? formData.topics.split(",").map((t) => t.trim())
+        name: formData.name.trim(),
+        professor: formData.professor.trim() || undefined,
+        timing: formData.timing.trim() || undefined,
+        location: formData.location.trim() || undefined,
+        topics: formData.topics.trim()
+          ? formData.topics.split(",").map((t) => t.trim()).filter(Boolean)
           : undefined,
-        textbooks: formData.textbooks
-          ? formData.textbooks.split(",").map((t) => t.trim())
+        textbooks: formData.textbooks.trim()
+          ? formData.textbooks.split(",").map((t) => t.trim()).filter(Boolean)
           : undefined,
-        gradingPolicy: formData.gradingPolicy || undefined,
-        contactInfo: formData.contactInfo || undefined,
+        gradingPolicy: formData.gradingPolicy.trim() || undefined,
+        contactInfo: formData.contactInfo.trim() || undefined,
       };
 
-      await apiService.createClass(classData);
+      if (editingClassId) {
+        await apiService.updateClass(editingClassId, classData);
+      } else {
+        await apiService.createClass(classData);
+      }
 
       // Refresh classes
       const updatedClasses = await apiService.getAllClasses();
       setClasses(updatedClasses);
 
-      // Reset form
+      // Reset and close
       setFormData({
         name: "",
         professor: "",
@@ -87,12 +145,32 @@ const ClassesPage: React.FC = () => {
         gradingPolicy: "",
         contactInfo: "",
       });
+      setEditingClassId(null);
       setShowModal(false);
+      setError(null);
     } catch (error: any) {
-      console.error("Error creating class:", error);
-      setError(error.response?.data?.message || "Failed to create class");
+      console.error("Error saving class:", error);
+      setError(error.response?.data?.message || `Failed to ${editingClassId ? 'update' : 'create'} class`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteClass = async (classId: string) => {
+    if (!confirm("Are you sure you want to delete this class? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      setError(null);
+      await apiService.deleteClass(classId);
+      const updatedClasses = await apiService.getAllClasses();
+      setClasses(updatedClasses);
+      setShowDropdown(null);
+    } catch (error: any) {
+      console.error("Error deleting class:", error);
+      setError(error.response?.data?.message || "Failed to delete class");
+      setShowDropdown(null);
     }
   };
 
@@ -124,10 +202,10 @@ const ClassesPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Classes</h1>
         <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md text-sm font-medium transition-colors"
+          onClick={handleOpenCreateModal}
+          className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md text-sm font-medium transition-colors flex items-center gap-2"
         >
-          <Plus size={16} className="inline mr-1" />
+          <Plus size={16} />
           New Class
         </button>
       </div>
@@ -155,9 +233,44 @@ const ClassesPage: React.FC = () => {
                   <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     {course.name.split(" ").map((w) => w[0]).join("").substring(0, 6)}
                   </span>
-                  <button className="text-muted-foreground hover:text-foreground">
-                    <MoreVertical size={16} />
-                  </button>
+                  <div className="relative" ref={showDropdown === course._id ? dropdownRef : null}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDropdown(showDropdown === course._id ? null : course._id);
+                      }}
+                      className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {showDropdown === course._id && (
+                      <div className="absolute right-0 mt-1 w-36 bg-card border border-border rounded-md shadow-lg z-50">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(course);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors first:rounded-t-md"
+                        >
+                          <Edit size={14} />
+                          Edit Class
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClass(course._id);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-secondary flex items-center gap-2 transition-colors last:rounded-b-md border-t border-border"
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-1">{course.name}</h3>
                 <p className="text-sm text-muted-foreground mb-4">
@@ -182,21 +295,28 @@ const ClassesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Class Modal */}
+      {/* Create/Edit Class Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
           <div className="w-full max-w-xl bg-card border border-border rounded-md p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-foreground">Create New Class</h2>
+              <h2 className="text-2xl font-bold text-foreground">
+                {editingClassId ? "Edit Class" : "Create New Class"}
+              </h2>
               <button
-                onClick={() => setShowModal(false)}
-                className="text-muted-foreground hover:text-foreground"
+                type="button"
+                onClick={() => {
+                  setShowModal(false);
+                  setEditingClassId(null);
+                  setError(null);
+                }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X size={24} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateClass} className="space-y-4">
+            <form onSubmit={handleSaveClass} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Class Name *
@@ -323,7 +443,11 @@ const ClassesPage: React.FC = () => {
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingClassId(null);
+                    setError(null);
+                  }}
                   className="px-4 py-2 border border-border rounded-md text-foreground hover:bg-secondary transition-colors"
                 >
                   Cancel
@@ -333,7 +457,13 @@ const ClassesPage: React.FC = () => {
                   disabled={isSubmitting}
                   className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md transition-colors disabled:opacity-50"
                 >
-                  {isSubmitting ? "Creating..." : "Create Class"}
+                  {isSubmitting
+                    ? editingClassId
+                      ? "Updating..."
+                      : "Creating..."
+                    : editingClassId
+                    ? "Update Class"
+                    : "Create Class"}
                 </button>
               </div>
             </form>

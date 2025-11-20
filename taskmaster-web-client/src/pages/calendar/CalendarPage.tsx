@@ -6,7 +6,7 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import AddEventModal from "../../components/AddEventModal";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
-import type { ClassData } from "../../services/mockDatabase";
+import type { TasksData } from "../../services/types";
 
 const locales = {
   "en-US": enUS,
@@ -27,12 +27,16 @@ interface CalendarEvent {
   end: Date;
   description?: string;
   location?: string;
+  isTask?: boolean; // Flag to distinguish tasks from events
+  status?: "pending" | "completed" | "overdue";
+  classId?: string; // For color coding
+  color?: string; // Color for the event
+  taskId?: string; // Original task ID for editing
 }
 
 const CalendarPage: React.FC = () => {
   const { user } = useUser();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [classes, setClasses] = useState<ClassData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -45,7 +49,6 @@ const CalendarPage: React.FC = () => {
     location: "",
   });
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -58,7 +61,6 @@ const CalendarPage: React.FC = () => {
         setIsLoading(true);
         // Fetch classes
         const userClasses = await apiService.getClassesByUserId(user._id);
-        setClasses(userClasses);
 
         // Fetch events
         const userEvents = await apiService.getEvents(user._id);
@@ -69,11 +71,68 @@ const CalendarPage: React.FC = () => {
           end: new Date(event.end),
           description: event.notes?.[0] || "",
           location: event.location || "",
+          isTask: false,
         }));
-        setEvents(formattedEvents);
+
+        // Fetch all tasks (includes personal tasks)
+        const allTasks = await apiService.getAllTasks();
+
+        // Generate color map for classes
+        const classColors = new Map<string, string>();
+        const colors = [
+          "#3b82f6", // blue
+          "#10b981", // green
+          "#f59e0b", // orange
+          "#ef4444", // red
+          "#8b5cf6", // purple
+          "#ec4899", // pink
+          "#06b6d4", // cyan
+          "#84cc16", // lime
+        ];
+        userClasses.forEach((cls, idx) => {
+          classColors.set(cls._id, colors[idx % colors.length]);
+        });
+
+        // Convert tasks to calendar events (using deadline as the date)
+        const taskEvents: CalendarEvent[] = allTasks
+          .filter((task: TasksData) => task.deadline) // Only include tasks with deadlines
+          .map((task: TasksData) => {
+            const deadlineDate = new Date(task.deadline);
+            const className = task.class 
+              ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
+              : "Personal";
+            const taskClassId = task.class || "personal";
+            const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
+            
+            // Set end time to 1 hour after start (or end of day if no specific time)
+            const endDate = new Date(deadlineDate);
+            if (task.deadline.includes("T")) {
+              // Has time component, add 1 hour
+              endDate.setHours(endDate.getHours() + 1);
+            } else {
+              // No time component, set to end of day
+              endDate.setHours(23, 59, 59);
+            }
+
+            return {
+              id: `task-${task._id}`,
+              title: task.title,
+              start: deadlineDate,
+              end: endDate,
+              description: task.topic || `Class: ${className}`,
+              location: className,
+              isTask: true,
+              status: task.status,
+              classId: taskClassId,
+              color: color,
+            };
+          });
+
+        // Combine events and tasks
+        setEvents([...formattedEvents, ...taskEvents]);
       } catch (error) {
-        console.error("Error fetching events:", error);
-        setError("Failed to load events");
+        console.error("Error fetching calendar data:", error);
+        setError("Failed to load calendar");
       } finally {
         setIsLoading(false);
       }
@@ -84,7 +143,6 @@ const CalendarPage: React.FC = () => {
 
   const handleSaveEvent = async (event: CalendarEvent) => {
     try {
-      setIsSubmitting(true);
       setError(null);
 
       const eventPayload = {
@@ -106,17 +164,8 @@ const CalendarPage: React.FC = () => {
         await apiService.createEvent(eventPayload);
       }
 
-      // Refresh events
-      const userEvents = await apiService.getEvents(user!._id);
-      const formattedEvents: CalendarEvent[] = userEvents.map((evt: any) => ({
-        id: evt._id || evt.id,
-        title: evt.title,
-        start: new Date(evt.start),
-        end: new Date(evt.end),
-        description: evt.notes?.[0] || "",
-        location: evt.location || "",
-      }));
-      setEvents(formattedEvents);
+      // Refresh events and tasks
+      await refreshCalendarData();
 
       setShowModal(false);
       setIsEditing(false);
@@ -131,8 +180,6 @@ const CalendarPage: React.FC = () => {
     } catch (error: any) {
       console.error("Error saving event:", error);
       setError(error.response?.data?.message || "Failed to save event");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -140,20 +187,10 @@ const CalendarPage: React.FC = () => {
     if (!eventData.id) return;
 
     try {
-      setIsSubmitting(true);
       await apiService.deleteEvent(eventData.id);
 
-      // Refresh events
-      const userEvents = await apiService.getEvents(user!._id);
-      const formattedEvents: CalendarEvent[] = userEvents.map((evt: any) => ({
-        id: evt._id || evt.id,
-        title: evt.title,
-        start: new Date(evt.start),
-        end: new Date(evt.end),
-        description: evt.notes?.[0] || "",
-        location: evt.location || "",
-      }));
-      setEvents(formattedEvents);
+      // Refresh events and tasks
+      await refreshCalendarData();
 
       setShowModal(false);
       setIsEditing(false);
@@ -168,8 +205,6 @@ const CalendarPage: React.FC = () => {
     } catch (error: any) {
       console.error("Error deleting event:", error);
       setError(error.response?.data?.message || "Failed to delete event");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -186,16 +221,129 @@ const CalendarPage: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleSelectEvent = (event: CalendarEvent) => {
+  const refreshCalendarData = async () => {
+    if (!user?._id) return;
+
+    try {
+      // Fetch classes
+      const userClasses = await apiService.getClassesByUserId(user._id);
+
+      // Fetch events
+      const userEvents = await apiService.getEvents(user._id);
+      const formattedEvents: CalendarEvent[] = userEvents.map((event: any) => ({
+        id: event._id || event.id,
+        title: event.title,
+        start: new Date(event.start),
+        end: new Date(event.end),
+        description: event.notes?.[0] || "",
+        location: event.location || "",
+        isTask: false,
+      }));
+
+      // Fetch all tasks (includes personal tasks)
+      const allTasks = await apiService.getAllTasks();
+
+      // Generate color map for classes
+      const classColors = new Map<string, string>();
+      const colors = [
+        "#3b82f6", // blue
+        "#10b981", // green
+        "#f59e0b", // orange
+        "#ef4444", // red
+        "#8b5cf6", // purple
+        "#ec4899", // pink
+        "#06b6d4", // cyan
+        "#84cc16", // lime
+      ];
+      userClasses.forEach((cls, idx) => {
+        classColors.set(cls._id, colors[idx % colors.length]);
+      });
+
+      // Convert tasks to calendar events
+      const taskEvents: CalendarEvent[] = allTasks
+        .filter((task: TasksData) => task.deadline)
+        .map((task: TasksData) => {
+          const deadlineDate = new Date(task.deadline);
+          const className = task.class 
+            ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
+            : "Personal";
+          const taskClassId = task.class || "personal";
+          const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
+          
+          const endDate = new Date(deadlineDate);
+          if (task.deadline.includes("T")) {
+            endDate.setHours(endDate.getHours() + 1);
+          } else {
+            endDate.setHours(23, 59, 59);
+          }
+
+          return {
+            id: `task-${task._id}`,
+            title: `📋 ${task.title}`,
+            start: deadlineDate,
+            end: endDate,
+            description: task.topic || `Class: ${className}`,
+            location: className,
+            isTask: true,
+            status: task.status,
+            classId: taskClassId,
+            color: color,
+            taskId: task._id,
+          };
+        });
+
+      // Combine events and tasks
+      setEvents([...formattedEvents, ...taskEvents]);
+    } catch (error) {
+      console.error("Error refreshing calendar data:", error);
+    }
+  };
+
+  const handleSelectEvent = async (event: CalendarEvent) => {
+    if (event.isTask && event.taskId) {
+      // For tasks, allow editing deadline only
+      const newDeadline = prompt(
+        `Edit deadline for "${event.title}"\nCurrent: ${event.start.toLocaleString()}\nEnter new deadline (YYYY-MM-DDTHH:mm):`,
+        event.start.toISOString().slice(0, 16)
+      );
+      
+      if (newDeadline) {
+        try {
+          const deadlineDate = new Date(newDeadline);
+          await apiService.updateTask(event.taskId, {
+            deadline: deadlineDate.toISOString(),
+          });
+          await refreshCalendarData();
+        } catch (error: any) {
+          console.error("Error updating task deadline:", error);
+          setError(error.response?.data?.message || "Failed to update task deadline");
+        }
+      }
+      return;
+    }
+    
+    // Regular events can be edited normally
     setEventData(event);
     setIsEditing(true);
     setShowModal(true);
   };
 
-  // Convert events to react-big-calendar format
+  // Convert events to react-big-calendar format with styling
   const calendarEvents = events.map((event) => ({
     ...event,
     resource: event,
+    style: {
+      backgroundColor: event.color || (event.isTask 
+        ? (event.status === 'completed' ? '#10b981' : event.status === 'overdue' ? '#ef4444' : '#f59e0b')
+        : '#3b82f6'),
+      borderColor: event.color || (event.isTask 
+        ? (event.status === 'completed' ? '#10b981' : event.status === 'overdue' ? '#ef4444' : '#f59e0b')
+        : '#3b82f6'),
+      color: '#ffffff',
+    },
+    className: event.isTask 
+      ? `task-${event.status || 'pending'}` 
+      : '',
   }));
 
   return (
@@ -227,7 +375,7 @@ const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 bg-surface border border-border-color rounded-md p-4 text-foreground [&_.rbc-off-range-bg]:bg-background/50 [&_.rbc-today]:bg-primary/10 [&_.rbc-event]:bg-primary [&_.rbc-event]:text-white [&_.rbc-header]:border-border-color [&_.rbc-month-view]:border-border-color [&_.rbc-month-row]:border-border-color [&_.rbc-day-bg]:border-border-color [&_.rbc-toolbar-label]:text-foreground [&_.rbc-btn-group_button]:text-foreground [&_.rbc-btn-group_button]:border-border-color [&_.rbc-btn-group_button]:hover:bg-background">
+      <div className="flex-1 bg-surface border border-border-color rounded-md p-4 text-foreground [&_.rbc-off-range-bg]:bg-background/50 [&_.rbc-today]:bg-primary/10 [&_.rbc-event]:text-white [&_.rbc-header]:border-border-color [&_.rbc-month-view]:border-border-color [&_.rbc-month-row]:border-border-color [&_.rbc-day-bg]:border-border-color [&_.rbc-toolbar-label]:text-foreground [&_.rbc-btn-group_button]:text-foreground [&_.rbc-btn-group_button]:border-border-color [&_.rbc-btn-group_button]:hover:bg-background">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-muted-foreground">Loading calendar...</p>

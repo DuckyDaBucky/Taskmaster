@@ -111,9 +111,64 @@ class FinishTask(Resource):
             print(f"Level: {user.level}")
 
 
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.prompts import PromptTemplate
+from langchain.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
+from typing import List
+
+class Flashcard(BaseModel):
+    question: str = Field(description="The question for the flashcard")
+    answer: str = Field(description="The answer for the flashcard")
+    topic: str = Field(description="The specific sub-topic of this flashcard")
+
+class FlashcardList(BaseModel):
+    flashcards: List[Flashcard]
+
+class GenerateFlashcards(Resource):
+    def post(self):
+        try:
+            data = request.get_json()
+            topic = data.get('topic')
+            
+            if not topic:
+                return make_response(jsonify({"message": "Topic is required"}), 400)
+
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                return make_response(jsonify({"message": "GEMINI_API_KEY not found"}), 500)
+
+            # Initialize Gemini
+            llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key)
+            
+            # Set up parser
+            parser = PydanticOutputParser(pydantic_object=FlashcardList)
+            
+            # Create prompt
+            prompt = PromptTemplate(
+                template="Generate 10 flashcards about {topic}.\n{format_instructions}\nEnsure the questions are concise and answers are accurate.",
+                input_variables=["topic"],
+                partial_variables={"format_instructions": parser.get_format_instructions()}
+            )
+            
+            # Generate
+            chain = prompt | llm | parser
+            result = chain.invoke({"topic": topic})
+            
+            # Convert to dict
+            flashcards_data = [card.dict() for card in result.flashcards]
+            
+            return make_response(jsonify({"flashcards": flashcards_data}), 200)
+
+        except Exception as e:
+            print(f"Error generating flashcards: {e}")
+            return make_response(jsonify({"message": str(e)}), 500)
+
+
 api.add_resource(MatchRequest, "/match")
 api.add_resource(SetPreferences, "/set")
 api.add_resource(FinishTask, "/finish")
+api.add_resource(GenerateFlashcards, "/generate_flashcards")
 
 if __name__ == "__main__":
     app.run(host="localhost", port=6005, debug=True)

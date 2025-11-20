@@ -1,8 +1,10 @@
 import React from "react";
 import { useTheme, Theme } from "../../context/ThemeContext";
+import { useUser } from "../../context/UserContext";
 
 const SettingsPage: React.FC = () => {
   const { theme, setTheme } = useTheme();
+  const { user } = useUser();
 
   const themes: { id: Theme; label: string; color: string; primary: string }[] = [
     { id: 'light', label: 'Light', color: '#f8fafc', primary: '#3b82f6' },
@@ -26,7 +28,8 @@ const SettingsPage: React.FC = () => {
               <label className="text-sm font-medium text-muted-foreground">Username</label>
               <input 
                 type="text" 
-                defaultValue="User123" 
+                value={user?.username || "Not set"} 
+                readOnly
                 className="w-full bg-background border border-border-color rounded px-3 py-2 text-foreground focus:outline-none focus:border-primary transition-colors"
               />
             </div>
@@ -34,14 +37,15 @@ const SettingsPage: React.FC = () => {
               <label className="text-sm font-medium text-muted-foreground">Email</label>
               <input 
                 type="email" 
-                defaultValue="user@example.com" 
+                value={user?.email || "Not set"} 
+                readOnly
                 className="w-full bg-background border border-border-color rounded px-3 py-2 text-foreground focus:outline-none focus:border-primary transition-colors"
               />
             </div>
           </div>
-          <button className="px-4 py-2 bg-primary hover:opacity-90 text-white rounded-md text-sm font-medium transition-colors">
-            Save Changes
-          </button>
+          <p className="text-xs text-muted-foreground">
+            Contact support to update your account information
+          </p>
         </div>
       </section>
 

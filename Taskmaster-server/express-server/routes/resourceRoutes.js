@@ -1,41 +1,39 @@
 import express from 'express';
 import auth from '../middleware/auth.js';
-
+import upload from '../middleware/upload.js';
 import {
     createResource,
     getAllResources,
     getResourceById,
-    updateResource,
     deleteResource,
     getResourcesByClassId,
     createResourceByClassId,
-    parseSyllabus
+    parseSyllabus,
+    smartUploadResource
 } from '../controllers/resourceController.js';
 
 const router = express.Router();
 
-// GET all resources - REQUIRES AUTH for data isolation
+// Get all resources - REQUIRES AUTH
 router.get('/', auth, getAllResources);
 
-// GET a single resource by ID - REQUIRES AUTH for data isolation
-router.get('/single/:id', auth, getResourceById);
+// Get resource by ID - REQUIRES AUTH
+router.get('/:id', auth, getResourceById);
 
-// Get all resources for a certain class - REQUIRES AUTH for data isolation
-router.get('/class/:id', auth, getResourcesByClassId);
-
-// POST a new resource - REQUIRES AUTH for data isolation
-router.post('/', auth, createResource);
-
-// DELETE a resource by ID - REQUIRES AUTH for data isolation
+// Delete resource - REQUIRES AUTH
 router.delete('/:id', auth, deleteResource);
 
-// UPDATE a resource by ID - REQUIRES AUTH for data isolation
-router.patch('/:id', auth, updateResource);
-
-//Get all tasks by syllabus path (Not using in final proj)
-router.post('/syllabus', parseSyllabus)
+// Get resources by class ID - REQUIRES AUTH
+router.get('/class/:id', auth, getResourcesByClassId);
 
 // Create resource by class ID - REQUIRES AUTH for data isolation
-router.post('/classid/:id', auth, createResourceByClassId);
+// Uses Multer 'upload.single("file")' to handle file uploads
+router.post('/classid/:id', auth, upload.single('file'), createResourceByClassId);
+
+// Smart upload - AI auto-classifies files
+router.post('/smart-upload', auth, upload.single('file'), smartUploadResource);
+
+// Parse syllabus (if needed)
+router.post('/syllabus', parseSyllabus);
 
 export default router;

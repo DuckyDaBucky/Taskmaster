@@ -9,7 +9,9 @@ import {
     getUserByME,
     getUserbyId,
     addFriend,
-    addHamizAsFriend
+    addHamizAsFriend,
+    getFriends,
+    getLoginDates
 } from "../controllers/userController.js";
 
 import multer from "multer";
@@ -28,9 +30,11 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const router = Router();
-router.get("/me", auth, getUserByME); //Get userid by deciphered local storage web token
+router.get("/me", auth, getUserByME); //Get userid by deciphered local storage web token (includes populated friendsList)
 router.patch("/me", auth, updateMyProfile); //UPDATE current authenticated user profile
-router.get("/userLookUp/:userid", getUserbyId); //Get friends by id, can be used to lookup as any user as well
+router.get("/friends", auth, getFriends); //GET friends list for authenticated user - REQUIRES AUTH
+router.get("/login-dates", auth, getLoginDates); //GET login dates for streak display - REQUIRES AUTH
+router.get("/userLookUp/:userid", getUserbyId); //Get user by id, can be used to lookup as any user as well (includes populated friendsList)
 router.get("/email/:email", getUserbyEmail); //Get user by email
 router.post("/", createUser); //POST user, for signup only
 router.patch("/update/:userid", updateProfile); //UPDATE user details (legacy)

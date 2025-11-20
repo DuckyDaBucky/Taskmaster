@@ -2,7 +2,7 @@ import Class from '../models/classModel.js';
 import { parseAndSaveSyllabus } from './syllabus_LLM/classParser.js';
 
 
-//Get all classes - ENFORCE USER OWNERSHIP
+//Get all classes - ENFORCE USER OWNERSHIP (excludes Personal class)
 const getAllClasses = async(req, res) => {
     try {
         const userId = req.user?._id; // Get from auth middleware
@@ -11,11 +11,53 @@ const getAllClasses = async(req, res) => {
             return res.status(401).json({ message: "Authentication required" });
         }
 
-        // Only return classes belonging to the authenticated user
-        const classes = await Class.find({ user: userId });
+        // Only return classes belonging to the authenticated user, excluding Personal class
+        const classes = await Class.find({ 
+            user: userId,
+            isPersonal: { $ne: true } // Exclude personal classes from regular list
+        });
         res.status(200).json(classes || []);
 
     } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+//Get Personal class ID for a user
+const getPersonalClassId = async(req, res) => {
+    try {
+        const userId = req.user?._id;
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        const personalClass = await Class.findOne({ 
+            user: userId,
+            isPersonal: true 
+        });
+
+        if (!personalClass) {
+            // Create Personal class if it doesn't exist (for existing users)
+            const newPersonalClass = new Class({
+                name: "Personal",
+                professor: "",
+                timing: "",
+                location: "",
+                topics: [],
+                textbooks: [],
+                gradingPolicy: "",
+                contactInfo: "",
+                user: userId,
+                isPersonal: true,
+            });
+            await newPersonalClass.save();
+            return res.status(200).json({ personalClassId: newPersonalClass._id });
+        }
+
+        res.status(200).json({ personalClassId: personalClass._id });
+    } catch (error) {
+        console.error("Error fetching personal class:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -60,6 +102,15 @@ const createClass = async(req, res) => {
         // Always set user to authenticated user (ignore any user in body)
         const newClass = new Class({name, professor, timing, examDates, topics, gradingPolicy, contactInfo, textbooks, location, user: userId});
         const savedClass = await newClass.save();
+        
+        // Log activity
+        try {
+            const { createActivity } = await import('./activityController.js');
+            await createActivity(userId, 'class_created', `Created class "${savedClass.name}"`, { classId: savedClass._id });
+        } catch (error) {
+            console.error("Error logging activity:", error);
+        }
+        
         res.status(201).json(savedClass);
 
     } catch (error) {
@@ -169,5 +220,6 @@ export {
     getAllClassesbyUserid,
     updateClass,
     deleteClass,
-    parseSyllabus
+    parseSyllabus,
+    getPersonalClassId
 };

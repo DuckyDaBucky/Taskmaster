@@ -13,6 +13,7 @@ import taskRoutes from "./routes/taskRoutes.js";
 import resourceRoutes from "./routes/resourceRoutes.js";
 import flashCardRoutes from "./routes/flashCardRoutes.js";
 import eventRoutes from './routes/eventRoutes.js';
+import activityRoutes from './routes/activityRoutes.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -25,7 +26,7 @@ const app = express();
 
 // MANUAL CORS OVERRIDE - MUST BE FIRST MIDDLEWARE
 app.use((req, res, next) => {
-  console.log("🔥 RECEIVED:", req.method, req.url);
+  console.log("RECEIVED:", req.method, req.url);
   
   // Set CORS headers for ALL requests
   res.header("Access-Control-Allow-Origin", "*");
@@ -35,7 +36,7 @@ app.use((req, res, next) => {
 
   // Handle preflight OPTIONS requests immediately
   if (req.method === "OPTIONS") {
-    console.log("✅ Preflight OPTIONS request - returning 200");
+    console.log("Preflight OPTIONS request - returning 200");
     return res.status(200).end();
   }
   
@@ -163,6 +164,7 @@ app.use("/task", taskRoutes);
 app.use("/resources", resourceRoutes);
 app.use("/flashcard", flashCardRoutes);
 app.use('/event', eventRoutes);
+app.use('/activity', activityRoutes);
 
 http.listen(PORT, () => {
   console.log("RTT server running at http://localhost:3000");

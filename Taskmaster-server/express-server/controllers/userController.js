@@ -19,7 +19,11 @@ const getUserbyEmail = async (req, res) => {
 //GET User by id, /:id
 const getUserbyId = async (req, res) => {
     try {
-        const user = await User.findOne({_id: req.params.userid}).select("-password");
+        const user = await User.findOne({_id: req.params.userid})
+            .select("-password")
+            .populate('friendsList', 'userName firstName lastName email pfp') // Populate friendsList
+            .exec();
+        
         if (!user) {
             return res.status(404).json({ message: "UserID not found" });
         }
@@ -27,6 +31,34 @@ const getUserbyId = async (req, res) => {
         res.status(200).json(user);
 
     } catch (error) {
+        console.error("Error fetching user by ID:", error);
+        res.status(500).json({ message: error.message });
+    }
+}
+
+//GET Friends list for authenticated user
+const getFriends = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        const user = await User.findById(userId)
+            .select('friendsList')
+            .populate('friendsList', 'userName firstName lastName email pfp streak points level')
+            .exec();
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Return friends array (populated)
+        res.status(200).json(user.friendsList || []);
+
+    } catch (error) {
+        console.error("Error fetching friends:", error);
         res.status(500).json({ message: error.message });
     }
 }
@@ -34,8 +66,46 @@ const getUserbyId = async (req, res) => {
 
 //GET user id using token, use auth middleware first to decipher token and store in user field
 const getUserByME = async (req, res) => {
-    const user = await User.findById(req.user._id).select('-password'); //return everything except hashed password
-    res.send(user);
+    try {
+        const user = await User.findById(req.user._id)
+            .select('-password')
+            .populate('friendsList', 'userName firstName lastName email pfp') // Populate friendsList with friend details
+            .exec();
+        
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        
+        res.status(200).json(user);
+    } catch (error) {
+        console.error("Error fetching user:", error);
+        res.status(500).json({ message: error.message });
+    }
+}
+
+//GET login dates for streak display
+const getLoginDates = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        const user = await User.findById(userId).select('loginDates streak');
+        
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({
+            loginDates: user.loginDates || [],
+            streak: user.streak || 0
+        });
+    } catch (error) {
+        console.error("Error fetching login dates:", error);
+        res.status(500).json({ message: error.message });
+    }
 }
 
 //POST User (Sign up only)
@@ -71,6 +141,23 @@ const createUser = async (req, res) => {
         console.log("Saving user to MongoDB...");
         const savedUser = await newUser.save();
         console.log("User saved successfully:", savedUser._id);
+
+        // Create default "Personal" class for the user
+        const Class = (await import('../models/classModel.js')).default;
+        const personalClass = new Class({
+            name: "Personal",
+            professor: "",
+            timing: "",
+            location: "",
+            topics: [],
+            textbooks: [],
+            gradingPolicy: "",
+            contactInfo: "",
+            user: savedUser._id,
+            isPersonal: true, // Mark as personal class
+        });
+        await personalClass.save();
+        console.log("Personal class created for user:", savedUser._id);
     
         const token = savedUser.generateAuthToken();
         console.log("Token generated, returning to client");
@@ -194,7 +281,7 @@ const addFriend = async (req, res) => {
         res.status(200).json(updatedProfile);
 
     } catch (error) {
-        console.error("❌ Error adding friend:", error);
+        console.error("Error adding friend:", error);
         res.status(500).json({ message: error.message });
     }
 }
@@ -224,7 +311,7 @@ const addHamizAsFriend = async (req, res) => {
                 password: hashedPassword,
             });
             await hamiz.save();
-            console.log("✅ Created Hamiz Iqbal user");
+            console.log("Created Hamiz Iqbal user");
         }
 
         // Check if already friends
@@ -256,7 +343,7 @@ const addHamizAsFriend = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ Error adding Hamiz as friend:", error);
+        console.error("Error adding Hamiz as friend:", error);
         res.status(500).json({ message: error.message });
     }
 }
@@ -271,5 +358,7 @@ export {
     getUserByME,
     getUserbyId,
     addFriend,
-    addHamizAsFriend
+    addHamizAsFriend,
+    getFriends,
+    getLoginDates
 }

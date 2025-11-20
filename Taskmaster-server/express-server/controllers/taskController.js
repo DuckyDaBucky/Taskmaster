@@ -2,7 +2,7 @@ import Task from '../models/taskModel.js';
 import Class from '../models/classModel.js';
 import { parseAndSaveSyllabus } from './syllabus_LLM/taskParser.js';
 
-//Get all tasks - ENFORCE USER OWNERSHIP
+//Get all tasks - ENFORCE USER OWNERSHIP (includes personal tasks)
 const getAllTask = async(req, res) => {
     try {
         const userId = req.user?._id; // Get from auth middleware
@@ -15,8 +15,13 @@ const getAllTask = async(req, res) => {
         const userClasses = await Class.find({ user: userId });
         const classIds = userClasses.map(c => c._id);
         
-        // Get all tasks that belong to user's classes
-        const tasks = await Task.find({ class: { $in: classIds } });
+        // Get all tasks that belong to user's classes OR are personal (class is null) AND belong to user
+        const tasks = await Task.find({ 
+            $or: [
+                { class: { $in: classIds } },
+                { class: null, user: userId } // Personal tasks
+            ]
+        });
         
         res.status(200).json(tasks || []);
 
@@ -75,7 +80,26 @@ const updateTask = async(req, res) => {
         }
 
         const {deadline, topic, title, resources, status, points, textbook} = req.body;
+        const oldTask = await Task.findById(req.params.id);
         const updatedTask = await Task.findByIdAndUpdate(req.params.id, {deadline, topic, title, resources, status, points, textbook}, {new: true});
+        
+        // Log activity if status changed to completed
+        if (oldTask && oldTask.status !== 'completed' && status === 'completed') {
+            try {
+                const { createActivity } = await import('./activityController.js');
+                await createActivity(userId, 'task_completed', `Completed task "${updatedTask.title}"`, { taskId: updatedTask._id });
+            } catch (error) {
+                console.error("Error logging activity:", error);
+            }
+        } else if (oldTask && oldTask.status !== status) {
+            try {
+                const { createActivity } = await import('./activityController.js');
+                await createActivity(userId, 'task_updated', `Updated task "${updatedTask.title}"`, { taskId: updatedTask._id });
+            } catch (error) {
+                console.error("Error logging activity:", error);
+            }
+        }
+        
         res.status(200).json(updatedTask);
 
     } catch (error) {
@@ -140,7 +164,7 @@ const getTaskByClassId = async(req, res) => {
     }
 };
 
- //Create task by ID - ENFORCE USER OWNERSHIP
+ //Create task by ID - ENFORCE USER OWNERSHIP (supports "personal" tasks)
 const createTaskByClassId = async(req, res) => {
     try {
         const userId = req.user?._id; // Get from auth middleware
@@ -149,23 +173,21 @@ const createTaskByClassId = async(req, res) => {
             return res.status(401).json({ message: "Authentication required" });
         }
 
-        console.log("🔥 CREATE TASK PAYLOAD:", req.body);
+        console.log("CREATE TASK PAYLOAD:", req.body);
         
         const {deadline, topic, title, resources, status, points, textbook} = req.body;
-        const classId = req.params.id;
+        const classId = req.params.id === "personal" ? null : req.params.id;
 
-        if(!classId) {
-            return res.status(400).json({message: "Class ID is required"});
-        }
+        // If classId is provided (not personal), verify it belongs to user
+        if (classId) {
+            const classDoc = await Class.findById(classId);
+            if (!classDoc) {
+                return res.status(404).json({ message: "Class not found" });
+            }
 
-        // Verify class belongs to user
-        const classDoc = await Class.findById(classId);
-        if (!classDoc) {
-            return res.status(404).json({ message: "Class not found" });
-        }
-
-        if (classDoc.user && classDoc.user.toString() !== userId.toString()) {
-            return res.status(403).json({ message: "Access denied. This class does not belong to you." });
+            if (classDoc.user && classDoc.user.toString() !== userId.toString()) {
+                return res.status(403).json({ message: "Access denied. This class does not belong to you." });
+            }
         }
 
         const newTask = new Task({
@@ -176,15 +198,25 @@ const createTaskByClassId = async(req, res) => {
             status: status || 'pending', 
             points, 
             textbook, 
-            class: classId
+            class: classId || null, // Can be null for personal tasks
+            user: userId // Always set user
         });
 
         const savedTask = await newTask.save();
-        console.log("✅ Task created successfully:", savedTask._id);
+        console.log("Task created successfully:", savedTask._id);
+        
+        // Log activity
+        try {
+            const { createActivity } = await import('./activityController.js');
+            await createActivity(userId, 'task_created', `Created task "${savedTask.title}"`, { taskId: savedTask._id, classId: classId || null });
+        } catch (error) {
+            console.error("Error logging activity:", error);
+        }
+        
         res.status(201).json(savedTask);
 
     } catch (error) {
-        console.error("❌ Error creating task:", error);
+        console.error("Error creating task:", error);
         res.status(500).json({message: error.message});
     }
 };

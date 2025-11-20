@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Edit2, Trash2, Plus, X } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
-import type { TasksData, ClassData } from "../../services/mockDatabase";
+import type { TasksData, ClassData } from "../../services/types";
 
 const TasksPage: React.FC = () => {
   const { user } = useUser();
@@ -10,7 +10,11 @@ const TasksPage: React.FC = () => {
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
+  const [resources, setResources] = useState<any[]>([]);
+  const [personalClassId, setPersonalClassId] = useState<string | null>(null);
+  const [isPersonal, setIsPersonal] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     deadline: "",
@@ -19,6 +23,7 @@ const TasksPage: React.FC = () => {
     points: "",
     textbook: "",
     classId: "",
+    selectedResources: [] as string[],
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,20 +38,24 @@ const TasksPage: React.FC = () => {
       try {
         setIsLoading(true);
         // Fetch classes
-        const userClasses = await apiService.getClassesByUserId(user._id);
+        const userClasses = await apiService.getAllClasses();
         setClasses(userClasses);
 
-        // Fetch tasks for each class
-        const allTasks: TasksData[] = [];
-        for (const classItem of userClasses) {
-          try {
-            const classTasks = await apiService.getTasksByClassId(classItem._id);
-            allTasks.push(...classTasks);
-          } catch (error) {
-            console.error(`Error fetching tasks for class ${classItem._id}:`, error);
-          }
-        }
+        // Fetch all tasks (includes personal tasks)
+        const allTasks = await apiService.getAllTasks();
         setTasks(allTasks);
+
+        // Fetch all resources for selection
+        const allResources = await apiService.getAllResources();
+        setResources(allResources);
+
+        // Fetch Personal class ID
+        try {
+          const personalClass = await apiService.getPersonalClassId();
+          setPersonalClassId(personalClass.personalClassId);
+        } catch (error) {
+          console.error("Error fetching personal class:", error);
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
         setError("Failed to load tasks");
@@ -58,10 +67,43 @@ const TasksPage: React.FC = () => {
     fetchData();
   }, [user?._id]);
 
-  const handleCreateTask = async (e: React.FormEvent) => {
+  const handleOpenCreateModal = () => {
+    setEditingTaskId(null);
+    setFormData({
+      title: "",
+      deadline: "",
+      topic: "",
+      status: "pending",
+      points: "",
+      textbook: "",
+      classId: "",
+      selectedResources: [],
+    });
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (task: TasksData) => {
+    setEditingTaskId(task._id);
+    const taskClassId = task.class || "";
+    const isTaskPersonal = !taskClassId || taskClassId === personalClassId;
+    setIsPersonal(isTaskPersonal);
+    setFormData({
+      title: task.title || "",
+      deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 16) : "",
+      topic: task.topic || "",
+      status: task.status || "pending",
+      points: task.points?.toString() || "",
+      textbook: task.textbook || "",
+      classId: isTaskPersonal ? "" : taskClassId,
+      selectedResources: [],
+    });
+    setShowModal(true);
+  };
+
+  const handleSaveTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.classId || !formData.title) {
-      setError("Please select a class and enter a title");
+    if (!formData.title) {
+      setError("Please enter a title");
       return;
     }
 
@@ -76,16 +118,26 @@ const TasksPage: React.FC = () => {
         status: formData.status,
         points: formData.points ? parseInt(formData.points) : undefined,
         textbook: formData.textbook || undefined,
+        resources: formData.selectedResources.length > 0 ? formData.selectedResources : undefined,
       };
 
-      await apiService.createTask(formData.classId, taskData);
+      if (editingTaskId) {
+        // Update existing task
+        await apiService.updateTask(editingTaskId, taskData);
+      } else {
+        // Create new task
+        const classId = isPersonal && personalClassId ? personalClassId : formData.classId;
+        if (!classId) {
+          setError("Please select a class or use Personal");
+          setIsSubmitting(false);
+          return;
+        }
+        await apiService.createTask(classId, taskData);
+      }
 
       // Refresh tasks
-      const classTasks = await apiService.getTasksByClassId(formData.classId);
-      setTasks((prev) => {
-        const filtered = prev.filter((t) => t.class !== formData.classId);
-        return [...filtered, ...classTasks];
-      });
+      const allTasks = await apiService.getAllTasks();
+      setTasks(allTasks);
 
       // Reset form
       setFormData({
@@ -96,13 +148,32 @@ const TasksPage: React.FC = () => {
         points: "",
         textbook: "",
         classId: "",
+        selectedResources: [],
       });
+      setIsPersonal(false);
       setShowModal(false);
+      setEditingTaskId(null);
     } catch (error: any) {
-      console.error("Error creating task:", error);
-      setError(error.response?.data?.message || "Failed to create task");
+      console.error("Error saving task:", error);
+      setError(error.response?.data?.message || `Failed to ${editingTaskId ? "update" : "create"} task`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm("Are you sure you want to delete this task?")) {
+      return;
+    }
+
+    try {
+      await apiService.deleteTask(taskId);
+      // Refresh tasks
+      const allTasks = await apiService.getAllTasks();
+      setTasks(allTasks);
+    } catch (error: any) {
+      console.error("Error deleting task:", error);
+      setError(error.response?.data?.message || "Failed to delete task");
     }
   };
 
@@ -127,7 +198,7 @@ const TasksPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={handleOpenCreateModal}
           className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors"
         >
           <Plus size={16} className="inline mr-1" />
@@ -183,7 +254,7 @@ const TasksPage: React.FC = () => {
       ) : (
         <div className="space-y-3">
           {filteredTasks.map((task) => {
-            const taskClass = classes.find((c) => c._id === task.class);
+            const taskClass = task.class ? classes.find((c) => c._id === task.class) : null;
             return (
               <div
                 key={task._id}
@@ -208,7 +279,7 @@ const TasksPage: React.FC = () => {
                       {task.title}
                     </h4>
                     <p className="text-xs text-muted-foreground">
-                      {taskClass?.name || "Unknown Class"} • Due{" "}
+                      {taskClass?.name || "Personal"} • Due{" "}
                       {task.deadline
                         ? new Date(task.deadline).toLocaleDateString()
                         : "No deadline"}
@@ -216,10 +287,16 @@ const TasksPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="p-1 text-muted-foreground hover:text-primary">
+                  <button
+                    onClick={() => handleOpenEditModal(task)}
+                    className="p-1 text-muted-foreground hover:text-primary"
+                  >
                     <Edit2 size={16} />
                   </button>
-                  <button className="p-1 text-muted-foreground hover:text-destructive">
+                  <button
+                    onClick={() => handleDeleteTask(task._id)}
+                    className="p-1 text-muted-foreground hover:text-destructive"
+                  >
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -229,32 +306,57 @@ const TasksPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Task Modal */}
+      {/* Create/Edit Task Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
           <div className="w-full max-w-xl bg-card border border-border rounded-md p-6 shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-foreground">Create New Task</h2>
+              <h2 className="text-2xl font-bold text-foreground">
+                {editingTaskId ? "Edit Task" : "Create New Task"}
+              </h2>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  setEditingTaskId(null);
+                  setIsPersonal(false);
+                }}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X size={24} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateTask} className="space-y-4">
+            <form onSubmit={handleSaveTask} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Class *
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Class
                 </label>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPersonal(true);
+                      setFormData({ ...formData, classId: "" });
+                    }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isPersonal
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    Personal
+                  </button>
+                </div>
                 <select
                   value={formData.classId}
-                  onChange={(e) =>
-                    setFormData({ ...formData, classId: e.target.value })
-                  }
-                  required
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  onChange={(e) => {
+                    setIsPersonal(false);
+                    setFormData({ ...formData, classId: e.target.value });
+                  }}
+                  disabled={isPersonal}
+                  className={`w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary ${
+                    isPersonal ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
                 >
                   <option value="">Select a class</option>
                   {classes.map((cls) => (
@@ -360,10 +462,42 @@ const TasksPage: React.FC = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Resources (Select multiple)
+                </label>
+                <select
+                  multiple
+                  value={formData.selectedResources}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions, option => option.value);
+                    setFormData({ ...formData, selectedResources: selected });
+                  }}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[100px]"
+                  size={5}
+                >
+                  {resources
+                    .filter((r) => !formData.classId || r.class === formData.classId || !r.class)
+                    .flatMap((r) => (r.urls || []).map((url: string, idx: number) => ({ url, resourceId: r._id, idx })))
+                    .map((item) => (
+                      <option key={`${item.resourceId}-${item.idx}`} value={item.url}>
+                        {item.url.length > 60 ? item.url.substring(0, 60) + "..." : item.url}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Hold Ctrl/Cmd to select multiple resources. Resources are filtered by selected class.
+                </p>
+              </div>
+
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingTaskId(null);
+                    setIsPersonal(false);
+                  }}
                   className="px-4 py-2 border border-border rounded-md text-foreground hover:bg-secondary transition-colors"
                 >
                   Cancel
@@ -373,7 +507,13 @@ const TasksPage: React.FC = () => {
                   disabled={isSubmitting}
                   className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors disabled:opacity-50"
                 >
-                  {isSubmitting ? "Creating..." : "Create Task"}
+                  {isSubmitting
+                    ? editingTaskId
+                      ? "Updating..."
+                      : "Creating..."
+                    : editingTaskId
+                    ? "Update Task"
+                    : "Create Task"}
                 </button>
               </div>
             </form>

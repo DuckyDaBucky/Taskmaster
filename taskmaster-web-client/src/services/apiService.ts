@@ -1,19 +1,12 @@
-/**
- * API Service - Switches between Mock Database and Real API
- * When USE_MOCK_DB is true, uses mockDatabase
- * When false, uses real axios calls
- */
-
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
-import { USE_MOCK_DB, API_BASE_URL, ML_SERVICE_URL } from "./apiConfig";
-import { mockDB } from "./mockDatabase";
+import { API_BASE_URL, USE_MOCK_DB, ML_SERVICE_URL } from "./apiConfig";
 import type {
   UserData,
   ClassData,
   TasksData,
   ResourceData,
-  FlashcardsData,
-} from "./mockDatabase";
+  FlashcardsData
+} from "./types";
 
 // Create axios instance for real API calls
 const apiClient: AxiosInstance = axios.create({
@@ -38,7 +31,7 @@ apiClient.interceptors.request.use(
     // Skip token injection for auth endpoints (login) and signup
     const isAuthEndpoint = config.url?.includes("/auth");
     const isSignupEndpoint = config.url?.includes("/user") && config.method === "post";
-    
+
     if (isAuthEndpoint || isSignupEndpoint) {
       // Still ensure CORS-friendly headers are set
       if (config.headers) {
@@ -51,12 +44,12 @@ apiClient.interceptors.request.use(
     if (token && config.headers) {
       config.headers["x-auth-token"] = token;
     }
-    
+
     // Ensure Content-Type is set for all requests
     if (config.headers && !config.headers["Content-Type"] && config.data) {
       config.headers["Content-Type"] = "application/json";
     }
-    
+
     return config;
   },
   (error) => {
@@ -82,7 +75,7 @@ const handle401 = () => {
   // Clear authentication data
   localStorage.removeItem("token");
   localStorage.removeItem("userData");
-  
+
   // Redirect to login page
   if (window.location.pathname !== "/login" && window.location.pathname !== "/signup") {
     window.location.href = "/login";
@@ -114,19 +107,15 @@ class ApiService {
   // ===== Auth Endpoints =====
   async login(emailOrUsername: string, password: string, isEmail: boolean = true): Promise<string> {
     if (USE_MOCK_DB) {
-      const token = mockDB.login(emailOrUsername, password);
-      if (!token) {
-        throw new Error("Invalid email or password");
-      }
-      return token;
+      throw new Error("Mock DB not available");
     }
 
     // Use apiClient but interceptor will skip token injection for /auth
     // Send email or userName based on what was provided
-    const payload = isEmail 
+    const payload = isEmail
       ? { email: emailOrUsername, password }
       : { userName: emailOrUsername, password };
-    
+
     const response = await apiClient.post("/auth", payload, {
       headers: {
         "Content-Type": "application/json",
@@ -145,7 +134,7 @@ class ApiService {
     userName?: string;
   }): Promise<string> {
     if (USE_MOCK_DB) {
-      return mockDB.signup(userData);
+      throw new Error("Mock DB not available");
     }
 
     // Map to backend expected format
@@ -170,13 +159,9 @@ class ApiService {
   // ===== User Endpoints =====
   async getUserMe(token?: string): Promise<UserData> {
     const authToken = token || getToken() || "";
-    
+
     if (USE_MOCK_DB) {
-      const user = mockDB.getUserByToken(authToken);
-      if (!user) {
-        throw new Error("Unauthorized");
-      }
-      return user;
+      throw new Error("Mock DB not available");
     }
 
     const response = await apiClient.get<UserData>("/user/me", {
@@ -213,7 +198,7 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      return mockDB.getClassesByUserId(userId);
+      return [];
     }
 
     const response = await apiClient.get<ClassData[]>(`/class/user/${userId}`, {
@@ -230,19 +215,7 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      // Simulate class creation from syllabus
-      const classData: Partial<ClassData> = {
-        name: file.name.replace(/\.[^/.]+$/, ""), // Use filename without extension
-        professor: "Extracted from Syllabus",
-        timing: "TBA",
-        examDates: [],
-        topics: [],
-        gradingPolicy: "TBA",
-        contactInfo: "",
-        textbooks: [],
-        location: "TBA",
-      };
-      mockDB.createClass(classData, userId);
+      // Mock DB not available
       return { message: "Syllabus uploaded successfully" };
     }
 
@@ -263,17 +236,42 @@ class ApiService {
   }
 
   // ===== Task Endpoints =====
+  async getAllTasks(token?: string): Promise<TasksData[]> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return [];
+    }
+
+    const response = await apiClient.get<TasksData[]>("/task", {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
   async getTasksByClassId(classId: string, token?: string): Promise<TasksData[]> {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      return mockDB.getTasksByClassId(classId);
+      return [];
     }
 
     const response = await apiClient.get<TasksData[]>(`/task/classid/${classId}`, {
       headers: { "x-auth-token": authToken },
     });
     return response.data;
+  }
+
+  async deleteTask(taskId: string, token?: string): Promise<void> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return Promise.resolve();
+    }
+
+    await apiClient.delete(`/task/${taskId}`, {
+      headers: { "x-auth-token": authToken },
+    });
   }
 
   async updateTask(
@@ -284,9 +282,7 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      const updated = mockDB.updateTask(taskId, updates);
-      if (!updated) throw new Error("Task not found");
-      return updated;
+      throw new Error("Mock DB not available");
     }
 
     const response = await apiClient.patch(`/task/${taskId}`, updates, {
@@ -296,6 +292,19 @@ class ApiService {
   }
 
   // ===== Resource Endpoints =====
+  async getAllResources(token?: string): Promise<ResourceData[]> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return [];
+    }
+
+    const response = await apiClient.get<ResourceData[]>("/resources", {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
   async getResourcesByClassId(
     classId: string,
     token?: string
@@ -303,7 +312,7 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      return mockDB.getResourcesByClassId(classId);
+      return [];
     }
 
     const response = await apiClient.get<ResourceData[]>(
@@ -316,6 +325,19 @@ class ApiService {
   }
 
   // ===== Flashcard Endpoints =====
+  async getAllFlashcards(token?: string): Promise<FlashcardsData[]> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return [];
+    }
+
+    const response = await apiClient.get<FlashcardsData[]>("/flashcard", {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
   async getFlashcardsByClassId(
     classId: string,
     token?: string
@@ -323,7 +345,7 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      return mockDB.getFlashcardsByClassId(classId);
+      return [];
     }
 
     const response = await apiClient.get<FlashcardsData[]>(
@@ -335,17 +357,30 @@ class ApiService {
     return response.data;
   }
 
-  async generateFlashcards(classId: string, token?: string): Promise<FlashcardsData[]> {
+  async generateFlashcards(classId: string, resourceId?: string, token?: string): Promise<FlashcardsData[]> {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      return mockDB.generateFlashcards(classId);
+      return [];
     }
 
-    const response = await apiClient.post(`/flashcard/${classId}`, {}, {
+    const response = await apiClient.post(`/flashcard/${classId}`, { resourceId }, {
       headers: { "x-auth-token": authToken },
     });
     return response.data;
+  }
+
+  async createManualFlashcards(classId: string, cards: Array<{ question: string; answer: string; topic?: string }>, token?: string): Promise<{ count: number }> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return { count: cards.length };
+    }
+
+    const response = await apiClient.post(`/flashcard/manual/${classId}`, { cards }, {
+      headers: { "x-auth-token": authToken },
+    });
+    return { count: response.data.length || cards.length };
   }
 
   // ===== Task Creation =====
@@ -360,11 +395,7 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      return mockDB.createTask({
-        ...taskData,
-        class: classId,
-        _id: `task-${Date.now()}`,
-      });
+      throw new Error("Mock DB not available");
     }
 
     const response = await apiClient.post(`/task/classid/${classId}`, taskData, {
@@ -469,9 +500,7 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      const user = mockDB.getUserByToken(authToken);
-      if (!user) throw new Error("Unauthorized");
-      return mockDB.createClass(classData, user._id);
+      throw new Error("Mock DB not available");
     }
 
     const response = await apiClient.post("/class", classData, {
@@ -484,15 +513,60 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      const user = mockDB.getUserByToken(authToken);
-      if (!user) return [];
-      return mockDB.getClassesByUserId(user._id);
+      return [];
     }
 
     const response = await apiClient.get<ClassData[]>("/class", {
       headers: { "x-auth-token": authToken },
     });
     return response.data;
+  }
+
+  async getPersonalClassId(token?: string): Promise<{ personalClassId: string }> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return { personalClassId: "" };
+    }
+
+    const response = await apiClient.get<{ personalClassId: string }>("/class/personal", {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  async updateClass(classId: string, classData: {
+    name?: string;
+    professor?: string;
+    timing?: string;
+    location?: string;
+    topics?: string[];
+    textbooks?: string[];
+    gradingPolicy?: string;
+    contactInfo?: string;
+  }, token?: string): Promise<ClassData> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return {} as ClassData;
+    }
+
+    const response = await apiClient.patch(`/class/${classId}`, classData, {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  async deleteClass(classId: string, token?: string): Promise<void> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return;
+    }
+
+    await apiClient.delete(`/class/${classId}`, {
+      headers: { "x-auth-token": authToken },
+    });
   }
 
   // ===== Resource Creation =====
@@ -503,11 +577,27 @@ class ApiService {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
-      return mockDB.createResource({ ...resourceData, class: classId });
+      throw new Error("Mock DB not available");
     }
 
     const response = await apiClient.post(`/resources/classid/${classId}`, resourceData, {
       headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  async smartUploadResource(formData: FormData, token?: string): Promise<any> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return Promise.resolve({});
+    }
+
+    const response = await apiClient.post(`/resources/smart-upload`, formData, {
+      headers: { 
+        "x-auth-token": authToken,
+        "Content-Type": "multipart/form-data"
+      },
     });
     return response.data;
   }
@@ -526,16 +616,17 @@ class ApiService {
     return response.data;
   }
 
-  async getFriends(userId: string, token?: string): Promise<UserData[]> {
+  async getFriends(_userId?: string, token?: string): Promise<UserData[]> {
     const authToken = token || getToken() || "";
 
     if (USE_MOCK_DB) {
       return [];
     }
 
-    // TODO: Fetch friends individually to return UserData[]
-    // For now, return empty array as friendsList contains user IDs, not full UserData objects
-    return [];
+    const response = await apiClient.get<UserData[]>("/user/friends", {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
   }
 
   // ===== ML Service Endpoints (Port 6005) =====
@@ -550,8 +641,7 @@ class ApiService {
 
   async matchFriends(userId: string): Promise<{ users: string[] }> {
     if (USE_MOCK_DB) {
-      const matchedIds = mockDB.getMatchedFriends(userId);
-      return { users: matchedIds };
+      return { users: [] };
     }
 
     const response = await mlClient.post("/match", { userId });
@@ -567,10 +657,7 @@ class ApiService {
     if (USE_MOCK_DB) {
       const token = getToken();
       if (token) {
-        const user = mockDB.getUserByToken(token);
-        if (user) {
-          mockDB.updateUserPreferences(user._id, preferences);
-        }
+        // Mock DB not available
       }
       return Promise.resolve();
     }
@@ -580,11 +667,39 @@ class ApiService {
 
   async completeTask(taskId: string, userId: string): Promise<void> {
     if (USE_MOCK_DB) {
-      mockDB.updateTask(taskId, { status: "completed" });
       return Promise.resolve();
     }
 
     await mlClient.post("/complete_task", { taskId, userId });
+  }
+
+  // ===== Activity Endpoints =====
+  async getActivities(limit: number = 20, token?: string): Promise<any[]> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return [];
+    }
+
+    const response = await apiClient.get<any[]>("/activity", {
+      params: { limit },
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
+  }
+
+  // ===== User Endpoints (additional) =====
+  async getLoginDates(token?: string): Promise<{ loginDates: string[]; streak: number }> {
+    const authToken = token || getToken() || "";
+
+    if (USE_MOCK_DB) {
+      return { loginDates: [], streak: 0 };
+    }
+
+    const response = await apiClient.get<{ loginDates: string[]; streak: number }>("/user/login-dates", {
+      headers: { "x-auth-token": authToken },
+    });
+    return response.data;
   }
 }
 

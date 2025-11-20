@@ -4,13 +4,18 @@ import mongoose, { mongo } from "mongoose";
 
 const createEvent = async(req, res) => {
     try {
+        console.log("CREATE EVENT - req.user:", req.user);
+        console.log("CREATE EVENT - req.headers:", req.headers);
+        
         const userId = req.user?._id; // Get from auth middleware
         
         if (!userId) {
-            return res.status(401).json({ message: "Authentication required" });
+            console.error("No userId found in req.user:", req.user);
+            return res.status(401).json({ message: "Authentication required. User ID not found in token." });
         }
 
-        console.log("🔥 CREATE EVENT PAYLOAD:", req.body);
+        console.log("CREATE EVENT PAYLOAD:", req.body);
+        console.log("CREATE EVENT - userId:", userId);
         
         const { title, taskInput, classInput, repeatWeekly, start, end, notes, color } = req.body;
 
@@ -35,11 +40,20 @@ const createEvent = async(req, res) => {
         });
         
         const savedEvent = await newEvent.save();
-        console.log("✅ Event created successfully:", savedEvent._id);
+        console.log("Event created successfully:", savedEvent._id);
+        
+        // Log activity
+        try {
+            const { createActivity } = await import('./activityController.js');
+            await createActivity(userId, 'event_created', `Created event "${savedEvent.title}"`, { eventId: savedEvent._id });
+        } catch (error) {
+            console.error("Error logging activity:", error);
+        }
+        
         res.status(201).json(savedEvent);
 
     } catch (error) {
-        console.error("❌ Error creating event:", error);
+        console.error("Error creating event:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -93,7 +107,7 @@ const editEventById = async(req, res) => {
         return res.status(200).json(selectedEvent);
 
     } catch (error) {   
-        console.error("❌ Error updating event:", error);
+        console.error("Error updating event:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -118,7 +132,7 @@ const getEventsByUserId = async(req, res) => {
         return res.status(200).json(events || []);
 
     } catch (error) {   
-        console.error("❌ Error fetching events:", error);
+        console.error("Error fetching events:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -151,7 +165,7 @@ const deleteEventById = async(req, res) => {
         return res.status(200).json(deletedEvent);
 
     } catch (error) {
-        console.error("❌ Error deleting event:", error);
+        console.error("Error deleting event:", error);
         res.status(500).json({ message: error.message });
     }
 };

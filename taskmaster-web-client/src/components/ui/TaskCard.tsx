@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { theme } from "../../constants/theme";
 import { getStatusColor } from "../../utils/styleUtils";
-import { TasksData } from "../../services/mockDatabase";
+import { TasksData } from "../../services/types";
 
 interface TaskCardProps {
   task: TasksData;
