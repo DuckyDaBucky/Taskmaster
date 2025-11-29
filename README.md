@@ -1,3 +1,7 @@
+**This project is a part of AIS Innovation Labs**
+
+Taskmaster is an AI driven academic productivity system that transforms unstructured course materials into organized tasks, schedules, and action plans. Using Gemini powered RAG extraction, Taskmaster reads syllabi, assignments, emails, and calendar data, then automatically generates deadlines, reminders, and workflow structures tailored to the user. The platform reduces manual planning, streamlines academic organization, and acts as an intelligent assistant that helps students stay ahead of their workload with minimal effort.
+
 # Taskmaster: Run Guide
 
 ## 1. Required Terminals
