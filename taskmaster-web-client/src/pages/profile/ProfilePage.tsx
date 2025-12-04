@@ -70,7 +70,7 @@ const ProfilePage: React.FC = () => {
     <div className="space-y-6">
       {/* Header / Banner */}
       <div className="relative mb-16">
-        <div className="h-48 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-md w-full"></div>
+        <div className="h-48 bg-blue-600 rounded-md w-full"></div>
         <div className="absolute -bottom-12 left-8 flex items-end gap-4">
           <div className="relative">
             {avatarUrl ? (
@@ -100,7 +100,7 @@ const ProfilePage: React.FC = () => {
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                   placeholder="Last Name"
-                  className="px-3 py-1 bg-background border border-border rounded text-foreground text-sm text-muted-foreground"
+                  className="px-3 py-1 bg-background border border-border rounded text-sm text-muted-foreground"
                 />
               </div>
             ) : (

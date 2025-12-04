@@ -63,7 +63,7 @@ function Signup() {
 
   return (
     <>
-      <div className="relative h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 overscroll-y-none">
+      <div className="relative h-screen flex items-center justify-center bg-blue-600 overscroll-y-none">
         {/* SVG Background */}
         <svg
           className="absolute inset-0 w-full h-full opacity-20"
@@ -113,7 +113,7 @@ function Signup() {
           className="w-[720px] bg-white shadow-lg rounded-lg p-8 space-y-6 z-10 relative overscroll-y-none"
         >
           <div className="text-center">
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h2 className="text-3xl font-bold text-blue-600">
               Create an Account
             </h2>
             <p className="text-gray-500 mt-2">Sign up to get started</p>
@@ -265,7 +265,7 @@ function Signup() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.6 }}
-              className="col-span-2 w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 rounded-md hover:from-blue-700 hover:to-purple-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="col-span-2 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center">

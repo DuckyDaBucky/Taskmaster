@@ -33,7 +33,7 @@ export const Sidebar: React.FC = () => {
     <aside className="h-screen w-64 bg-surface border-r border-border-color flex flex-col sticky top-0 left-0 shrink-0">
       {/* SECTION A: BRANDING */}
       <div className="p-6 border-b border-border-color">
-        <h1 className="text-xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+        <h1 className="text-xl font-bold tracking-tight text-primary">
           Taskmaster
         </h1>
       </div>
@@ -74,7 +74,7 @@ export const Sidebar: React.FC = () => {
               className="w-8 h-8 rounded-full object-cover"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white font-bold text-xs">
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xs">
               {(user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0] || "U").toUpperCase()}
             </div>
           )}
