@@ -195,10 +195,6 @@ const TasksPage: React.FC = () => {
     }
   };
 
-  const filteredTasks = tasks.filter((task) => {
-    if (filter === "all") return true;
-    return task.status === filter;
-  });
 
   if (isLoading) {
     return (

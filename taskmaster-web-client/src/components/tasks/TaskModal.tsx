@@ -1,6 +1,6 @@
 import React from "react";
 import { X } from "lucide-react";
-import type { TasksData, ClassData } from "../../services/types";
+import type { ClassData } from "../../services/types";
 
 interface TaskModalProps {
   isOpen: boolean;

@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
-import { API_BASE_URL, USE_MOCK_DB, ML_SERVICE_URL } from "../apiConfig";
+import { API_BASE_URL, ML_SERVICE_URL } from "../apiConfig";
 
 // Create axios instance for real API calls
 export const apiClient: AxiosInstance = axios.create({
