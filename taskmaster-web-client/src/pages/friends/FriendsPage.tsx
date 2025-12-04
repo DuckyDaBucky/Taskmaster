@@ -18,6 +18,7 @@ const FriendsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAddingHamiz, setIsAddingHamiz] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isMatching, setIsMatching] = useState(false);
 
   useEffect(() => {
     const fetchFriends = async () => {
@@ -79,6 +80,41 @@ const FriendsPage: React.FC = () => {
     }
   };
 
+  const handleMatchFriends = async () => {
+    if (!user?._id) {
+      setError("Please log in to match friends");
+      return;
+    }
+
+    try {
+      setIsMatching(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      const result = await apiService.matchFriends(user._id);
+      
+      if (result.users && result.users.length > 0) {
+        setSuccessMessage(`Matched with ${result.users.length} friend(s): ${result.users.join(", ")}`);
+        // Refresh friends list after matching
+        const friendsList = await apiService.getFriends(user._id);
+        const friendDetails: Friend[] = friendsList.map((friend: any) => ({
+          id: friend._id,
+          name: `${friend.firstName || ""} ${friend.lastName || ""}`.trim() || friend.userName || friend.email,
+          status: "offline" as const,
+          avatarColor: `bg-${["blue", "green", "purple", "red", "orange", "cyan"][Math.floor(Math.random() * 6)]}-600`,
+        }));
+        setFriends(friendDetails);
+      } else {
+        setSuccessMessage("No matches found at this time. Make sure you've set your preferences in Settings!");
+      }
+    } catch (error: any) {
+      console.error("Error matching friends:", error);
+      setError(error.response?.data?.message || "Failed to match friends. Make sure you've set your preferences in Settings!");
+    } finally {
+      setIsMatching(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -94,13 +130,22 @@ const FriendsPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Friends</h1>
-        <button
-          onClick={handleAddHamiz}
-          disabled={isAddingHamiz}
-          className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {isAddingHamiz ? "Adding..." : "Add Hamiz Iqbal"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleMatchFriends}
+            disabled={isMatching}
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {isMatching ? "Matching..." : "Find Study Partners"}
+          </button>
+          <button
+            onClick={handleAddHamiz}
+            disabled={isAddingHamiz}
+            className="px-4 py-2 bg-secondary hover:bg-secondary/90 text-foreground rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {isAddingHamiz ? "Adding..." : "Add Hamiz Iqbal"}
+          </button>
+        </div>
       </div>
 
       {error && (

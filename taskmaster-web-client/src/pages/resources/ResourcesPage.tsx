@@ -22,9 +22,11 @@ const ResourcesPage: React.FC = () => {
       try {
         setIsLoading(true);
         const allResources = await apiService.getAllResources();
-        setResources(allResources);
+        console.log("Initial resources fetch:", allResources);
+        setResources(allResources || []);
       } catch (error) {
         console.error("Error fetching resources:", error);
+        setResources([]);
       } finally {
         setIsLoading(false);
       }
@@ -72,13 +74,16 @@ const ResourcesPage: React.FC = () => {
         formData.append("file", file);
 
         // Call smart upload endpoint that uses Gemini to auto-classify
-        await apiService.smartUploadResource(formData);
+        const result = await apiService.smartUploadResource(formData);
+        console.log("Upload result:", result);
       }
 
       setUploadStatus("✓ Files uploaded and classified!");
       
-      // Refresh resources
+      // Wait a bit for database to update, then refresh resources
+      await new Promise(resolve => setTimeout(resolve, 500));
       const allResources = await apiService.getAllResources();
+      console.log("Fetched resources:", allResources);
       setResources(allResources);
 
       // Reset
@@ -202,14 +207,29 @@ const ResourcesPage: React.FC = () => {
           </p>
         ) : (
           <div className="space-y-2">
-            {resources.slice(0, 10).map((resource) => (
-              <div
-                key={resource._id}
-                className="text-sm text-muted-foreground py-2 border-b border-border last:border-0"
-              >
-                {resource.title || "Untitled"}
-              </div>
-            ))}
+            {resources.slice(0, 10).map((resource) => {
+              // Determine display name from available fields
+              const displayName = resource.title 
+                || resource.files?.[0]?.originalName 
+                || resource.urls?.[0] 
+                || resource.websites?.[0] 
+                || "Untitled Resource";
+              
+              const className = resource.class?.name || resource.class || "Personal";
+              
+              return (
+                <div
+                  key={resource._id}
+                  className="text-sm py-2 border-b border-border last:border-0"
+                >
+                  <div className="text-foreground font-medium">{displayName}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {className} • {resource.files?.length > 0 ? `${resource.files.length} file(s)` : ''}
+                    {resource.urls?.length > 0 ? ` • ${resource.urls.length} URL(s)` : ''}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -1,9 +1,45 @@
-import User from "../models/userModel.js";
+import mongoose from "mongoose";
+import User from "../Taskmaster-server/express-server/models/userModel.js";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import Activity from "../Taskmaster-server/express-server/models/activityModel.js";
 
-//Use for login portal - accepts username OR email
-const authUser = async (req, res) => {
+// Connect to MongoDB
+const connectDB = async () => {
+  if (mongoose.connections[0].readyState) {
+    return;
+  }
+  await mongoose.connect(process.env.DB_URL);
+};
+
+export default async function handler(req, res) {
+  // Set CORS headers - allow your frontend domain
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "http://localhost:5173",
+    "http://localhost:3000"
+  ].filter(Boolean);
+  
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-auth-token");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Method not allowed" });
+  }
+
   try {
+    await connectDB();
+
     const { email, userName, password } = req.body;
 
     if (!password) {
@@ -49,59 +85,41 @@ const authUser = async (req, res) => {
     let shouldCreateLoginActivity = false;
     let streakChange = 0;
     
-    // Add today's date if not already present
     const todayStr = todayUTC.toISOString().split('T')[0];
     const lastLoginStr = lastLoginUTC ? lastLoginUTC.toISOString().split('T')[0] : null;
     const alreadyLoggedInToday = lastLoginStr === todayStr;
     
-    // If never logged in before, start streak at 1
     if (!lastLoginUTC) {
       newStreak = 1;
       streakChange = 1;
       shouldCreateLoginActivity = true;
-    }
-    // If last login was yesterday, increment streak
-    else if (daysDiff === 1) {
+    } else if (daysDiff === 1) {
       newStreak = previousStreak + 1;
       streakChange = 1;
       shouldCreateLoginActivity = true;
-    } 
-    // If last login was today, keep streak the same (already logged in today)
-    else if (daysDiff === 0) {
-      // Already logged in today, don't change streak or create activity
+    } else if (daysDiff === 0) {
       shouldCreateLoginActivity = false;
-    }
-    // If last login was more than 1 day ago, reset to 1
-    else {
+    } else {
       const wasStreakBroken = previousStreak > 0;
       newStreak = 1;
-      streakChange = wasStreakBroken ? -previousStreak : 1; // Negative if breaking a streak, positive if starting new
+      streakChange = wasStreakBroken ? -previousStreak : 1;
       shouldCreateLoginActivity = true;
     }
     
-    // Add today's date if not already present
     if (!alreadyLoggedInToday) {
       loginDates.push(todayUTC);
-      // Keep only last 365 days
       if (loginDates.length > 365) {
         loginDates = loginDates.slice(-365);
       }
     }
     
-    // Update user
     user.streak = newStreak;
     user.lastLoginDate = todayUTC;
     user.loginDates = loginDates;
     await user.save();
-    
-    console.log(`Login streak updated: ${newStreak} days (daysDiff: ${daysDiff}, lastLogin: ${lastLoginStr}, today: ${todayStr}, streakChange: ${streakChange})`);
 
-    // Log activities only if this is a new login today
     if (shouldCreateLoginActivity) {
       try {
-        const Activity = (await import('../models/activityModel.js')).default;
-        
-        // Only create login activity once per day
         const todayStart = new Date(todayUTC);
         const todayEnd = new Date(todayUTC);
         todayEnd.setUTCHours(23, 59, 59, 999);
@@ -121,7 +139,6 @@ const authUser = async (req, res) => {
           });
         }
         
-        // Create streak change activity if streak was lost (negative change)
         if (streakChange < 0) {
           await Activity.create({
             user: user._id,
@@ -134,19 +151,18 @@ const authUser = async (req, res) => {
             }
           });
         }
-        // For consecutive logins (+1), the login activity itself shows the streak
-        // No need for separate streak activity
       } catch (error) {
         console.error("Error logging activity:", error);
       }
     }
 
-    const token = user.generateAuthToken();
-    res.send(token);
+    const jwtSecret = process.env.JWT_SECRET || "secretstring1234";
+    const token = jwt.sign({ _id: user._id }, jwtSecret);
+    
+    return res.status(200).send(token);
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
-};
+}
 
-export default authUser;

@@ -7,6 +7,7 @@ from flask import Flask, jsonify, request, make_response
 from flask_restful import Resource, Api
 from flask_cors import CORS
 from bson.objectid import ObjectId
+from datetime import datetime, timedelta, date
 import os
 from dotenv import load_dotenv
 
@@ -61,54 +62,112 @@ class MatchRequest(Resource):
 
 class SetPreferences(Resource):
     def post(self):
-        data = request.get_json()
-        userId = data.get('userId')
+        try:
+            data = request.get_json()
+            userId = data.get('userId')
 
-        users = client['test']['users']
-        user_object = users.update_one(
-            {"_id": ObjectId(userId)}, 
-            {"$set": {
-                "preferences": {
-                    "personality": data.get('personality'),
-                    "time": data.get('preferred_time'),
-                    "inPerson": data.get('in_person'),
-                    "privateSpace": data.get('private_space'),
-                }
-            }}
-        )
-        
-        if not user_object:
-            return 400
-        print (userId)
-        return 200
+            if not userId:
+                return make_response(jsonify({"message": "userId is required"}), 400)
+
+            users = client['test']['users']
+            result = users.update_one(
+                {"_id": ObjectId(userId)}, 
+                {"$set": {
+                    "preferences": {
+                        "personality": data.get('personality'),
+                        "time": data.get('time'),
+                        "inPerson": data.get('inPerson'),
+                        "privateSpace": data.get('privateSpace'),
+                    }
+                }}
+            )
+            
+            if result.matched_count == 0:
+                return make_response(jsonify({"message": "User not found"}), 404)
+            
+            return make_response(jsonify({"message": "Preferences updated successfully"}), 200)
+        except Exception as e:
+            print(f"Error setting preferences: {e}")
+            return make_response(jsonify({"message": str(e)}), 500)
 
 
 class FinishTask(Resource):
     def post(self):
-        users = client['test']['users']
-        userId = request.get_json().get('userId')
-        user = users.find_one({"_id": ObjectId(userId)})
-        
-        user.last_task_date = datetime.now().date() - timedelta(days=1)  # for streak
+        try:
+            data = request.get_json()
+            userId = data.get('userId')
+            taskId = data.get('taskId')
 
-        tasks = [
-            ("monthly", date.today() + timedelta(days=10)),
-            ("monthly", date.today() + timedelta(days=10)),
-            ("monthly", date.today() + timedelta(days=10)),
-            ("monthly", date.today() + timedelta(days=10)),
-            ("daily", date.today() + timedelta(days=1)),
-            ("daily", date.today() + timedelta(days=1)),
-            ("daily", date.today() + timedelta(days=1))
-        ]
+            if not userId:
+                return make_response(jsonify({"message": "userId is required"}), 400)
 
-        for i, (task_type, deadline) in enumerate(tasks):
-            print(f"\n--- Task {i+1} ---")
-            ps = PointSystem(user, task_type, deadline)
-            earned = ps.calculate_points()
-            print(f"Earned: {earned}")
-            print(f"Streak: {user.streak}")
-            print(f"Points: {user.points}")
-            print(f"Level: {user.level}")
+            users = client['test']['users']
+            tasks_db = client['test']['tasks']
+            
+            # Get user
+            user_doc = users.find_one({"_id": ObjectId(userId)})
+            if not user_doc:
+                return make_response(jsonify({"message": "User not found"}), 404)
+
+            # Get task to determine type and deadline
+            task_doc = None
+            if taskId:
+                task_doc = tasks_db.find_one({"_id": ObjectId(taskId)})
+            
+            # Determine task type based on deadline
+            task_type = "daily"  # default
+            deadline_date = date.today() + timedelta(days=1)  # default
+            
+            if task_doc and task_doc.get('deadline'):
+                deadline_date = datetime.fromisoformat(task_doc['deadline'].replace('Z', '+00:00')).date()
+                days_until = (deadline_date - date.today()).days
+                
+                if days_until <= 1:
+                    task_type = "daily"
+                elif days_until <= 7:
+                    task_type = "weekly"
+                else:
+                    task_type = "monthly"
+
+            # Create User object
+            user = User(userObject=user_doc)
+            
+            # Calculate points
+            ps = PointSystem(user, task_type, deadline_date)
+            earned_points = ps.calculate_points()
+            
+            # Update user in database
+            users.update_one(
+                {"_id": ObjectId(userId)},
+                {"$set": {
+                    "points": user.points,
+                    "streak": user.streak,
+                    "level": user.level,
+                    "lastTaskDate": user.last_task_date.isoformat() if user.last_task_date else None
+                }}
+            )
+            
+            return make_response(jsonify({
+                "points": user.points,
+                "streak": user.streak,
+                "level": user.level,
+                "earnedPoints": earned_points
+            }), 200)
+        except Exception as e:
+            print(f"Error finishing task: {e}")
+            return make_response(jsonify({"message": str(e)}), 500)
+
+
+class CompleteTask(Resource):
+    def post(self):
+        # Alias for FinishTask to match frontend API
+        return FinishTask().post()
+
+
+class SetPoints(Resource):
+    def get(self):
+        # Endpoint that frontend expects - can be used to refresh points
+        return make_response(jsonify({"message": "Use POST /finish or /complete_task to update points"}), 200)
 
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -168,6 +227,8 @@ class GenerateFlashcards(Resource):
 api.add_resource(MatchRequest, "/match")
 api.add_resource(SetPreferences, "/set")
 api.add_resource(FinishTask, "/finish")
+api.add_resource(CompleteTask, "/complete_task")
+api.add_resource(SetPoints, "/set_points")
 api.add_resource(GenerateFlashcards, "/generate_flashcards")
 
 if __name__ == "__main__":

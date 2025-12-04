@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "serverless-api/**/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/auth",
+      "dest": "/serverless-api/auth.js"
+    },
+    {
+      "src": "/api/signup",
+      "dest": "/serverless-api/signup.js"
+    }
+  ]
+}
+

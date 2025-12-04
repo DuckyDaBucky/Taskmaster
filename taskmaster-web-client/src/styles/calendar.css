@@ -1,0 +1,394 @@
+/**
+ * Calendar Styles
+ * Custom styling for react-big-calendar to ensure proper theming
+ * and fix off-month day colors
+ */
+
+/* Calendar container */
+.rbc-calendar {
+  color: var(--text-primary);
+  background-color: var(--bg-app);
+}
+
+/* Month view - day cells */
+.rbc-month-view {
+  border-color: var(--border);
+}
+
+.rbc-month-row {
+  border-color: var(--border);
+}
+
+.rbc-day-bg {
+  border-color: var(--border);
+  background-color: var(--bg-app);
+}
+
+/* Off-month days (days from previous/next month) - FIXED */
+.rbc-off-range-bg {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .rbc-off-range-bg,
+[data-theme="default"] .rbc-off-range-bg {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+[data-theme="light"] .rbc-off-range-bg {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+.rbc-off-range {
+  color: var(--text-secondary) !important;
+  opacity: 0.5;
+}
+
+[data-theme="dark"] .rbc-off-range,
+[data-theme="default"] .rbc-off-range {
+  color: var(--text-secondary) !important;
+  opacity: 0.4;
+}
+
+[data-theme="light"] .rbc-off-range {
+  color: var(--text-secondary) !important;
+  opacity: 0.6;
+}
+
+/* Today's date */
+.rbc-today {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.rbc-today .rbc-day-bg {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Header styling */
+.rbc-header {
+  border-color: var(--border);
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  padding: 0.5rem;
+  font-weight: 600;
+}
+
+.rbc-header + .rbc-header {
+  border-left: 1px solid var(--border);
+}
+
+/* Toolbar - Aligned flush with top, no excess padding */
+.rbc-toolbar {
+  color: var(--text-primary);
+  margin: 0;
+  margin-bottom: 0.75rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  width: 100%;
+  /* Ensure no top margin/padding */
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.rbc-toolbar-label {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 1.125rem;
+  margin: 0;
+  padding: 0;
+}
+
+/* Navigation button group - Square-ish buttons */
+.rbc-btn-group {
+  display: inline-flex;
+  white-space: nowrap;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+  align-items: stretch;
+}
+
+.rbc-btn-group button {
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 0;
+  line-height: 1.5;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  height: 2.5rem;
+  /* Square-ish with reduced border radius */
+  border-radius: 0.25rem;
+}
+
+.rbc-btn-group button:hover {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.rbc-btn-group button.rbc-active {
+  background-color: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  z-index: 1;
+  position: relative;
+}
+
+.rbc-btn-group button.rbc-active:hover {
+  background-color: var(--primary);
+  opacity: 0.9;
+  color: white;
+}
+
+/* Individual buttons in group - remove double borders */
+.rbc-btn-group button:not(:first-child) {
+  border-left: none;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.rbc-btn-group button:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.rbc-btn-group button:only-child {
+  border-radius: 0.25rem;
+  border: 1px solid var(--border);
+}
+
+/* Remove any default margins/padding that might cause awkward spacing */
+.rbc-toolbar > * {
+  margin: 0;
+  padding: 0;
+}
+
+/* Ensure toolbar doesn't have extra spacing */
+.rbc-toolbar::after {
+  content: none;
+  display: none;
+}
+
+/* Fix any line-height issues that might cause spacing */
+.rbc-btn-group {
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Ensure consistent button styling */
+.rbc-toolbar button {
+  margin: 0;
+  padding: 0.625rem 1rem;
+  height: 2.5rem;
+  min-height: 2.5rem;
+}
+
+/* Navigation buttons (Today, Prev, Next) - Square-ish style */
+.rbc-toolbar button.rbc-today-button,
+.rbc-toolbar button.rbc-prev-button,
+.rbc-toolbar button.rbc-next-button {
+  border-radius: 0.25rem;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0.625rem 1rem;
+  font-weight: 500;
+}
+
+/* Ensure button group buttons are square-ish */
+.rbc-btn-group button {
+  border-radius: 0.25rem;
+}
+
+/* Calendar container - ensure toolbar aligns properly */
+.rbc-calendar {
+  padding: 0;
+}
+
+/* Remove any default padding from calendar wrapper */
+.rbc-calendar > div {
+  padding: 0;
+}
+
+/* Responsive toolbar adjustments */
+@media (max-width: 768px) {
+  .rbc-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .rbc-toolbar-label {
+    width: 100%;
+    text-align: center;
+  }
+  
+  .rbc-btn-group {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Date cells */
+.rbc-date-cell {
+  color: var(--text-primary);
+  padding: 0.5rem;
+  text-align: right;
+}
+
+.rbc-date-cell.rbc-off-range-bg {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.rbc-date-cell > a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.rbc-date-cell > a:hover {
+  color: var(--primary);
+}
+
+.rbc-date-cell.rbc-off-range > a {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+/* Events */
+.rbc-event {
+  background-color: var(--primary);
+  color: white;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  font-size: 0.75rem;
+  border: none;
+}
+
+.rbc-event:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rbc-event-label {
+  color: white;
+}
+
+.rbc-event-content {
+  color: white;
+}
+
+/* Event styles for different statuses */
+.rbc-event.task-completed {
+  background-color: #10b981;
+  color: white;
+}
+
+.rbc-event.task-overdue {
+  background-color: #ef4444;
+  color: white;
+}
+
+.rbc-event.task-pending {
+  background-color: #f59e0b;
+  color: white;
+}
+
+/* Time slots (for week/day views) */
+.rbc-time-slot {
+  border-top-color: var(--border);
+}
+
+.rbc-time-header-content {
+  border-left-color: var(--border);
+}
+
+.rbc-time-content {
+  border-top-color: var(--border);
+}
+
+.rbc-time-header-gutter {
+  border-right-color: var(--border);
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top-color: var(--border);
+  opacity: 0.3;
+}
+
+/* Agenda view */
+.rbc-agenda-view {
+  border-color: var(--border);
+}
+
+.rbc-agenda-date-cell,
+.rbc-agenda-time-cell {
+  border-color: var(--border);
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+}
+
+.rbc-agenda-event-cell {
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+/* Selected slot */
+.rbc-selected-cell {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Show more link */
+.rbc-show-more {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: inline-block;
+}
+
+.rbc-show-more:hover {
+  background-color: var(--bg-app);
+}
+
+/* Month view - specific fixes */
+.rbc-month-view .rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid var(--border);
+}
+
+.rbc-month-view .rbc-row {
+  border-bottom: 1px solid var(--border);
+}
+
+.rbc-month-view .rbc-row:last-child {
+  border-bottom: none;
+}
+
+/* Ensure proper contrast for all text */
+.rbc-calendar * {
+  box-sizing: border-box;
+}
+
+/* Fix for week view */
+.rbc-time-view {
+  border-color: var(--border);
+}
+
+.rbc-time-view .rbc-day-slot {
+  border-color: var(--border);
+}
+

@@ -3,6 +3,7 @@ import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import "../../styles/calendar.css";
 import AddEventModal from "../../components/AddEventModal";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
@@ -279,7 +280,7 @@ const CalendarPage: React.FC = () => {
 
           return {
             id: `task-${task._id}`,
-            title: `📋 ${task.title}`,
+            title: task.title,
             start: deadlineDate,
             end: endDate,
             description: task.topic || `Class: ${className}`,
@@ -375,22 +376,24 @@ const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 bg-surface border border-border-color rounded-md p-4 text-foreground [&_.rbc-off-range-bg]:bg-background/50 [&_.rbc-today]:bg-primary/10 [&_.rbc-event]:text-white [&_.rbc-header]:border-border-color [&_.rbc-month-view]:border-border-color [&_.rbc-month-row]:border-border-color [&_.rbc-day-bg]:border-border-color [&_.rbc-toolbar-label]:text-foreground [&_.rbc-btn-group_button]:text-foreground [&_.rbc-btn-group_button]:border-border-color [&_.rbc-btn-group_button]:hover:bg-background">
+      <div className="flex-1 bg-card border border-border rounded-md overflow-hidden flex flex-col">
         {isLoading ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center h-full p-4">
             <p className="text-muted-foreground">Loading calendar...</p>
           </div>
         ) : (
-          <BigCalendar
-            localizer={localizer}
-            events={calendarEvents}
-            startAccessor="start"
-            endAccessor="end"
-            style={{ height: "100%", minHeight: "500px" }}
-            onSelectSlot={handleSelectSlot}
-            onSelectEvent={handleSelectEvent}
-            selectable
-          />
+          <div className="h-full flex flex-col p-4 pt-4">
+            <BigCalendar
+              localizer={localizer}
+              events={calendarEvents}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: "100%", minHeight: "500px" }}
+              onSelectSlot={handleSelectSlot}
+              onSelectEvent={handleSelectEvent}
+              selectable
+            />
+          </div>
         )}
       </div>
 

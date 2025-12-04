@@ -75,6 +75,9 @@ export const StatsWidget: React.FC<StatsWidgetProps> = ({ tasks = [], isLoading 
   const last30Days = getLast30Days();
   const loginDatesSet = new Set(loginDates.map(d => new Date(d).toISOString().split('T')[0]));
 
+  const userPoints = currentUser?.points || 0;
+  const userLevel = currentUser?.level || 1;
+
   const stats = [
     { 
       label: "Total Tasks", 
@@ -90,6 +93,14 @@ export const StatsWidget: React.FC<StatsWidgetProps> = ({ tasks = [], isLoading 
       change: `${overdueTasks} overdue`, 
       icon: CheckSquare, 
       color: "text-green-500",
+      onClick: undefined
+    },
+    { 
+      label: "Points", 
+      value: isLoading ? "..." : userPoints.toString(), 
+      change: `Level ${userLevel}`, 
+      icon: Zap, 
+      color: "text-yellow-500",
       onClick: undefined
     },
     { 
@@ -112,7 +123,7 @@ export const StatsWidget: React.FC<StatsWidgetProps> = ({ tasks = [], isLoading 
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (

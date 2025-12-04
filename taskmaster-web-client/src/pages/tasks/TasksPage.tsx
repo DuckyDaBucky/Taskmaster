@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Edit2, Trash2, Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
+import { TaskModal } from "../../components/tasks/TaskModal";
+import { TaskList } from "../../components/tasks/TaskList";
 import type { TasksData, ClassData } from "../../services/types";
 
 const TasksPage: React.FC = () => {
@@ -122,8 +124,24 @@ const TasksPage: React.FC = () => {
       };
 
       if (editingTaskId) {
+        // Check if task is being marked as completed
+        const oldTask = tasks.find(t => t._id === editingTaskId);
+        const isCompletingTask = oldTask && oldTask.status !== 'completed' && taskData.status === 'completed';
+        
         // Update existing task
         await apiService.updateTask(editingTaskId, taskData);
+        
+        // If task was just completed, call Flask API for gamification
+        if (isCompletingTask && user?._id) {
+          try {
+            const result = await apiService.completeTask(editingTaskId, user._id);
+            console.log("Task completed! Points earned:", result);
+            // Optionally show a notification or update UI with points
+          } catch (error) {
+            console.error("Error updating points:", error);
+            // Don't fail the task update if gamification fails
+          }
+        }
       } else {
         // Create new task
         const classId = isPersonal && personalClassId ? personalClassId : formData.classId;
@@ -240,286 +258,42 @@ const TasksPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Task List */}
       {error && (
         <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md">
           {error}
         </div>
       )}
 
-      {filteredTasks.length === 0 ? (
-        <div className="bg-card border border-border rounded-md p-8 text-center text-muted-foreground">
-          <p>No tasks found. Create your first task!</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredTasks.map((task) => {
-            const taskClass = task.class ? classes.find((c) => c._id === task.class) : null;
-            return (
-              <div
-                key={task._id}
-                className="bg-card border border-border rounded-md p-4 flex items-center justify-between hover:border-primary/50 transition-colors group"
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`w-4 h-4 rounded-full border-2 ${
-                      task.status === "completed"
-                        ? "bg-green-500 border-green-500"
-                        : "border-muted-foreground"
-                    }`}
-                  />
-                  <div>
-                    <h4
-                      className={`font-medium ${
-                        task.status === "completed"
-                          ? "text-muted-foreground line-through"
-                          : "text-foreground"
-                      }`}
-                    >
-                      {task.title}
-                    </h4>
-                    <p className="text-xs text-muted-foreground">
-                      {taskClass?.name || "Personal"} • Due{" "}
-                      {task.deadline
-                        ? new Date(task.deadline).toLocaleDateString()
-                        : "No deadline"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleOpenEditModal(task)}
-                    className="p-1 text-muted-foreground hover:text-primary"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTask(task._id)}
-                    className="p-1 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <TaskList
+        tasks={tasks}
+        classes={classes}
+        filter={filter}
+        onEdit={handleOpenEditModal}
+        onDelete={handleDeleteTask}
+      />
 
-      {/* Create/Edit Task Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
-          <div className="w-full max-w-xl bg-card border border-border rounded-md p-6 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-foreground">
-                {editingTaskId ? "Edit Task" : "Create New Task"}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setEditingTaskId(null);
-                  setIsPersonal(false);
-                }}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTask} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Class
-                </label>
-                <div className="flex gap-2 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPersonal(true);
-                      setFormData({ ...formData, classId: "" });
-                    }}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isPersonal
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-foreground hover:bg-secondary/80"
-                    }`}
-                  >
-                    Personal
-                  </button>
-                </div>
-                <select
-                  value={formData.classId}
-                  onChange={(e) => {
-                    setIsPersonal(false);
-                    setFormData({ ...formData, classId: e.target.value });
-                  }}
-                  disabled={isPersonal}
-                  className={`w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary ${
-                    isPersonal ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <option value="">Select a class</option>
-                  {classes.map((cls) => (
-                    <option key={cls._id} value={cls._id}>
-                      {cls.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) =>
-                    setFormData({ ...formData, title: e.target.value })
-                  }
-                  required
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Deadline
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.deadline}
-                    onChange={(e) =>
-                      setFormData({ ...formData, deadline: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        status: e.target.value as "pending" | "completed" | "overdue",
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="completed">Completed</option>
-                    <option value="overdue">Overdue</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Topic
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.topic}
-                    onChange={(e) =>
-                      setFormData({ ...formData, topic: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Points
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.points}
-                    onChange={(e) =>
-                      setFormData({ ...formData, points: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Textbook
-                </label>
-                <input
-                  type="text"
-                  value={formData.textbook}
-                  onChange={(e) =>
-                    setFormData({ ...formData, textbook: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Resources (Select multiple)
-                </label>
-                <select
-                  multiple
-                  value={formData.selectedResources}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions, option => option.value);
-                    setFormData({ ...formData, selectedResources: selected });
-                  }}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[100px]"
-                  size={5}
-                >
-                  {resources
-                    .filter((r) => !formData.classId || r.class === formData.classId || !r.class)
-                    .flatMap((r) => (r.urls || []).map((url: string, idx: number) => ({ url, resourceId: r._id, idx })))
-                    .map((item) => (
-                      <option key={`${item.resourceId}-${item.idx}`} value={item.url}>
-                        {item.url.length > 60 ? item.url.substring(0, 60) + "..." : item.url}
-                      </option>
-                    ))}
-                </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Hold Ctrl/Cmd to select multiple resources. Resources are filtered by selected class.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingTaskId(null);
-                    setIsPersonal(false);
-                  }}
-                  className="px-4 py-2 border border-border rounded-md text-foreground hover:bg-secondary transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting
-                    ? editingTaskId
-                      ? "Updating..."
-                      : "Creating..."
-                    : editingTaskId
-                    ? "Update Task"
-                    : "Create Task"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <TaskModal
+        isOpen={showModal}
+        isEditing={!!editingTaskId}
+        formData={formData}
+        isPersonal={isPersonal}
+        classes={classes}
+        resources={resources}
+        isSubmitting={isSubmitting}
+        onClose={() => {
+          setShowModal(false);
+          setEditingTaskId(null);
+          setIsPersonal(false);
+        }}
+        onSubmit={handleSaveTask}
+        onFormChange={(updates) => setFormData({ ...formData, ...updates })}
+        onPersonalToggle={(isPersonal) => {
+          setIsPersonal(isPersonal);
+          if (isPersonal) {
+            setFormData({ ...formData, classId: "" });
+          }
+        }}
+      />
     </div>
   );
 };

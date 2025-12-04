@@ -15,8 +15,18 @@ const getAllResources = async(req, res) => {
         const userClasses = await Class.find({ user: userId });
         const classIds = userClasses.map(c => c._id);
         
-        // Get all resources that belong to user's classes
-        const resources = await Resource.find({ class: { $in: classIds } });
+        // Get all resources that belong to user's classes OR are personal (class: null/undefined) and belong to user
+        const resources = await Resource.find({
+            $or: [
+                { class: { $in: classIds } },
+                { $and: [
+                    { $or: [{ class: null }, { class: { $exists: false } }] },
+                    { user: userId }
+                ]} // Personal resources (smart upload) - handle both null and undefined
+            ]
+        }).populate('class', 'name');
+        
+        console.log(`Found ${resources.length} resources for user ${userId}`);
         res.status(200).json(resources || []);
 
     } catch (error) {
@@ -200,10 +210,11 @@ const createResourceByClassId = async(req, res) => {
         }
 
         const newResource = new Resource({
+            title: fileData?.originalName || urls?.[0] || websites?.[0] || "Untitled Resource",
             urls: urls || [], 
             websites: websites || [],
             files: fileData ? [fileData] : [],
-            class: classId,
+            class: classId || null,
             user: userId
         });
         
@@ -242,6 +253,7 @@ const smartUploadResource = async(req, res) => {
         // TODO: Use Gemini to analyze file and determine class
         // For now, create a resource without a class (will need manual assignment)
         const newResource = new Resource({
+            title: req.file.originalname, // Use filename as title
             urls: [],
             websites: [],
             files: [{
@@ -251,12 +263,19 @@ const smartUploadResource = async(req, res) => {
                 size: req.file.size,
                 path: req.file.path
             }],
-            user: userId
-            // class will be null - user can assign later or AI can determine
+            user: userId,
+            class: null // class will be null - user can assign later or AI can determine
         });
         
         const savedResource = await newResource.save();
         console.log("Smart upload resource created:", savedResource._id);
+        console.log("Resource details:", {
+            id: savedResource._id,
+            title: savedResource.title,
+            user: savedResource.user,
+            class: savedResource.class,
+            files: savedResource.files?.length || 0
+        });
         
         res.status(201).json(savedResource);
 

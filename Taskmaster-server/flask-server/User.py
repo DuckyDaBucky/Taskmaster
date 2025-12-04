@@ -31,11 +31,14 @@ class User:
         users.update_one(query_filter, update_operation)
 
     def to_vector(self):
+        if not self.preferences:
+            return [0.5, 0, 0, -1]  # Default values
+        
         return [
-            self.preferences.get('personality'),
-            self.preferences.get('time'),
-            int(self.preferences.get('inPerson')),
-            int(self.preferences.get('privateSpace')) if self.preferences.get('in_person') else -1,
+            self.preferences.get('personality', 0.5),
+            self.preferences.get('time', 0),
+            int(self.preferences.get('inPerson', 0)),
+            int(self.preferences.get('privateSpace', 0)) if self.preferences.get('inPerson') else -1,
         ]
     
         # return [self.personality,
