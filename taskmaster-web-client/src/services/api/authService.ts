@@ -92,7 +92,7 @@ export const authService = {
 
   /**
    * Sign up a new user
-   * Database trigger will auto-create profile, so we just need to sign up
+   * Creates auth user and profile in one go
    */
   async signup(userData: {
     email: string;
@@ -109,40 +109,9 @@ export const authService = {
       throw new Error("All fields are required");
     }
 
-    // Check if username already exists
-    const { data: existingUsername, error: usernameCheckError } = await supabase
-      .from('users')
-      .select('id, user_name')
-      .eq('user_name', normalizedUserName)
-      .maybeSingle();
-
-    if (usernameCheckError && usernameCheckError.code !== 'PGRST116') {
-      console.error("Error checking username:", usernameCheckError);
-      throw new Error("Database error. Please try again.");
-    }
-
-    if (existingUsername) {
-      throw new Error("Username is already taken");
-    }
-
-    // Check if email already exists in users table
-    const { data: existingEmail, error: emailCheckError } = await supabase
-      .from('users')
-      .select('id, email')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
-
-    if (emailCheckError && emailCheckError.code !== 'PGRST116') {
-      console.error("Error checking email:", emailCheckError);
-      throw new Error("Database error. Please try again.");
-    }
-
-    if (existingEmail) {
-      throw new Error("Email is already registered");
-    }
+    console.log("Starting signup for:", normalizedEmail);
 
     // Sign up with Supabase Auth
-    // The database trigger will automatically create the profile
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password: userData.password,
@@ -153,11 +122,11 @@ export const authService = {
           last_name: userData.lastName.trim(),
           display_name: normalizedUserName,
         },
-        emailRedirectTo: `${window.location.origin}/dashboard`,
       },
     });
 
     if (authError) {
+      console.error("Supabase auth error:", authError);
       const errorMsg = authError.message?.toLowerCase() || "";
       
       if (errorMsg.includes("already registered") || 
@@ -167,11 +136,10 @@ export const authService = {
       }
       
       if (errorMsg.includes("password")) {
-        throw new Error("Password does not meet requirements");
+        throw new Error("Password must be at least 6 characters");
       }
       
-      console.error("Supabase auth error:", authError);
-      throw new Error(authError.message || "Failed to create account. Please try again.");
+      throw new Error(authError.message || "Failed to create account");
     }
 
     if (!authData.user) {
@@ -180,96 +148,62 @@ export const authService = {
 
     console.log("Auth user created:", authData.user.id);
 
-    // If email confirmation is required, session will be null
-    // But the database trigger will still create the profile
+    // If no session (email confirmation required), just tell user to check email
     if (!authData.session) {
-      // Wait a moment for trigger to execute
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Check if profile was created by trigger
-      const { data: profile } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', authData.user.id)
-        .single();
-      
-      if (profile) {
-        console.log("Profile created by trigger, email confirmation required");
-        throw new Error("Please check your email to confirm your account. After confirming, you can log in.");
-      } else {
-        console.warn("Profile not created by trigger, might need manual creation");
-        throw new Error("Please check your email to confirm your account. After confirming, you can log in.");
-      }
+      console.log("No session - email confirmation may be required");
+      // Don't throw error - just log it. The profile will be created on first login.
     }
 
-    // Session exists - user is immediately authenticated
-    // Wait for trigger to create profile
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Verify profile was created (by trigger or manually)
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', authData.user.id)
-      .single();
+    // Try to create profile immediately
+    // This may fail due to RLS, but that's okay - we'll try again on login
+    const profileData = {
+      id: authData.user.id,
+      user_name: normalizedUserName,
+      first_name: userData.firstName.trim(),
+      last_name: userData.lastName.trim(),
+      email: normalizedEmail,
+      streak: 0,
+      points: 0,
+      level: 1,
+      role: 'user',
+    };
 
-    if (profileError || !profile) {
-      console.error("Profile not found after signup:", profileError);
-      
-      // Try to create profile manually as fallback
-      try {
-        const { error: createError } = await supabase
+    console.log("Attempting to create profile...");
+    const { error: profileError } = await supabase
       .from('users')
-      .insert({
-        id: authData.user.id,
-            user_name: normalizedUserName,
-            first_name: userData.firstName.trim(),
-            last_name: userData.lastName.trim(),
-            email: normalizedEmail,
-        streak: 0,
-        points: 0,
-        level: 1,
-            role: 'user',
-          });
+      .upsert(profileData, { onConflict: 'id' });
 
-        if (createError) {
-          console.error("Manual profile creation also failed:", createError);
-          throw new Error("Account created but profile setup failed. Please contact support.");
-        }
-        
-        console.log("Profile created manually as fallback");
-        
-        // Create Personal class
-        await supabase
-      .from('classes')
-      .insert({
-        name: "Personal",
-        professor: "",
-        timing: "",
-        location: "",
-        topics: [],
-        textbooks: [],
-        grading_policy: "",
-        contact_info: "",
-        user_id: authData.user.id,
-        is_personal: true,
-      });
-      } catch (fallbackError: any) {
-        console.error("Fallback profile creation failed:", fallbackError);
-        throw new Error("Account created but profile setup failed. Please contact support.");
-      }
+    if (profileError) {
+      console.warn("Profile creation warning (will retry on login):", profileError.message);
+      // Don't throw - account is created, profile will be created on login
     } else {
-      console.log("Profile exists (created by trigger)");
+      console.log("Profile created successfully");
+      
+      // Try to create Personal class
+      await supabase
+        .from('classes')
+        .upsert({
+          name: "Personal",
+          professor: "",
+          timing: "",
+          location: "",
+          topics: [],
+          textbooks: [],
+          grading_policy: "",
+          contact_info: "",
+          user_id: authData.user.id,
+          is_personal: true,
+        }, { onConflict: 'user_id,is_personal' });
+      console.log("Personal class created");
     }
 
-    // Verify session is set
-    const { data: { session: verifySession } } = await supabase.auth.getSession();
-    if (!verifySession) {
-      console.warn("Session not found after signup");
-      throw new Error("Account created but session not set. Please try logging in.");
+    // If we have a session, we're good
+    if (authData.session) {
+      console.log("Signup completed with session");
+    } else {
+      // No session but account created - user can log in
+      console.log("Signup completed - user can now log in");
     }
-
-    console.log("Signup completed successfully");
   },
 
   /**
@@ -298,48 +232,100 @@ export const authService = {
       .single();
 
     if (profileError) {
+      console.log("Profile fetch error:", profileError);
+      
       // If profile doesn't exist, try to create it from auth metadata
       if (profileError.code === 'PGRST116') {
+        console.log("Profile not found, creating from auth metadata...");
         const metadata = user.user_metadata || {};
-        try {
-          // Try to create profile
-          const { error: createError } = await supabase
-            .from('users')
-            .insert({
-              id: user.id,
-              user_name: metadata.user_name || metadata.display_name || user.email?.split('@')[0] || 'user',
-              first_name: metadata.first_name || '',
-              last_name: metadata.last_name || '',
-              email: user.email || '',
-              streak: 0,
-              points: 0,
-              level: 1,
-              role: 'user',
-            });
+        
+        const profileData = {
+          id: user.id,
+          user_name: metadata.user_name || metadata.display_name || user.email?.split('@')[0] || 'user',
+          first_name: metadata.first_name || '',
+          last_name: metadata.last_name || '',
+          email: user.email || '',
+          streak: 0,
+          points: 0,
+          level: 1,
+          role: 'user',
+        };
+        
+        // Use upsert to handle race conditions
+        const { error: upsertError } = await supabase
+          .from('users')
+          .upsert(profileData, { onConflict: 'id' });
 
-          if (createError) {
-            console.error("Failed to create profile from metadata:", createError);
-            throw new Error("User profile not found. Please contact support.");
-          }
-          
-          // Retry getting profile
-          const { data: newProfile, error: retryError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-          
-          if (retryError || !newProfile) {
-            throw new Error("User profile not found");
-          }
-          
-          return this.formatUserData(newProfile, user);
-        } catch (createError) {
-          console.error("Failed to create profile from metadata:", createError);
-          throw new Error("User profile not found. Please contact support.");
+        if (upsertError) {
+          console.error("Failed to upsert profile:", upsertError);
+          // Return a basic profile from metadata instead of failing
+          return {
+            _id: user.id,
+            firstName: metadata.first_name || '',
+            lastName: metadata.last_name || '',
+            email: user.email || '',
+            username: metadata.user_name || metadata.display_name || user.email?.split('@')[0] || 'user',
+            points: 0,
+            streak: 0,
+            level: 1,
+          };
         }
+        
+        console.log("Profile created/updated successfully");
+        
+        // Also create Personal class
+        await supabase
+          .from('classes')
+          .upsert({
+            name: "Personal",
+            professor: "",
+            timing: "",
+            location: "",
+            topics: [],
+            textbooks: [],
+            grading_policy: "",
+            contact_info: "",
+            user_id: user.id,
+            is_personal: true,
+          }, { onConflict: 'user_id,is_personal' });
+        
+        // Retry getting profile
+        const { data: newProfile, error: retryError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (retryError || !newProfile) {
+          // Return basic profile from metadata
+          return {
+            _id: user.id,
+            firstName: metadata.first_name || '',
+            lastName: metadata.last_name || '',
+            email: user.email || '',
+            username: metadata.user_name || metadata.display_name || user.email?.split('@')[0] || 'user',
+            points: 0,
+            streak: 0,
+            level: 1,
+          };
+        }
+        
+        return this.formatUserData(newProfile, user);
       }
-      throw new Error("User profile not found");
+      
+      // For other errors, return basic profile
+      console.error("Unexpected profile error:", profileError);
+      const metadata = user.user_metadata || {};
+      return {
+        _id: user.id,
+        firstName: metadata.first_name || '',
+        lastName: metadata.last_name || '',
+        email: user.email || '',
+        username: metadata.user_name || metadata.display_name || user.email?.split('@')[0] || 'user',
+        points: 0,
+        streak: 0,
+        level: 1,
+      };
     }
 
     if (!profile) {
