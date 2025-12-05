@@ -15,7 +15,8 @@ interface UserData {
   name?: string; // Optional combined name field
   firstName?: string; // Optional first name
   lastName?: string; // Optional last name
-  username?: string; // Optional username (Corrected from userName)
+  username?: string; // Optional username
+  displayName?: string; // Display name (same as username)
   email: string; // Email should ideally always be present
   profileImageUrl?: string; // Optional profile image URL
   preferences?: {
@@ -23,10 +24,16 @@ interface UserData {
     inPerson: number;
     privateSpace: number;
     time: number;
+  };
+  theme?: string; // User's preferred theme
+  settings?: {
+    emailNotifications: boolean;
+    pushNotifications: boolean;
+    weeklyDigest: boolean;
+  };
   points?: number;
   streak?: number;
   level?: number;
-  };
   friendsList?: string[]; // Array of friend user IDs
 }
 

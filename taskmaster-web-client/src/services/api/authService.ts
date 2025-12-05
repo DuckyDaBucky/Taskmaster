@@ -16,18 +16,29 @@ export const authService = {
     
     console.log("Login attempt:", { emailOrUsername, isEmail });
     
-    // If username provided, resolve it to email
+    // If username/display_name provided, resolve it to email
     if (!isEmail) {
-      console.log("Looking up username in users table...");
-      const { data: userData, error: userError } = await supabase
+      console.log("Looking up display_name in users table...");
+      // Try display_name first, then user_name as fallback
+      let { data: userData, error: userError } = await supabase
         .from('users')
         .select('email')
-        .eq('user_name', email)
-        .single();
+        .eq('display_name', email)
+        .maybeSingle();
+      
+      // If not found by display_name, try user_name
+      if (!userData && !userError) {
+        const result = await supabase
+          .from('users')
+          .select('email')
+          .eq('user_name', email)
+          .maybeSingle();
+        userData = result.data;
+        userError = result.error;
+      }
       
       if (userError) {
         console.error("Username lookup error:", userError);
-        // Check if it's an RLS error
         if (userError.message?.includes("RLS") || userError.code === "PGRST301") {
           throw new Error("Database access error. Please contact support.");
         }
@@ -39,7 +50,7 @@ export const authService = {
       }
       
       email = userData.email;
-      console.log("Found email for username");
+      console.log("Found email for display_name");
     }
 
     // Normalize email
@@ -325,20 +336,27 @@ export const authService = {
    */
   formatUserData(profile: any, authUser: any): UserData {
     const usernameFromMetadata = authUser.user_metadata?.user_name || authUser.user_metadata?.display_name;
-    const username = profile.user_name || usernameFromMetadata;
+    const displayName = profile.display_name || profile.user_name || usernameFromMetadata;
 
     return {
       _id: profile.id,
       firstName: profile.first_name,
       lastName: profile.last_name,
       email: profile.email,
-      username: username,
+      username: displayName,  // Use display_name as the shown username
+      displayName: displayName,
       profileImageUrl: profile.pfp || undefined,
       preferences: {
-        personality: profile.personality || 0,
-        time: profile.time_preference || 0,
-        inPerson: profile.in_person || 0,
-        privateSpace: profile.private_space || 0,
+        personality: profile.personality ?? 0.5,
+        time: profile.time_preference ?? 0,
+        inPerson: profile.in_person ?? 0,
+        privateSpace: profile.private_space ?? 0,
+      },
+      theme: profile.theme || 'dark',
+      settings: profile.settings || {
+        emailNotifications: true,
+        pushNotifications: false,
+        weeklyDigest: true,
       },
       points: profile.points || 0,
       streak: profile.streak || 0,

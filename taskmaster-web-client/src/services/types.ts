@@ -8,6 +8,7 @@ export interface UserData {
     firstName?: string;
     lastName?: string;
     username?: string;
+    displayName?: string;
     email: string;
     profileImageUrl?: string;
     preferences?: {
@@ -15,6 +16,12 @@ export interface UserData {
         inPerson: number;
         privateSpace: number;
         time: number;
+    };
+    theme?: string;
+    settings?: {
+        emailNotifications: boolean;
+        pushNotifications: boolean;
+        weeklyDigest: boolean;
     };
     points?: number;
     streak?: number;

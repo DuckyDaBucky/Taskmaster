@@ -1,19 +1,42 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTheme, Theme } from "../../context/ThemeContext";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
+import { supabase } from "../../lib/supabase";
 
 const SettingsPage: React.FC = () => {
   const { theme, setTheme } = useTheme();
-  const { user } = useUser();
+  const { user, setUserState } = useUser();
   const [preferences, setPreferences] = useState({
     personality: 0.5,
     time: 0,
     inPerson: 0,
     privateSpace: 0,
   });
+  const [notifications, setNotifications] = useState({
+    emailNotifications: true,
+    pushNotifications: false,
+    weeklyDigest: true,
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  // Load user preferences on mount
+  useEffect(() => {
+    if (user) {
+      setPreferences({
+        personality: user.preferences?.personality ?? 0.5,
+        time: user.preferences?.time ?? 0,
+        inPerson: user.preferences?.inPerson ?? 0,
+        privateSpace: user.preferences?.privateSpace ?? 0,
+      });
+      setNotifications({
+        emailNotifications: user.settings?.emailNotifications ?? true,
+        pushNotifications: user.settings?.pushNotifications ?? false,
+        weeklyDigest: user.settings?.weeklyDigest ?? true,
+      });
+    }
+  }, [user]);
 
   const handleSavePreferences = async () => {
     if (!user?._id) {
@@ -24,7 +47,26 @@ const SettingsPage: React.FC = () => {
     setIsSaving(true);
     setSaveMessage(null);
     try {
-      await apiService.setPreferences(user._id, preferences);
+      // Save preferences directly to Supabase
+      const { error } = await supabase
+        .from('users')
+        .update({
+          personality: preferences.personality,
+          time_preference: preferences.time,
+          in_person: preferences.inPerson,
+          private_space: preferences.privateSpace,
+          settings: notifications,
+        })
+        .eq('id', user._id);
+
+      if (error) throw error;
+
+      // Update local state
+      setUserState({
+        preferences,
+        settings: notifications,
+      });
+
       setSaveMessage("Preferences saved successfully!");
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (error) {
@@ -32,6 +74,23 @@ const SettingsPage: React.FC = () => {
       setSaveMessage("Failed to save preferences. Please try again.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleThemeChange = async (newTheme: Theme) => {
+    setTheme(newTheme);
+    
+    // Save theme to database if user is logged in
+    if (user?._id) {
+      try {
+        await supabase
+          .from('users')
+          .update({ theme: newTheme })
+          .eq('id', user._id);
+        setUserState({ theme: newTheme });
+      } catch (error) {
+        console.error("Failed to save theme:", error);
+      }
     }
   };
 
@@ -87,7 +146,7 @@ const SettingsPage: React.FC = () => {
             {themes.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setTheme(t.id)}
+                onClick={() => handleThemeChange(t.id)}
                 className={`
                   group flex flex-col items-center gap-2 p-2 rounded-lg transition-all
                   ${theme === t.id ? 'bg-primary/10 ring-2 ring-primary ring-offset-2 ring-offset-surface' : 'hover:bg-background'}
@@ -233,15 +292,42 @@ const SettingsPage: React.FC = () => {
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-foreground border-b border-border-color pb-2">Notifications</h2>
         <div className="bg-surface border border-border-color rounded-md p-6 space-y-4">
-          {["Email Notifications", "Push Notifications", "Weekly Digest"].map((item) => (
-            <div key={item} className="flex items-center justify-between">
-              <span className="text-foreground">{item}</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" defaultChecked />
-                <div className="w-11 h-6 bg-background peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-            </div>
-          ))}
+          <div className="flex items-center justify-between">
+            <span className="text-foreground">Email Notifications</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={notifications.emailNotifications}
+                onChange={(e) => setNotifications({ ...notifications, emailNotifications: e.target.checked })}
+              />
+              <div className="w-11 h-6 bg-background peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-foreground">Push Notifications</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={notifications.pushNotifications}
+                onChange={(e) => setNotifications({ ...notifications, pushNotifications: e.target.checked })}
+              />
+              <div className="w-11 h-6 bg-background peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-foreground">Weekly Digest</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={notifications.weeklyDigest}
+                onChange={(e) => setNotifications({ ...notifications, weeklyDigest: e.target.checked })}
+              />
+              <div className="w-11 h-6 bg-background peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
         </div>
       </section>
     </div>
