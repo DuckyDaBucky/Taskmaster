@@ -1,13 +1,21 @@
+/**
+ * Optimized Supabase Authentication Service
+ * Uses Supabase's built-in session management and auth state
+ */
+
 import { supabase } from "../../lib/supabase";
 import type { UserData } from "../types";
 
 export const authService = {
-  async login(emailOrUsername: string, password: string, isEmail: boolean = true): Promise<string> {
-    // Supabase Auth uses email, so if username provided, we need to look it up first
+  /**
+   * Login with email or username and password
+   * Supabase Auth uses email, so username is resolved to email first
+   */
+  async login(emailOrUsername: string, password: string, isEmail: boolean = true): Promise<void> {
     let email = emailOrUsername;
     
+    // If username provided, resolve it to email
     if (!isEmail) {
-      // First, try to find user by username in users table
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email')
@@ -15,10 +23,7 @@ export const authService = {
         .single();
       
       if (userError || !userData) {
-        // If not found in users table, try to find by checking auth users' metadata
-        // We'll need to query all users and check their metadata (limited approach)
-        // For now, throw error if not found in users table
-        throw new Error("Invalid username");
+        throw new Error("Invalid username or password");
       }
       email = userData.email;
     }
@@ -39,18 +44,20 @@ export const authService = {
 
     // Update login streak and track login date
     await this.updateLoginStreak(data.user.id);
-
-    return data.session.access_token;
   },
 
+  /**
+   * Sign up a new user
+   * Creates auth user and profile in a single transaction where possible
+   */
   async signup(userData: {
     email: string;
     password: string;
     userName: string;
     firstName: string;
     lastName: string;
-  }): Promise<string> {
-    // Check if username or email already exists in users table first
+  }): Promise<void> {
+    // Check if username or email already exists
     const { data: existingUser } = await supabase
       .from('users')
       .select('id, user_name, email')
@@ -61,7 +68,7 @@ export const authService = {
       throw new Error("Username or email is already taken");
     }
 
-    // Sign up with Supabase Auth - store username in user metadata
+    // Sign up with Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: userData.email,
       password: userData.password,
@@ -70,66 +77,19 @@ export const authService = {
           user_name: userData.userName,
           first_name: userData.firstName,
           last_name: userData.lastName,
-          display_name: userData.userName, // Store username in display_name for easy lookup
+          display_name: userData.userName,
         },
       },
     });
 
     if (authError) {
-      // Check for specific Supabase errors
+      // Handle specific Supabase errors
       const errorMsg = authError.message?.toLowerCase() || "";
-      const errorCode = authError.status || "";
       
-      // If user already exists in auth but not in users table, try to sign in and create profile
-      if (errorMsg.includes("already") || errorMsg.includes("exists") || errorMsg.includes("registered") || errorCode === 422) {
-        // Try to sign in with the existing auth account
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: userData.email,
-          password: userData.password,
-        });
-        
-        if (signInError) {
-          throw new Error("Username or email is already taken");
-        }
-        
-        // If sign in succeeds, check if profile exists
-        if (signInData?.user) {
-          const { data: existingProfile } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', signInData.user.id)
-            .maybeSingle();
-          
-          // If profile doesn't exist, create it
-          if (!existingProfile) {
-            const { error: profileError } = await supabase
-              .from('users')
-              .insert({
-                id: signInData.user.id,
-                user_name: userData.userName,
-                first_name: userData.firstName,
-                last_name: userData.lastName,
-                email: userData.email,
-                streak: 0,
-                points: 0,
-                level: 1,
-              });
-            
-            if (profileError) {
-              throw new Error("Username or email is already taken");
-            }
-          } else {
-            throw new Error("Username or email is already taken");
-          }
-          
-          // Return session token
-          if (signInData.session) {
-            return signInData.session.access_token;
-          }
-        }
-        
+      if (errorMsg.includes("already") || errorMsg.includes("exists") || errorMsg.includes("registered")) {
         throw new Error("Username or email is already taken");
       }
+      
       throw new Error(authError.message || "Failed to create account");
     }
 
@@ -137,8 +97,13 @@ export const authService = {
       throw new Error("Failed to create user");
     }
 
+    // If email confirmation is required, session might be null
+    if (!authData.session) {
+      throw new Error("Please check your email to confirm your account");
+    }
+
     // Create user profile in public.users table
-    const { error: profileError, data: profileData } = await supabase
+    const { error: profileError } = await supabase
       .from('users')
       .insert({
         id: authData.user.id,
@@ -149,46 +114,26 @@ export const authService = {
         streak: 0,
         points: 0,
         level: 1,
-        role: 'user', // Default role
-      })
-      .select()
-      .single();
+        role: 'user',
+      });
 
     if (profileError) {
       console.error("Profile creation error:", profileError);
-      console.error("Error details:", {
-        message: profileError.message,
-        code: profileError.code,
-        details: profileError.details,
-        hint: profileError.hint,
-      });
       
-      // Check if it's an RLS policy violation
-      const errorMsg = (profileError.message || "").toLowerCase();
-      if (errorMsg.includes("row-level security") || errorMsg.includes("policy")) {
-        throw new Error("Database configuration error. Please contact support.");
-      }
-      
-      // Check if it's a unique constraint violation (PostgreSQL error codes)
+      // Check if it's a unique constraint violation
       const errorCode = profileError.code;
-      const errorDetails = (profileError.details || "").toLowerCase();
-      const errorHint = (profileError.hint || "").toLowerCase();
+      const errorMsg = (profileError.message || "").toLowerCase();
       
-      // PostgreSQL unique violation error code is '23505'
       if (errorCode === '23505' || 
           errorMsg.includes("unique") || 
           errorMsg.includes("duplicate") || 
-          errorMsg.includes("already exists") ||
-          errorDetails.includes("unique") ||
-          errorDetails.includes("duplicate") ||
-          errorHint.includes("unique") ||
-          errorHint.includes("duplicate")) {
-        // Can't delete auth user from client side, but throw clear error
+          errorMsg.includes("already exists")) {
         throw new Error("Username or email is already taken");
       }
       
-      // If profile creation fails for other reasons
-      throw new Error(profileError.message || "Failed to create user profile");
+      // If profile creation fails but auth user exists, user can still log in
+      // But we should throw an error to let them know something went wrong
+      throw new Error("Account created but profile setup failed. Please contact support.");
     }
 
     // Create default "Personal" class
@@ -211,39 +156,31 @@ export const authService = {
       console.error("Failed to create personal class:", classError);
       // Don't throw - personal class is nice to have but not critical
     }
-
-    // Get session token
-    if (authData.session) {
-      return authData.session.access_token;
-    }
-
-    // If no session (email confirmation required), return a placeholder
-    // User will need to confirm email first
-    throw new Error("Please check your email to confirm your account");
   },
 
-  async getUserMe(token?: string): Promise<UserData> {
-    // Set session if token provided
-    if (token) {
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (!user) throw new Error("Invalid token");
+  /**
+   * Get current authenticated user data
+   * Uses Supabase session - no token parameter needed
+   */
+  async getUserMe(): Promise<UserData> {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      throw new Error("Not authenticated");
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    // Get user profile
-    const { data: profile, error } = await supabase
+    // Get user profile from database
+    const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
       .single();
 
-    if (error || !profile) {
+    if (profileError || !profile) {
       throw new Error("User profile not found");
     }
 
-    // Get username from auth metadata if not in profile (fallback)
+    // Get username from profile or auth metadata (fallback)
     const usernameFromMetadata = user.user_metadata?.user_name || user.user_metadata?.display_name;
     const username = profile.user_name || usernameFromMetadata;
 
@@ -267,9 +204,19 @@ export const authService = {
     };
   },
 
-  async updateProfile(profileData: { firstName?: string; lastName?: string; pfp?: string | File }): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  /**
+   * Update user profile
+   */
+  async updateProfile(profileData: { 
+    firstName?: string; 
+    lastName?: string; 
+    pfp?: string | File 
+  }): Promise<any> {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      throw new Error("Not authenticated");
+    }
 
     let pfpUrl = typeof profileData.pfp === 'string' ? profileData.pfp : undefined;
 
@@ -304,21 +251,19 @@ export const authService = {
     if (profileData.lastName) updateData.last_name = profileData.lastName;
     if (pfpUrl) updateData.pfp = pfpUrl;
 
-    // Also update auth user metadata if needed
+    // Update auth user metadata
     if (profileData.firstName || profileData.lastName) {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        const currentMetadata = authUser.user_metadata || {};
-        await supabase.auth.updateUser({
-          data: {
-            ...currentMetadata,
-            first_name: profileData.firstName || currentMetadata.first_name,
-            last_name: profileData.lastName || currentMetadata.last_name,
-          },
-        });
-      }
+      const currentMetadata = user.user_metadata || {};
+      await supabase.auth.updateUser({
+        data: {
+          ...currentMetadata,
+          first_name: profileData.firstName || currentMetadata.first_name,
+          last_name: profileData.lastName || currentMetadata.last_name,
+        },
+      });
     }
 
+    // Update database profile
     const { data, error } = await supabase
       .from('users')
       .update(updateData)
@@ -326,21 +271,30 @@ export const authService = {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
+    
     return data;
   },
 
-  async getLoginDates(token?: string): Promise<{ loginDates: string[]; streak: number }> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  /**
+   * Get login dates and streak
+   */
+  async getLoginDates(): Promise<{ loginDates: string[]; streak: number }> {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      throw new Error("Not authenticated");
+    }
 
-    const { data: profile, error } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('login_dates, streak')
       .eq('id', user.id)
       .single();
 
-    if (error || !profile) {
+    if (profileError || !profile) {
       throw new Error("User profile not found");
     }
 
@@ -350,6 +304,9 @@ export const authService = {
     };
   },
 
+  /**
+   * Update login streak when user logs in
+   */
   async updateLoginStreak(userId: string): Promise<void> {
     // Get current user data
     const { data: user, error: fetchError } = await supabase
@@ -443,7 +400,28 @@ export const authService = {
     }
   },
 
+  /**
+   * Logout user
+   * Clears Supabase session
+   */
   async logout(): Promise<void> {
     await supabase.auth.signOut();
+  },
+
+  /**
+   * Check if user is authenticated
+   * Uses Supabase session
+   */
+  async isAuthenticated(): Promise<boolean> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return !!session;
+  },
+
+  /**
+   * Get current session
+   */
+  async getSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
   },
 };

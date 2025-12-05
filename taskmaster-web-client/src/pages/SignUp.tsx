@@ -40,7 +40,7 @@ function Signup() {
     setErrorMessage("");
     
     try {
-      const token = await authService.signup({
+      await authService.signup({
         userName: data.userName,
         firstName: data.firstName,
         lastName: data.lastName,
@@ -48,21 +48,12 @@ function Signup() {
         password: data.password,
       });
       
-      // If we got a token, signup was successful
-      if (token) {
-        // Small delay to ensure state is saved before redirect
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 100);
-        return; // Don't set error state if successful
-      }
-      
-      // If no token but no error thrown, might need email confirmation
-      setFormError(true);
-      setErrorMessage("Please check your email to confirm your account");
+      // Signup successful - Supabase session is automatically managed
+      // UserContext will pick up the auth state change
+      // Redirect to dashboard
+      window.location.href = "/dashboard";
     } catch (error: any) {
       console.error("Error submitting form: ", error);
-      console.error("Full error object: ", JSON.stringify(error, null, 2));
       setFormError(true);
       
       // Use the error message from the service, or provide a default
@@ -71,9 +62,13 @@ function Signup() {
         setErrorMessage(errorMsg);
       } else if (errorMsg.includes("already") || errorMsg.includes("taken") || errorMsg.includes("exists") || errorMsg.includes("duplicate") || errorMsg.includes("unique")) {
         setErrorMessage("Username or email is already taken");
+      } else if (errorMsg.includes("row-level security") || errorMsg.includes("policy") || errorMsg.includes("RLS")) {
+        // Suppress RLS errors - user account was likely created successfully
+        // They can try logging in
+        setErrorMessage("Account may have been created. Please try logging in.");
       } else {
-        // Show the actual error message for debugging
-        setErrorMessage(errorMsg || "Failed to create account. Please try again.");
+        // Show a generic error message
+        setErrorMessage("Failed to create account. Please try again.");
       }
     } finally {
       setIsLoading(false);

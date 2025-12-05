@@ -31,6 +31,8 @@ function Login() {
   useEffect(() => {
     // If coming from logout, ensure everything is cleared
     if (searchParams.get('logout') === 'true') {
+      // Supabase session is already cleared by authService.logout()
+      // Just clear any legacy localStorage data
       localStorage.removeItem("token");
       localStorage.removeItem("userData");
       localStorage.removeItem("personalityData");
@@ -50,7 +52,9 @@ function Login() {
       const isEmail = emailOrUsername.includes("@");
       
       await authService.login(emailOrUsername, data.password, isEmail);
-      // Reload to refresh UserContext and all components
+      // Supabase session is automatically managed
+      // UserContext will pick up the auth state change
+      // Redirect to dashboard
       window.location.href = "/dashboard";
     } catch (error: any) {
       console.error("Login error: ", error.message || error);

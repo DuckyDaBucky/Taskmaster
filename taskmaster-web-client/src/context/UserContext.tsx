@@ -78,13 +78,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({
 
   // --- Effects ---
 
-  // Effect to fetch user data on mount
+  // Effect to fetch user data on mount and listen for auth changes
   useEffect(() => {
     const loadUser = async () => {
       setIsLoadingUser(true);
       
       try {
-        // Check Supabase session first
+        // Check Supabase session
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
@@ -99,34 +99,19 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({
           };
 
           setUser(refinedUserData);
+          // Store in localStorage for quick access (optional, Supabase manages session)
           localStorage.setItem("userData", JSON.stringify(refinedUserData));
         } else {
-          // No session, check localStorage for legacy token
-          const token = localStorage.getItem("token");
-          if (token) {
-            try {
-              const fetchedUserData = await apiService.getUserMe(token);
-              const refinedUserData: UserData = {
-                ...fetchedUserData,
-                email: fetchedUserData.email || "no-email@example.com",
-                username: (fetchedUserData as any).userName || fetchedUserData.username,
-              };
-              setUser(refinedUserData);
-              localStorage.setItem("userData", JSON.stringify(refinedUserData));
-            } catch (error) {
-              // Token invalid, clear and logout
-              localStorage.removeItem("token");
-              setUser(null);
-            }
-          } else {
-            setUser(null);
-          }
+          // No session, user is not authenticated
+          setUser(null);
+          localStorage.removeItem("userData");
+          localStorage.removeItem("token"); // Clear any legacy tokens
         }
       } catch (error) {
         console.error("Failed to fetch user data:", error);
         setUser(null);
-        localStorage.removeItem("token");
         localStorage.removeItem("userData");
+        localStorage.removeItem("token");
       } finally {
         setIsLoadingUser(false);
       }
@@ -148,13 +133,30 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({
           localStorage.setItem("userData", JSON.stringify(refinedUserData));
         } catch (error) {
           console.error("Failed to fetch user after sign in:", error);
+          setUser(null);
         }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setPersonalityData(null);
-        localStorage.removeItem("userData");
-        localStorage.removeItem("personalityData");
-        localStorage.removeItem("token");
+      } else if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setPersonalityData(null);
+          localStorage.removeItem("userData");
+          localStorage.removeItem("personalityData");
+          localStorage.removeItem("token");
+        } else if (event === 'TOKEN_REFRESHED' && session) {
+          // Token refreshed, update user data if needed
+          try {
+            const fetchedUserData = await apiService.getUserMe();
+            const refinedUserData: UserData = {
+              ...fetchedUserData,
+              email: fetchedUserData.email || "no-email@example.com",
+              username: (fetchedUserData as any).userName || fetchedUserData.username,
+            };
+            setUser(refinedUserData);
+            localStorage.setItem("userData", JSON.stringify(refinedUserData));
+          } catch (error) {
+            console.error("Failed to refresh user data:", error);
+          }
+        }
       }
     });
 
@@ -235,7 +237,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   // Logout Function
-  const logout = () => {
+  const logout = async () => {
+    // Sign out from Supabase (this will trigger the auth state change listener)
+    await supabase.auth.signOut();
+    
+    // Clear local state immediately
     setUser(null);
     setPersonalityData(null);
     localStorage.removeItem("userData");
