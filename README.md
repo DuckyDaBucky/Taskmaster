@@ -19,10 +19,18 @@ Pass: password123
 ### 3.1 Database Setup
 1. Go to your Supabase project dashboard: https://app.supabase.com
 2. Run the database schema in SQL Editor (create tables: users, classes, tasks, resources, flashcards, events, activities, chats, messages)
-3. Create Storage buckets:
+3. **IMPORTANT**: Run `supabase-setup.sql` in the SQL Editor to:
+   - Set up Row Level Security (RLS) policies
+   - Create database trigger to auto-create user profiles
+   - Grant necessary permissions
+4. Create Storage buckets:
    - `resources` (Public: ON)
    - `avatars` (Public: ON, for profile pictures)
    - `syllabi` (Public: ON, optional)
+5. **Optional but Recommended**: Disable email confirmation for easier testing:
+   - Go to Authentication > Settings
+   - Disable "Enable email confirmations"
+   - This allows immediate login after signup
 
 ### 3.2 Environment Variables
 

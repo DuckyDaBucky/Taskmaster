@@ -1,6 +1,7 @@
 /**
  * Complete Supabase Authentication Service
  * Fully optimized and tested for Supabase Auth
+ * Works with database triggers for automatic profile creation
  */
 
 import { supabase } from "../../lib/supabase";
@@ -37,7 +38,6 @@ export const authService = {
     });
 
     if (error) {
-      // Provide user-friendly error messages
       if (error.message?.includes("Invalid login credentials") || 
           error.message?.includes("Email not confirmed") ||
           error.message?.includes("Invalid")) {
@@ -68,6 +68,7 @@ export const authService = {
 
   /**
    * Sign up a new user
+   * Database trigger will auto-create profile, so we just need to sign up
    */
   async signup(userData: {
     email: string;
@@ -100,7 +101,7 @@ export const authService = {
       throw new Error("Username is already taken");
     }
 
-    // Check if email already exists
+    // Check if email already exists in users table
     const { data: existingEmail, error: emailCheckError } = await supabase
       .from('users')
       .select('id, email')
@@ -117,6 +118,7 @@ export const authService = {
     }
 
     // Sign up with Supabase Auth
+    // The database trigger will automatically create the profile
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password: userData.password,
@@ -127,6 +129,7 @@ export const authService = {
           last_name: userData.lastName.trim(),
           display_name: normalizedUserName,
         },
+        emailRedirectTo: `${window.location.origin}/dashboard`,
       },
     });
 
@@ -143,6 +146,7 @@ export const authService = {
         throw new Error("Password does not meet requirements");
       }
       
+      console.error("Supabase auth error:", authError);
       throw new Error(authError.message || "Failed to create account. Please try again.");
     }
 
@@ -150,111 +154,98 @@ export const authService = {
       throw new Error("Failed to create user account");
     }
 
-    // If email confirmation is required, session might be null
+    console.log("Auth user created:", authData.user.id);
+
+    // If email confirmation is required, session will be null
+    // But the database trigger will still create the profile
     if (!authData.session) {
-      // Still create profile for email confirmation flow
-      try {
-        await this.createUserProfile(authData.user.id, {
-          userName: normalizedUserName,
-          firstName: userData.firstName.trim(),
-          lastName: userData.lastName.trim(),
-          email: normalizedEmail,
-        });
-      } catch (profileError: any) {
-        console.error("Profile creation error (email confirmation required):", profileError);
-        // Don't throw - user can confirm email and profile will be there
+      // Wait a moment for trigger to execute
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Check if profile was created by trigger
+      const { data: profile } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', authData.user.id)
+        .single();
+      
+      if (profile) {
+        console.log("Profile created by trigger, email confirmation required");
+        throw new Error("Please check your email to confirm your account. After confirming, you can log in.");
+      } else {
+        console.warn("Profile not created by trigger, might need manual creation");
+        throw new Error("Please check your email to confirm your account. After confirming, you can log in.");
       }
-      throw new Error("Please check your email to confirm your account");
     }
 
-    // Session exists - create profile
-    try {
-      await this.createUserProfile(authData.user.id, {
-        userName: normalizedUserName,
-        firstName: userData.firstName.trim(),
-        lastName: userData.lastName.trim(),
-        email: normalizedEmail,
-      });
-    } catch (profileError: any) {
-      console.error("Profile creation error:", profileError);
+    // Session exists - user is immediately authenticated
+    // Wait for trigger to create profile
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Verify profile was created (by trigger or manually)
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error("Profile not found after signup:", profileError);
       
-      const errorCode = profileError.code;
-      const errorMsg = (profileError.message || "").toLowerCase();
-      
-      if (errorCode === '23505' || 
-          errorMsg.includes("unique") || 
-          errorMsg.includes("duplicate") || 
-          errorMsg.includes("already exists")) {
-        throw new Error("Username or email is already taken");
+      // Try to create profile manually as fallback
+      try {
+        const { error: createError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            user_name: normalizedUserName,
+            first_name: userData.firstName.trim(),
+            last_name: userData.lastName.trim(),
+            email: normalizedEmail,
+            streak: 0,
+            points: 0,
+            level: 1,
+            role: 'user',
+          });
+
+        if (createError) {
+          console.error("Manual profile creation also failed:", createError);
+          throw new Error("Account created but profile setup failed. Please contact support.");
+        }
+        
+        console.log("Profile created manually as fallback");
+        
+        // Create Personal class
+        await supabase
+          .from('classes')
+          .insert({
+            name: "Personal",
+            professor: "",
+            timing: "",
+            location: "",
+            topics: [],
+            textbooks: [],
+            grading_policy: "",
+            contact_info: "",
+            user_id: authData.user.id,
+            is_personal: true,
+          });
+      } catch (fallbackError: any) {
+        console.error("Fallback profile creation failed:", fallbackError);
+        throw new Error("Account created but profile setup failed. Please contact support.");
       }
-      
-      if (errorMsg.includes("row-level security") || 
-          errorMsg.includes("policy") || 
-          errorMsg.includes("permission denied") ||
-          errorCode === '42501') {
-        throw new Error("Permission denied. Please contact support.");
-      }
-      
-      throw new Error("Failed to create user profile. Please contact support.");
+    } else {
+      console.log("Profile exists (created by trigger)");
     }
 
     // Verify session is set
     const { data: { session: verifySession } } = await supabase.auth.getSession();
     if (!verifySession) {
-      throw new Error("Session verification failed. Please try logging in.");
-    }
-  },
-
-  /**
-   * Helper function to create user profile
-   */
-  async createUserProfile(
-    userId: string,
-    profileData: {
-      userName: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-    }
-  ): Promise<void> {
-    const { error: profileError } = await supabase
-      .from('users')
-      .insert({
-        id: userId,
-        user_name: profileData.userName,
-        first_name: profileData.firstName,
-        last_name: profileData.lastName,
-        email: profileData.email,
-        streak: 0,
-        points: 0,
-        level: 1,
-        role: 'user',
-      });
-
-    if (profileError) {
-      throw profileError;
+      console.warn("Session not found after signup");
+      throw new Error("Account created but session not set. Please try logging in.");
     }
 
-    // Create default "Personal" class (non-blocking)
-    supabase
-      .from('classes')
-      .insert({
-        name: "Personal",
-        professor: "",
-        timing: "",
-        location: "",
-        topics: [],
-        textbooks: [],
-        grading_policy: "",
-        contact_info: "",
-        user_id: userId,
-        is_personal: true,
-      })
-      .then(({ error: classError }) => {
-        if (classError) {
-          console.error("Failed to create personal class:", classError);
-        }
-      });
+    console.log("Signup completed successfully");
   },
 
   /**
@@ -287,12 +278,25 @@ export const authService = {
       if (profileError.code === 'PGRST116') {
         const metadata = user.user_metadata || {};
         try {
-          await this.createUserProfile(user.id, {
-            userName: metadata.user_name || metadata.display_name || user.email?.split('@')[0] || 'user',
-            firstName: metadata.first_name || '',
-            lastName: metadata.last_name || '',
-            email: user.email || '',
-          });
+          // Try to create profile
+          const { error: createError } = await supabase
+            .from('users')
+            .insert({
+              id: user.id,
+              user_name: metadata.user_name || metadata.display_name || user.email?.split('@')[0] || 'user',
+              first_name: metadata.first_name || '',
+              last_name: metadata.last_name || '',
+              email: user.email || '',
+              streak: 0,
+              points: 0,
+              level: 1,
+              role: 'user',
+            });
+
+          if (createError) {
+            console.error("Failed to create profile from metadata:", createError);
+            throw new Error("User profile not found. Please contact support.");
+          }
           
           // Retry getting profile
           const { data: newProfile, error: retryError } = await supabase
