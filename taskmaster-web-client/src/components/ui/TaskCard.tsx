@@ -11,7 +11,7 @@ interface TaskCardProps {
 
 export const TaskCard = ({ task, index, onClick }: TaskCardProps) => {
   const statusBorderColor = getStatusColor(task.status);
-  const due = new Date(task.deadline);
+  const due = task.deadline ? new Date(task.deadline) : new Date();
 
   const cardStyle: React.CSSProperties = {
     backgroundColor: theme.colors.surface,
@@ -50,13 +50,15 @@ export const TaskCard = ({ task, index, onClick }: TaskCardProps) => {
       <p className="text-sm" style={{ color: theme.colors.textSecondary }}>
         <strong style={{ color: theme.colors.textPrimary }}>Topic:</strong> {task.topic || "General"}
       </p>
-      <p className="text-sm" style={{ color: theme.colors.textSecondary }}>
-        <strong style={{ color: theme.colors.textPrimary }}>Deadline:</strong>{" "}
-        {due.toLocaleString([], {
-          dateStyle: "short",
-          timeStyle: "short",
-        })}
-      </p>
+      {task.deadline && (
+        <p className="text-sm" style={{ color: theme.colors.textSecondary }}>
+          <strong style={{ color: theme.colors.textPrimary }}>Deadline:</strong>{" "}
+          {due.toLocaleString([], {
+            dateStyle: "short",
+            timeStyle: "short",
+          })}
+        </p>
+      )}
       <p className="text-sm" style={{ color: theme.colors.textSecondary }}>
         <strong style={{ color: theme.colors.textPrimary }}>Status:</strong>{" "}
         {task.status === "completed" ? "Completed" : task.status === "overdue" ? "Overdue" : "Pending"}

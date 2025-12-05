@@ -30,7 +30,7 @@ const FriendsPage: React.FC = () => {
       try {
         setIsLoading(true);
         // Fetch friends list directly from the backend
-        const friendsList = await apiService.getFriends(user._id);
+        const friendsList = await apiService.getFriends();
         
         // Convert to Friend format
         const friendDetails: Friend[] = friendsList.map((friend: any) => ({
@@ -63,8 +63,7 @@ const FriendsPage: React.FC = () => {
       setSuccessMessage("Hamiz Iqbal added as friend successfully!");
 
       // Refresh friends list
-      if (!user?._id) return;
-      const friendsList = await apiService.getFriends(user._id);
+      const friendsList = await apiService.getFriends();
       const friendDetails: Friend[] = friendsList.map((friend: any) => ({
         id: friend._id,
         name: `${friend.firstName || ""} ${friend.lastName || ""}`.trim() || friend.userName || friend.email,
@@ -96,7 +95,7 @@ const FriendsPage: React.FC = () => {
       if (result.users && result.users.length > 0) {
         setSuccessMessage(`Matched with ${result.users.length} friend(s): ${result.users.join(", ")}`);
         // Refresh friends list after matching
-        const friendsList = await apiService.getFriends(user._id);
+        const friendsList = await apiService.getFriends();
         const friendDetails: Friend[] = friendsList.map((friend: any) => ({
           id: friend._id,
           name: `${friend.firstName || ""} ${friend.lastName || ""}`.trim() || friend.userName || friend.email,

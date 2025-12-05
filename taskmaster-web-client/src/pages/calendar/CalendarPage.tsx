@@ -98,7 +98,7 @@ const CalendarPage: React.FC = () => {
         const taskEvents: CalendarEvent[] = allTasks
           .filter((task: TasksData) => task.deadline) // Only include tasks with deadlines
           .map((task: TasksData) => {
-            const deadlineDate = new Date(task.deadline);
+            const deadlineDate = new Date(task.deadline!);
             const className = task.class 
               ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
               : "Personal";
@@ -107,7 +107,7 @@ const CalendarPage: React.FC = () => {
             
             // Set end time to 1 hour after start (or end of day if no specific time)
             const endDate = new Date(deadlineDate);
-            if (task.deadline.includes("T")) {
+            if (task.deadline!.includes("T")) {
               // Has time component, add 1 hour
               endDate.setHours(endDate.getHours() + 1);
             } else {
@@ -264,7 +264,7 @@ const CalendarPage: React.FC = () => {
       const taskEvents: CalendarEvent[] = allTasks
         .filter((task: TasksData) => task.deadline)
         .map((task: TasksData) => {
-          const deadlineDate = new Date(task.deadline);
+          const deadlineDate = new Date(task.deadline!);
           const className = task.class 
             ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
             : "Personal";
@@ -272,7 +272,7 @@ const CalendarPage: React.FC = () => {
           const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
           
           const endDate = new Date(deadlineDate);
-          if (task.deadline.includes("T")) {
+          if (task.deadline!.includes("T")) {
             endDate.setHours(endDate.getHours() + 1);
           } else {
             endDate.setHours(23, 59, 59);

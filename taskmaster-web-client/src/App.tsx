@@ -15,7 +15,7 @@ import ProfilePage from "./pages/profile/ProfilePage";
 import { ThemeProvider } from "./context/ThemeContext";
 import { UserProvider } from "./context/UserContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { authService } from "./services/authService";
+
 
 function App() {
   return (
