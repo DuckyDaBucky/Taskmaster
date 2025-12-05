@@ -111,15 +111,17 @@ export const authService = {
     console.log("Starting signup for:", normalizedEmail);
 
     // Sign up with Supabase Auth - fast path
+    // display_name in auth matches user_name for consistency
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password: userData.password,
       options: {
         data: {
           user_name: normalizedUserName,
+          display_name: normalizedUserName,  // Same as user_name
           first_name: userData.firstName.trim(),
           last_name: userData.lastName.trim(),
-          display_name: normalizedUserName,
+          full_name: `${userData.firstName.trim()} ${userData.lastName.trim()}`.trim(),
         },
       },
     });
@@ -152,6 +154,7 @@ export const authService = {
     const profileData = {
       id: authData.user.id,
       user_name: normalizedUserName,
+      display_name: normalizedUserName,  // Same as user_name
       first_name: userData.firstName.trim(),
       last_name: userData.lastName.trim(),
       email: normalizedEmail,
@@ -159,6 +162,12 @@ export const authService = {
       points: 0,
       level: 1,
       role: 'user',
+      theme: 'dark',  // Default theme
+      settings: {
+        emailNotifications: true,
+        pushNotifications: false,
+        weeklyDigest: true,
+      },
     };
 
     // Non-blocking profile creation
