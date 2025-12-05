@@ -149,6 +149,7 @@ export const authService = {
         streak: 0,
         points: 0,
         level: 1,
+        role: 'user', // Default role
       })
       .select()
       .single();
@@ -162,9 +163,14 @@ export const authService = {
         hint: profileError.hint,
       });
       
+      // Check if it's an RLS policy violation
+      const errorMsg = (profileError.message || "").toLowerCase();
+      if (errorMsg.includes("row-level security") || errorMsg.includes("policy")) {
+        throw new Error("Database configuration error. Please contact support.");
+      }
+      
       // Check if it's a unique constraint violation (PostgreSQL error codes)
       const errorCode = profileError.code;
-      const errorMsg = (profileError.message || "").toLowerCase();
       const errorDetails = (profileError.details || "").toLowerCase();
       const errorHint = (profileError.hint || "").toLowerCase();
       
