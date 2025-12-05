@@ -12,7 +12,7 @@ export const authService = {
       ? { email: emailOrUsername, password }
       : { userName: emailOrUsername, password };
 
-    const response = await apiClient.post("/auth", payload, {
+    const response = await apiClient.post("/api/auth", payload, {
       headers: { "Content-Type": "application/json" },
     });
     return response.data;
@@ -39,7 +39,7 @@ export const authService = {
       password: userData.password,
     };
 
-    const response = await apiClient.post("/user", backendData, {
+    const response = await apiClient.post("/api/signup", backendData, {
       headers: { "Content-Type": "application/json" },
     });
     return response.data;

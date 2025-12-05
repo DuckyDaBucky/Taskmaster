@@ -31,8 +31,8 @@ const handle401 = () => {
 // Request Interceptor: Inject JWT Token
 apiClient.interceptors.request.use(
   (config) => {
-    const isAuthEndpoint = config.url?.includes("/auth");
-    const isSignupEndpoint = config.url?.includes("/user") && config.method === "post";
+    const isAuthEndpoint = config.url?.includes("/api/auth");
+    const isSignupEndpoint = config.url?.includes("/api/signup");
 
     if (isAuthEndpoint || isSignupEndpoint) {
       if (config.headers) {
