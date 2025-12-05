@@ -21,7 +21,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 if (!supabaseUrl) {
   const error = '❌ VITE_SUPABASE_URL is not set in environment variables';
   console.error(error);
-  console.error('Please set VITE_SUPABASE_URL in your .env file');
+  console.error('For local development: Set VITE_SUPABASE_URL in your .env file');
+  console.error('For Vercel deployment: Add VITE_SUPABASE_URL in Vercel Dashboard → Settings → Environment Variables');
   console.error('Get your URL from: https://app.supabase.com/project/YOUR_PROJECT/settings/api');
   throw new Error(error);
 }
@@ -29,7 +30,8 @@ if (!supabaseUrl) {
 if (!supabaseAnonKey) {
   const error = '❌ VITE_SUPABASE_ANON_KEY is not set in environment variables';
   console.error(error);
-  console.error('Please set VITE_SUPABASE_ANON_KEY in your .env file');
+  console.error('For local development: Set VITE_SUPABASE_ANON_KEY in your .env file');
+  console.error('For Vercel deployment: Add VITE_SUPABASE_ANON_KEY in Vercel Dashboard → Settings → Environment Variables');
   console.error('Get your anon key from: https://app.supabase.com/project/YOUR_PROJECT/settings/api');
   throw new Error(error);
 }

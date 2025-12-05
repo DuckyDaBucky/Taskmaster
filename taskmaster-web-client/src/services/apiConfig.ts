@@ -14,11 +14,15 @@ export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Validate required environment variables
 if (!SUPABASE_URL) {
-  throw new Error('VITE_SUPABASE_URL is required in environment variables');
+  const error = 'VITE_SUPABASE_URL is required in environment variables. For Vercel: Add in Dashboard → Settings → Environment Variables';
+  console.error(error);
+  throw new Error(error);
 }
 
 if (!SUPABASE_ANON_KEY) {
-  throw new Error('VITE_SUPABASE_ANON_KEY is required in environment variables');
+  const error = 'VITE_SUPABASE_ANON_KEY is required in environment variables. For Vercel: Add in Dashboard → Settings → Environment Variables';
+  console.error(error);
+  throw new Error(error);
 }
 
 // ML Service (Flask) - still separate
