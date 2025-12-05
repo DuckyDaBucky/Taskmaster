@@ -62,15 +62,17 @@ function Signup() {
       setErrorMessage("Please check your email to confirm your account");
     } catch (error: any) {
       console.error("Error submitting form: ", error);
+      console.error("Full error object: ", JSON.stringify(error, null, 2));
       setFormError(true);
       
       // Use the error message from the service, or provide a default
       const errorMsg = error.message || "";
       if (errorMsg.includes("check your email") || errorMsg.includes("confirm")) {
         setErrorMessage(errorMsg);
-      } else if (errorMsg.includes("already") || errorMsg.includes("taken") || errorMsg.includes("exists")) {
+      } else if (errorMsg.includes("already") || errorMsg.includes("taken") || errorMsg.includes("exists") || errorMsg.includes("duplicate") || errorMsg.includes("unique")) {
         setErrorMessage("Username or email is already taken");
       } else {
+        // Show the actual error message for debugging
         setErrorMessage(errorMsg || "Failed to create account. Please try again.");
       }
     } finally {

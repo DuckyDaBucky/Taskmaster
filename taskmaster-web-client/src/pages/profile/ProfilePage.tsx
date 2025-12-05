@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { MapPin, Link as LinkIcon, Calendar, Edit, Save, X } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { MapPin, Link as LinkIcon, Calendar, Edit, Save, X, Upload, Image as ImageIcon } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { authService } from "../../services/authService";
 
@@ -7,6 +7,9 @@ const ProfilePage: React.FC = () => {
   const { user, setUserState } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [pfpFile, setPfpFile] = useState<File | null>(null);
+  const [pfpPreview, setPfpPreview] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -19,27 +22,69 @@ const ProfilePage: React.FC = () => {
       setFormData({
         firstName: user.firstName || "",
         lastName: user.lastName || "",
-        pfp: (user as any).pfp || "",
+        pfp: (user as any).pfp || user.profileImageUrl || "",
       });
+      setPfpPreview((user as any).pfp || user.profileImageUrl || "");
     }
   }, [user]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB');
+        return;
+      }
+      setPfpFile(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPfpPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      const updatedUser = await authService.updateProfile(formData);
+      const profileUpdate: any = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+      };
+      
+      // If a file was selected, use it; otherwise use the URL if provided
+      if (pfpFile) {
+        profileUpdate.pfp = pfpFile;
+      } else if (formData.pfp) {
+        profileUpdate.pfp = formData.pfp;
+      }
+      
+      const updatedUser = await authService.updateProfile(profileUpdate);
       
       // Update UserContext
       setUserState({
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
+        firstName: updatedUser.first_name || updatedUser.firstName,
+        lastName: updatedUser.last_name || updatedUser.lastName,
         ...((updatedUser.pfp && { profileImageUrl: updatedUser.pfp }) || {}),
       });
       
+      // Reset file state
+      setPfpFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
       setIsEditing(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update profile:", error);
-      console.error("Failed to update profile. Please try again.");
+      alert(error.message || "Failed to update profile. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -51,8 +96,13 @@ const ProfilePage: React.FC = () => {
       setFormData({
         firstName: user.firstName || "",
         lastName: user.lastName || "",
-        pfp: (user as any).pfp || "",
+        pfp: (user as any).pfp || user.profileImageUrl || "",
       });
+      setPfpPreview((user as any).pfp || user.profileImageUrl || "");
+    }
+    setPfpFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
     setIsEditing(false);
   };
@@ -64,7 +114,7 @@ const ProfilePage: React.FC = () => {
   const initials = user?.firstName && user?.lastName
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
     : (user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0] || "U").toUpperCase();
-  const avatarUrl = (user as any)?.pfp || user?.profileImageUrl;
+  const avatarUrl = pfpPreview || (user as any)?.pfp || user?.profileImageUrl;
 
   return (
     <div className="space-y-6">
@@ -84,6 +134,22 @@ const ProfilePage: React.FC = () => {
                 {initials}
               </div>
             )}
+            {isEditing && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors border-2 border-background"
+                title="Upload profile picture"
+              >
+                <Upload size={18} />
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
           </div>
           <div className="mb-2">
             {isEditing ? (
@@ -148,20 +214,43 @@ const ProfilePage: React.FC = () => {
             {isEditing ? (
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm text-muted-foreground mb-1 block">Avatar URL</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">Profile Picture</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+                    >
+                      <Upload size={16} />
+                      {pfpFile ? "Change Image" : "Upload Image"}
+                    </button>
+                    {pfpFile && (
+                      <span className="text-xs text-muted-foreground">
+                        {pfpFile.name}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Or enter image URL:
+                  </p>
                   <input
                     type="text"
                     value={formData.pfp}
-                    onChange={(e) => setFormData({ ...formData, pfp: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, pfp: e.target.value });
+                      if (e.target.value && !pfpFile) {
+                        setPfpPreview(e.target.value);
+                      }
+                    }}
                     placeholder="https://example.com/avatar.jpg"
-                    className="w-full px-3 py-2 bg-background border border-border rounded text-foreground text-sm"
+                    className="w-full px-3 py-2 bg-background border border-border rounded text-foreground text-sm mt-1"
                   />
                 </div>
-                {formData.pfp && (
+                {(pfpPreview || formData.pfp) && (
                   <div className="mt-2">
                     <p className="text-xs text-muted-foreground mb-1">Preview:</p>
                     <img 
-                      src={formData.pfp} 
+                      src={pfpPreview || formData.pfp} 
                       alt="Preview" 
                       className="w-16 h-16 rounded-full object-cover border border-border"
                       onError={(e) => {

@@ -7,7 +7,7 @@ export const authService = {
     let email = emailOrUsername;
     
     if (!isEmail) {
-      // Find user by username to get email
+      // First, try to find user by username in users table
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email')
@@ -15,6 +15,9 @@ export const authService = {
         .single();
       
       if (userError || !userData) {
+        // If not found in users table, try to find by checking auth users' metadata
+        // We'll need to query all users and check their metadata (limited approach)
+        // For now, throw error if not found in users table
         throw new Error("Invalid username");
       }
       email = userData.email;
@@ -47,16 +50,84 @@ export const authService = {
     firstName: string;
     lastName: string;
   }): Promise<string> {
-    // Sign up with Supabase Auth
+    // Check if username or email already exists in users table first
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id, user_name, email')
+      .or(`user_name.eq.${userData.userName},email.eq.${userData.email}`)
+      .maybeSingle();
+
+    if (existingUser) {
+      throw new Error("Username or email is already taken");
+    }
+
+    // Sign up with Supabase Auth - store username in user metadata
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: userData.email,
       password: userData.password,
+      options: {
+        data: {
+          user_name: userData.userName,
+          first_name: userData.firstName,
+          last_name: userData.lastName,
+          display_name: userData.userName, // Store username in display_name for easy lookup
+        },
+      },
     });
 
     if (authError) {
       // Check for specific Supabase errors
       const errorMsg = authError.message?.toLowerCase() || "";
-      if (errorMsg.includes("already") || errorMsg.includes("exists") || errorMsg.includes("registered")) {
+      const errorCode = authError.status || "";
+      
+      // If user already exists in auth but not in users table, try to sign in and create profile
+      if (errorMsg.includes("already") || errorMsg.includes("exists") || errorMsg.includes("registered") || errorCode === 422) {
+        // Try to sign in with the existing auth account
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: userData.email,
+          password: userData.password,
+        });
+        
+        if (signInError) {
+          throw new Error("Username or email is already taken");
+        }
+        
+        // If sign in succeeds, check if profile exists
+        if (signInData?.user) {
+          const { data: existingProfile } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', signInData.user.id)
+            .maybeSingle();
+          
+          // If profile doesn't exist, create it
+          if (!existingProfile) {
+            const { error: profileError } = await supabase
+              .from('users')
+              .insert({
+                id: signInData.user.id,
+                user_name: userData.userName,
+                first_name: userData.firstName,
+                last_name: userData.lastName,
+                email: userData.email,
+                streak: 0,
+                points: 0,
+                level: 1,
+              });
+            
+            if (profileError) {
+              throw new Error("Username or email is already taken");
+            }
+          } else {
+            throw new Error("Username or email is already taken");
+          }
+          
+          // Return session token
+          if (signInData.session) {
+            return signInData.session.access_token;
+          }
+        }
+        
         throw new Error("Username or email is already taken");
       }
       throw new Error(authError.message || "Failed to create account");
@@ -67,7 +138,7 @@ export const authService = {
     }
 
     // Create user profile in public.users table
-    const { error: profileError } = await supabase
+    const { error: profileError, data: profileData } = await supabase
       .from('users')
       .insert({
         id: authData.user.id,
@@ -78,19 +149,39 @@ export const authService = {
         streak: 0,
         points: 0,
         level: 1,
-      });
+      })
+      .select()
+      .single();
 
     if (profileError) {
-      // Check if it's a unique constraint violation
-      const errorMsg = profileError.message?.toLowerCase() || "";
-      if (errorMsg.includes("unique") || errorMsg.includes("duplicate") || errorMsg.includes("already exists")) {
-        // Try to delete the auth user since profile creation failed
-        await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {});
+      console.error("Profile creation error:", profileError);
+      console.error("Error details:", {
+        message: profileError.message,
+        code: profileError.code,
+        details: profileError.details,
+        hint: profileError.hint,
+      });
+      
+      // Check if it's a unique constraint violation (PostgreSQL error codes)
+      const errorCode = profileError.code;
+      const errorMsg = (profileError.message || "").toLowerCase();
+      const errorDetails = (profileError.details || "").toLowerCase();
+      const errorHint = (profileError.hint || "").toLowerCase();
+      
+      // PostgreSQL unique violation error code is '23505'
+      if (errorCode === '23505' || 
+          errorMsg.includes("unique") || 
+          errorMsg.includes("duplicate") || 
+          errorMsg.includes("already exists") ||
+          errorDetails.includes("unique") ||
+          errorDetails.includes("duplicate") ||
+          errorHint.includes("unique") ||
+          errorHint.includes("duplicate")) {
+        // Can't delete auth user from client side, but throw clear error
         throw new Error("Username or email is already taken");
       }
       
-      // If profile creation fails for other reasons, try to delete the auth user
-      await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {});
+      // If profile creation fails for other reasons
       throw new Error(profileError.message || "Failed to create user profile");
     }
 
@@ -146,13 +237,17 @@ export const authService = {
       throw new Error("User profile not found");
     }
 
+    // Get username from auth metadata if not in profile (fallback)
+    const usernameFromMetadata = user.user_metadata?.user_name || user.user_metadata?.display_name;
+    const username = profile.user_name || usernameFromMetadata;
+
     // Convert to UserData format
     return {
       _id: profile.id,
       firstName: profile.first_name,
       lastName: profile.last_name,
       email: profile.email,
-      username: profile.user_name,
+      username: username,
       profileImageUrl: profile.pfp || undefined,
       preferences: {
         personality: profile.personality || 0,
@@ -166,14 +261,57 @@ export const authService = {
     };
   },
 
-  async updateProfile(profileData: { firstName?: string; lastName?: string; pfp?: string }): Promise<any> {
+  async updateProfile(profileData: { firstName?: string; lastName?: string; pfp?: string | File }): Promise<any> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
+
+    let pfpUrl = typeof profileData.pfp === 'string' ? profileData.pfp : undefined;
+
+    // If pfp is a File, upload it to Supabase Storage
+    if (profileData.pfp instanceof File) {
+      const fileExt = profileData.pfp.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      // Upload file to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, profileData.pfp, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || "Failed to upload profile picture");
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      pfpUrl = urlData.publicUrl;
+    }
 
     const updateData: any = {};
     if (profileData.firstName) updateData.first_name = profileData.firstName;
     if (profileData.lastName) updateData.last_name = profileData.lastName;
-    if (profileData.pfp) updateData.pfp = profileData.pfp;
+    if (pfpUrl) updateData.pfp = pfpUrl;
+
+    // Also update auth user metadata if needed
+    if (profileData.firstName || profileData.lastName) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const currentMetadata = authUser.user_metadata || {};
+        await supabase.auth.updateUser({
+          data: {
+            ...currentMetadata,
+            first_name: profileData.firstName || currentMetadata.first_name,
+            last_name: profileData.lastName || currentMetadata.last_name,
+          },
+        });
+      }
+    }
 
     const { data, error } = await supabase
       .from('users')
