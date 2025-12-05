@@ -38,12 +38,19 @@ export const authService = {
     });
 
     if (error) {
-      if (error.message?.includes("Invalid login credentials") || 
-          error.message?.includes("Email not confirmed") ||
-          error.message?.includes("Invalid")) {
+      console.error("Supabase login error:", error.message);
+      
+      // Handle specific error cases
+      if (error.message?.toLowerCase().includes("email not confirmed")) {
+        throw new Error("Please check your email and confirm your account before logging in");
+      }
+      
+      if (error.message?.toLowerCase().includes("invalid login credentials") || 
+          error.message?.toLowerCase().includes("invalid")) {
         throw new Error("Invalid email or password");
       }
-      throw new Error(error.message || "Invalid email or password");
+      
+      throw new Error(error.message || "Login failed. Please try again.");
     }
 
     if (!data.session) {
@@ -195,16 +202,16 @@ export const authService = {
       // Try to create profile manually as fallback
       try {
         const { error: createError } = await supabase
-          .from('users')
-          .insert({
-            id: authData.user.id,
+      .from('users')
+      .insert({
+        id: authData.user.id,
             user_name: normalizedUserName,
             first_name: userData.firstName.trim(),
             last_name: userData.lastName.trim(),
             email: normalizedEmail,
-            streak: 0,
-            points: 0,
-            level: 1,
+        streak: 0,
+        points: 0,
+        level: 1,
             role: 'user',
           });
 
@@ -217,19 +224,19 @@ export const authService = {
         
         // Create Personal class
         await supabase
-          .from('classes')
-          .insert({
-            name: "Personal",
-            professor: "",
-            timing: "",
-            location: "",
-            topics: [],
-            textbooks: [],
-            grading_policy: "",
-            contact_info: "",
-            user_id: authData.user.id,
-            is_personal: true,
-          });
+      .from('classes')
+      .insert({
+        name: "Personal",
+        professor: "",
+        timing: "",
+        location: "",
+        topics: [],
+        textbooks: [],
+        grading_policy: "",
+        contact_info: "",
+        user_id: authData.user.id,
+        is_personal: true,
+      });
       } catch (fallbackError: any) {
         console.error("Fallback profile creation failed:", fallbackError);
         throw new Error("Account created but profile setup failed. Please contact support.");
@@ -399,13 +406,13 @@ export const authService = {
     // Update auth user metadata
     if (profileData.firstName || profileData.lastName) {
       const currentMetadata = user.user_metadata || {};
-      await supabase.auth.updateUser({
-        data: {
-          ...currentMetadata,
+        await supabase.auth.updateUser({
+          data: {
+            ...currentMetadata,
           first_name: profileData.firstName?.trim() || currentMetadata.first_name,
           last_name: profileData.lastName?.trim() || currentMetadata.last_name,
-        },
-      });
+          },
+        });
     }
 
     // Update database profile
@@ -454,102 +461,102 @@ export const authService = {
    */
   async updateLoginStreak(userId: string): Promise<void> {
     try {
-      const { data: user, error: fetchError } = await supabase
-        .from('users')
-        .select('streak, last_login_date, login_dates')
-        .eq('id', userId)
-        .single();
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('streak, last_login_date, login_dates')
+      .eq('id', userId)
+      .single();
 
       if (fetchError || !user) {
         console.error("Failed to fetch user for streak update:", fetchError);
         return;
       }
 
-      const today = new Date();
-      const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-      todayUTC.setUTCHours(0, 0, 0, 0);
+    const today = new Date();
+    const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    todayUTC.setUTCHours(0, 0, 0, 0);
 
-      const lastLogin = user.last_login_date ? new Date(user.last_login_date) : null;
-      let lastLoginUTC = null;
-      if (lastLogin) {
-        lastLoginUTC = new Date(Date.UTC(lastLogin.getUTCFullYear(), lastLogin.getUTCMonth(), lastLogin.getUTCDate()));
-        lastLoginUTC.setUTCHours(0, 0, 0, 0);
-      }
+    const lastLogin = user.last_login_date ? new Date(user.last_login_date) : null;
+    let lastLoginUTC = null;
+    if (lastLogin) {
+      lastLoginUTC = new Date(Date.UTC(lastLogin.getUTCFullYear(), lastLogin.getUTCMonth(), lastLogin.getUTCDate()));
+      lastLoginUTC.setUTCHours(0, 0, 0, 0);
+    }
 
-      const daysDiff = lastLoginUTC ? Math.floor((todayUTC.getTime() - lastLoginUTC.getTime()) / (1000 * 60 * 60 * 24)) : null;
+    const daysDiff = lastLoginUTC ? Math.floor((todayUTC.getTime() - lastLoginUTC.getTime()) / (1000 * 60 * 60 * 24)) : null;
 
-      const previousStreak = user.streak || 0;
-      let newStreak = previousStreak;
-      let loginDates = user.login_dates || [];
-      let streakChange = 0;
+    const previousStreak = user.streak || 0;
+    let newStreak = previousStreak;
+    let loginDates = user.login_dates || [];
+    let streakChange = 0;
 
-      const todayStr = todayUTC.toISOString();
-      const lastLoginStr = lastLoginUTC ? lastLoginUTC.toISOString() : null;
-      const alreadyLoggedInToday = lastLoginStr === todayStr;
+    const todayStr = todayUTC.toISOString();
+    const lastLoginStr = lastLoginUTC ? lastLoginUTC.toISOString() : null;
+    const alreadyLoggedInToday = lastLoginStr === todayStr;
 
-      if (!lastLoginUTC) {
-        newStreak = 1;
-        streakChange = 1;
-      } else if (daysDiff === 1) {
-        newStreak = previousStreak + 1;
-        streakChange = 1;
-      } else if (daysDiff === 0) {
+    if (!lastLoginUTC) {
+      newStreak = 1;
+      streakChange = 1;
+    } else if (daysDiff === 1) {
+      newStreak = previousStreak + 1;
+      streakChange = 1;
+    } else if (daysDiff === 0) {
         return; // Already logged in today
-      } else {
-        const wasStreakBroken = previousStreak > 0;
-        newStreak = 1;
-        streakChange = wasStreakBroken ? -previousStreak : 1;
+    } else {
+      const wasStreakBroken = previousStreak > 0;
+      newStreak = 1;
+      streakChange = wasStreakBroken ? -previousStreak : 1;
+    }
+
+    if (!alreadyLoggedInToday) {
+      loginDates.push(todayUTC.toISOString());
+      if (loginDates.length > 365) {
+        loginDates = loginDates.slice(-365);
       }
+    }
 
-      if (!alreadyLoggedInToday) {
-        loginDates.push(todayUTC.toISOString());
-        if (loginDates.length > 365) {
-          loginDates = loginDates.slice(-365);
-        }
-      }
+    await supabase
+      .from('users')
+      .update({
+        streak: newStreak,
+        last_login_date: todayUTC.toISOString(),
+        login_dates: loginDates,
+      })
+      .eq('id', userId);
 
-      await supabase
-        .from('users')
-        .update({
-          streak: newStreak,
-          last_login_date: todayUTC.toISOString(),
-          login_dates: loginDates,
-        })
-        .eq('id', userId);
-
-      if (streakChange !== 0) {
+    if (streakChange !== 0) {
         supabase
-          .from('activities')
-          .insert({
-            user_id: userId,
-            type: 'login',
-            description: 'Logged in',
-            metadata: { streak: newStreak, streakChange },
+        .from('activities')
+        .insert({
+          user_id: userId,
+          type: 'login',
+          description: 'Logged in',
+          metadata: { streak: newStreak, streakChange },
           })
           .then(({ error }) => {
             if (error) {
               console.error("Failed to create login activity:", error);
             }
-          });
+        });
 
-        if (streakChange < 0) {
+      if (streakChange < 0) {
           supabase
-            .from('activities')
-            .insert({
-              user_id: userId,
-              type: 'streak_achieved',
-              description: 'Streak lost',
-              metadata: {
-                streak: newStreak,
-                previousStreak,
-                streakChange,
-              },
+          .from('activities')
+          .insert({
+            user_id: userId,
+            type: 'streak_achieved',
+            description: 'Streak lost',
+            metadata: {
+              streak: newStreak,
+              previousStreak,
+              streakChange,
+            },
             })
             .then(({ error }) => {
               if (error) {
                 console.error("Failed to create streak activity:", error);
               }
-            });
+          });
         }
       }
     } catch (error) {
