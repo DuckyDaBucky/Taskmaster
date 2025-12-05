@@ -1,47 +1,59 @@
-from pymongo.mongo_client import MongoClient
 from datetime import datetime
-from bson.objectid import ObjectId
+from supabase_client import get_supabase
 
 
 class User:
-    def __init__(self, userId: str="", client: MongoClient=None, userObject: dict=None):
-        if userId:
-            userObject = client['test']['users'].find_one({"_id": ObjectId(userId)})
+    def __init__(self, userId: str="", client=None, userObject: dict=None):
+        if userId and not userObject:
+            # Fetch from Supabase
+            supabase = get_supabase()
+            response = supabase.table('users').select('*').eq('id', userId).single().execute()
+            if response.data:
+                userObject = response.data
+            else:
+                raise ValueError(f"User {userId} not found")
 
-        self.userId = userObject.get("_id")
-        self.preferences = userObject.get("preferences")
-        self.name = userObject.get("userName")
+        # Map Supabase format to User object
+        self.userId = userObject.get("id") or userObject.get("_id")
+        # Convert Supabase preferences format
+        self.preferences = {
+            'personality': userObject.get("personality", 0.5),
+            'time': userObject.get("time_preference", 0),
+            'inPerson': userObject.get("in_person", 0),
+            'privateSpace': userObject.get("private_space", 0),
+        } if not userObject.get("preferences") else userObject.get("preferences")
+        self.name = userObject.get("user_name") or userObject.get("userName") or userObject.get("name")
         self.points = userObject.get("points") if userObject.get("points") else 0
         self.streak = userObject.get("streak") if userObject.get("streak") else 0
-        self.last_task_date = userObject.get("lastTaskDate")
-        self.group_number = userObject.get("groupNumber") if userObject.get("groupNumber") else 0
+        self.last_task_date = userObject.get("last_task_date") or userObject.get("lastTaskDate")
+        if self.last_task_date and isinstance(self.last_task_date, str):
+            try:
+                self.last_task_date = datetime.fromisoformat(self.last_task_date.replace('Z', '+00:00'))
+            except:
+                self.last_task_date = None
+        self.group_number = userObject.get("group_number") or userObject.get("groupNumber") or 0
         self.level = userObject.get("level") if userObject.get("level") else 1
 
-    def streak_update(self, client: MongoClient):
-        db = client['test']
-        users = db['users']
-
-        query_filter = {'_id': self.userId}
-        update_operation = {"$set": {
-                "streak": self.streak,
-                "lastTaskDate": self.last_task_date,
-            }
+    def streak_update(self, client=None):
+        # Update streak in Supabase
+        supabase = get_supabase()
+        update_data = {
+            'streak': self.streak,
         }
-
-        users.update_one(query_filter, update_operation)
+        if self.last_task_date:
+            update_data['last_task_date'] = self.last_task_date.isoformat()
+        
+        supabase.table('users').update(update_data).eq('id', self.userId).execute()
 
     def to_vector(self):
         if not self.preferences:
             return [0.5, 0, 0, -1]  # Default values
         
+        in_person = self.preferences.get('inPerson', 0) or self.preferences.get('in_person', 0)
+        
         return [
             self.preferences.get('personality', 0.5),
-            self.preferences.get('time', 0),
-            int(self.preferences.get('inPerson', 0)),
-            int(self.preferences.get('privateSpace', 0)) if self.preferences.get('inPerson') else -1,
+            self.preferences.get('time', 0) or self.preferences.get('time_preference', 0),
+            int(in_person),
+            int(self.preferences.get('privateSpace', 0) or self.preferences.get('private_space', 0)) if in_person else -1,
         ]
-    
-        # return [self.personality,
-        #         self.preferred_time,
-        #         int(self.in_person),
-        #         int(self.private_space) if self.in_person else -1]

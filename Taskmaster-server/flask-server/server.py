@@ -1,15 +1,17 @@
 from User import User
 from user_matching import *
-from mongo import *
+from supabase_client import get_supabase, verify_token
 from gameify import *
+
+# Remove mongo import - no longer needed
 
 from flask import Flask, jsonify, request, make_response
 from flask_restful import Resource, Api
 from flask_cors import CORS
-from bson.objectid import ObjectId
 from datetime import datetime, timedelta, date
 import os
 from dotenv import load_dotenv
+import uuid
 
 # Load .env from one directory up
 load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
@@ -21,38 +23,61 @@ api = Api(app)
 
 class MatchRequest(Resource):
     def post(self):
-        users = client['test']['users']
-        userId = request.get_json().get('userId')
+        # Verify token
+        token = request.headers.get('x-auth-token')
+        if not token:
+            return make_response(jsonify({"message": "Unauthorized"}), 401)
+        
+        user = verify_token(token)
+        if not user:
+            return make_response(jsonify({"message": "Invalid token"}), 401)
+        
+        supabase = get_supabase()
+        data = request.get_json()
+        userId = data.get('userId') or user.id
 
-        if group_number := users.find_one({"_id": ObjectId(userId)}).get('groupNumber'):
-            return make_response(jsonify({"group_number": group_number}), 200)
+        # Get user from Supabase
+        user_response = supabase.table('users').select('*').eq('id', userId).single().execute()
+        if not user_response.data:
+            return make_response(jsonify({"message": "User not found"}), 404)
+        
+        user_doc = user_response.data
+        
+        # Check if user already has group_number
+        if user_doc.get('group_number'):
+            # Get matched users
+            matched_users = supabase.table('users').select('user_name').eq('group_number', user_doc['group_number']).neq('id', userId).execute()
+            matched_usernames = [u['user_name'] for u in matched_users.data]
+            return make_response(jsonify({"users": matched_usernames}), 200)
 
-        match_client = UserMatchClient(users=[User(userObject=u) for u in users.find()])
+        # Get all users for matching
+        all_users_response = supabase.table('users').select('*').execute()
+        all_users = all_users_response.data
+        
+        # Convert to User objects for matching algorithm
+        match_client = UserMatchClient(users=[User(userObject=u) for u in all_users])
 
         while len(match_client.unmatched_users) >= 2:
             matched = False
-            for user in match_client.unmatched_users[:]:  
-                if match_client.match(user):
+            for user_obj in match_client.unmatched_users[:]:  
+                if match_client.match(user_obj):
                     matched = True
                     break  
             if not matched:
                 print("No more possible matches.")
                 break
         
-        # for u in match_client.users:
-        #     users.update_one(
-        #         {"_id": ObjectId(u.userId)},
-        #         {"$set": {
-        #             "groupNumber": u.group_number,
-        #         }},
-        #     )
-            
+        # Update group numbers in Supabase
         for u in match_client.users:
-            if u.userId == ObjectId(userId):
+            supabase.table('users').update({'group_number': u.group_number}).eq('id', str(u.userId)).execute()
+            
+        # Find matched users for the requesting user
+        for u in match_client.users:
+            if str(u.userId) == str(userId):
                 matched_usernames = []
                 for u2 in match_client.users:
                     if u.group_number == u2.group_number:
-                        if u2.userId != ObjectId(userId):
+                        if str(u2.userId) != str(userId):
                             matched_usernames.append(u2.name)
 
                 return make_response(jsonify({"users": matched_usernames}), 200)
@@ -63,26 +88,32 @@ class MatchRequest(Resource):
 class SetPreferences(Resource):
     def post(self):
         try:
+            # Verify token
+            token = request.headers.get('x-auth-token')
+            if not token:
+                return make_response(jsonify({"message": "Unauthorized"}), 401)
+            
+            auth_user = verify_token(token)
+            if not auth_user:
+                return make_response(jsonify({"message": "Invalid token"}), 401)
+            
             data = request.get_json()
-            userId = data.get('userId')
+            userId = data.get('userId') or auth_user.id
 
             if not userId:
                 return make_response(jsonify({"message": "userId is required"}), 400)
 
-            users = client['test']['users']
-            result = users.update_one(
-                {"_id": ObjectId(userId)}, 
-                {"$set": {
-                    "preferences": {
-                        "personality": data.get('personality'),
-                        "time": data.get('time'),
-                        "inPerson": data.get('inPerson'),
-                        "privateSpace": data.get('privateSpace'),
-                    }
-                }}
-            )
+            supabase = get_supabase()
             
-            if result.matched_count == 0:
+            # Update user preferences in Supabase
+            result = supabase.table('users').update({
+                'personality': data.get('personality'),
+                'time_preference': data.get('time'),
+                'in_person': data.get('inPerson'),
+                'private_space': data.get('privateSpace'),
+            }).eq('id', userId).execute()
+            
+            if not result.data:
                 return make_response(jsonify({"message": "User not found"}), 404)
             
             return make_response(jsonify({"message": "Preferences updated successfully"}), 200)
@@ -94,25 +125,37 @@ class SetPreferences(Resource):
 class FinishTask(Resource):
     def post(self):
         try:
+            # Verify token
+            token = request.headers.get('x-auth-token')
+            if not token:
+                return make_response(jsonify({"message": "Unauthorized"}), 401)
+            
+            auth_user = verify_token(token)
+            if not auth_user:
+                return make_response(jsonify({"message": "Invalid token"}), 401)
+            
             data = request.get_json()
-            userId = data.get('userId')
+            userId = data.get('userId') or auth_user.id
             taskId = data.get('taskId')
 
             if not userId:
                 return make_response(jsonify({"message": "userId is required"}), 400)
 
-            users = client['test']['users']
-            tasks_db = client['test']['tasks']
+            supabase = get_supabase()
             
-            # Get user
-            user_doc = users.find_one({"_id": ObjectId(userId)})
-            if not user_doc:
+            # Get user from Supabase
+            user_response = supabase.table('users').select('*').eq('id', userId).single().execute()
+            if not user_response.data:
                 return make_response(jsonify({"message": "User not found"}), 404)
+            
+            user_doc = user_response.data
 
             # Get task to determine type and deadline
             task_doc = None
             if taskId:
-                task_doc = tasks_db.find_one({"_id": ObjectId(taskId)})
+                task_response = supabase.table('tasks').select('*').eq('id', taskId).single().execute()
+                if task_response.data:
+                    task_doc = task_response.data
             
             # Determine task type based on deadline
             task_type = "daily"  # default
@@ -129,23 +172,30 @@ class FinishTask(Resource):
                 else:
                     task_type = "monthly"
 
-            # Create User object
-            user = User(userObject=user_doc)
+            # Create User object (convert Supabase format to expected format)
+            user_obj = {
+                '_id': user_doc['id'],
+                'points': user_doc.get('points', 0),
+                'streak': user_doc.get('streak', 0),
+                'level': user_doc.get('level', 1),
+                'lastTaskDate': user_doc.get('last_task_date'),
+            }
+            user = User(userObject=user_obj)
             
             # Calculate points
             ps = PointSystem(user, task_type, deadline_date)
             earned_points = ps.calculate_points()
             
-            # Update user in database
-            users.update_one(
-                {"_id": ObjectId(userId)},
-                {"$set": {
-                    "points": user.points,
-                    "streak": user.streak,
-                    "level": user.level,
-                    "lastTaskDate": user.last_task_date.isoformat() if user.last_task_date else None
-                }}
-            )
+            # Update user in Supabase
+            update_data = {
+                'points': user.points,
+                'streak': user.streak,
+                'level': user.level,
+            }
+            if user.last_task_date:
+                update_data['last_task_date'] = user.last_task_date.isoformat()
+            
+            supabase.table('users').update(update_data).eq('id', userId).execute()
             
             return make_response(jsonify({
                 "points": user.points,

@@ -34,25 +34,34 @@ export interface ClassData {
     contactInfo: string;
     textbooks: string[];
     location: string;
-    user: string;
+    user?: string;
+    description?: string;
+    isPersonal?: boolean;
 }
 
 export interface TasksData {
     _id: string;
-    deadline: string;
-    topic: string;
+    deadline?: string;
+    topic?: string;
     title: string;
+    description?: string;
     status: "pending" | "completed" | "overdue";
     points: number | null;
     textbook: string | null;
-    class: string;
+    class?: string;
+    completed?: boolean;
+    earnedPoints?: number;
+    taskType?: string;
 }
 
 export interface ResourceData {
     _id: string;
+    title?: string;
     urls: string[];
-    class: string;
+    websites?: string[];
+    class?: string;
     summary?: string;
+    description?: string;
     files?: any[];
 }
 

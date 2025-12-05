@@ -1,19 +1,26 @@
-import { apiClient, getToken } from "./client";
-import { USE_MOCK_DB } from "../apiConfig";
+import { supabase } from "../../lib/supabase";
 
 export const activityService = {
   async getActivities(limit: number = 20, token?: string): Promise<any[]> {
-    const authToken = token || getToken() || "";
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
 
-    if (USE_MOCK_DB) {
-      return [];
-    }
+    const { data, error } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-    const response = await apiClient.get<any[]>("/activity", {
-      params: { limit },
-      headers: { "x-auth-token": authToken },
-    });
-    return response.data;
+    if (error) throw new Error(error.message);
+
+    return (data || []).map(activity => ({
+      _id: activity.id,
+      type: activity.type,
+      description: activity.description,
+      metadata: activity.metadata,
+      createdAt: activity.created_at,
+      updatedAt: activity.updated_at,
+    }));
   },
 };
-

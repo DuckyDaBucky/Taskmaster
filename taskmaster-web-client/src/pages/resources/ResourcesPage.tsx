@@ -70,11 +70,8 @@ const ResourcesPage: React.FC = () => {
       setUploadStatus("Uploading and analyzing files...");
 
       for (const file of files) {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        // Call smart upload endpoint that uses Gemini to auto-classify
-        const result = await apiService.smartUploadResource(formData);
+        // Use Supabase Storage for file upload
+        const result = await apiService.smartUploadResource(file);
         console.log("Upload result:", result);
       }
 

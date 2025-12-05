@@ -30,15 +30,11 @@ function App() {
             />
             <Route 
               path="/signup" 
-              element={
-                authService.isAuthenticated() ? <Navigate to="/dashboard" replace /> : <SignUp />
-              } 
+              element={<SignUp />}
             />
             <Route 
               path="/" 
-              element={
-                authService.isAuthenticated() ? <Navigate to="/dashboard" replace /> : <SplashPage />
-              } 
+              element={<SplashPage />}
             />
 
             {/* Protected routes - require authentication */}

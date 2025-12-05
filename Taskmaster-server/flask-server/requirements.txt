@@ -2,7 +2,8 @@ flask
 flask-cors
 python-dotenv
 google-generativeai
-pymongo
+supabase
+pyjwt
 requests
 flask-restful
 langchain-google-genai

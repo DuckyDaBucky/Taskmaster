@@ -1,4 +1,5 @@
 import { apiService } from "../services/apiService";
+import { supabase } from "../lib/supabase";
 import React, {
   createContext,
   useState,
@@ -79,44 +80,87 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({
 
   // Effect to fetch user data on mount
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
+    const loadUser = async () => {
       setIsLoadingUser(true);
       
-      // Use API service (handles both mock and real API)
-      apiService
-        .getUserMe(token)
-        .then((fetchedUserData) => {
-          // --- Refine fetched data (optional, e.g., ensure email exists) ---
-          // Map backend userName to username for consistency
+      try {
+        // Check Supabase session first
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          // User is authenticated, fetch user data
+          const fetchedUserData = await apiService.getUserMe();
+          
+          // Refine fetched data
           const refinedUserData: UserData = {
             ...fetchedUserData,
-            email: fetchedUserData.email || "no-email@example.com", // Ensure email has a fallback
-            username: (fetchedUserData as any).userName || fetchedUserData.username, // Map userName from backend
-            // You could add similar checks/defaults for other fields if needed
+            email: fetchedUserData.email || "no-email@example.com",
+            username: (fetchedUserData as any).userName || fetchedUserData.username,
           };
-          // --- End Refinement ---
 
           setUser(refinedUserData);
-          // Persist fetched user data to localStorage
           localStorage.setItem("userData", JSON.stringify(refinedUserData));
-        })
-        .catch((error) => {
-          console.error("Failed to fetch user data:", error);
-          // Logout on error
-          logout(); // Use logout to clear everything consistently
-        })
-        .finally(() => {
-          setIsLoadingUser(false); // Stop loading
-        });
-    } else {
-      // No token found, ensure logged out state
-      setUser(null);
-      setPersonalityData(null);
-      localStorage.removeItem("userData");
-      localStorage.removeItem("personalityData");
-      setIsLoadingUser(false);
-    }
+        } else {
+          // No session, check localStorage for legacy token
+          const token = localStorage.getItem("token");
+          if (token) {
+            try {
+              const fetchedUserData = await apiService.getUserMe(token);
+              const refinedUserData: UserData = {
+                ...fetchedUserData,
+                email: fetchedUserData.email || "no-email@example.com",
+                username: (fetchedUserData as any).userName || fetchedUserData.username,
+              };
+              setUser(refinedUserData);
+              localStorage.setItem("userData", JSON.stringify(refinedUserData));
+            } catch (error) {
+              // Token invalid, clear and logout
+              localStorage.removeItem("token");
+              setUser(null);
+            }
+          } else {
+            setUser(null);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch user data:", error);
+        setUser(null);
+        localStorage.removeItem("token");
+        localStorage.removeItem("userData");
+      } finally {
+        setIsLoadingUser(false);
+      }
+    };
+
+    loadUser();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        try {
+          const fetchedUserData = await apiService.getUserMe();
+          const refinedUserData: UserData = {
+            ...fetchedUserData,
+            email: fetchedUserData.email || "no-email@example.com",
+            username: (fetchedUserData as any).userName || fetchedUserData.username,
+          };
+          setUser(refinedUserData);
+          localStorage.setItem("userData", JSON.stringify(refinedUserData));
+        } catch (error) {
+          console.error("Failed to fetch user after sign in:", error);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setPersonalityData(null);
+        localStorage.removeItem("userData");
+        localStorage.removeItem("personalityData");
+        localStorage.removeItem("token");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 

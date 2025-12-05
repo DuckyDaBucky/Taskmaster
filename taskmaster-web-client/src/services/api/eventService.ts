@@ -1,5 +1,4 @@
-import { apiClient, getToken } from "./client";
-import { USE_MOCK_DB } from "../apiConfig";
+import { supabase } from "../../lib/supabase";
 
 export interface EventData {
   title: string;
@@ -14,66 +13,110 @@ export interface EventData {
 
 export const eventService = {
   async createEvent(eventData: EventData, token?: string): Promise<any> {
-    const authToken = token || getToken() || "";
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
 
-    if (USE_MOCK_DB) {
-      return { id: `event-${Date.now()}`, ...eventData };
-    }
+    const { data, error } = await supabase
+      .from('events')
+      .insert({
+        title: eventData.title,
+        start: eventData.start instanceof Date ? eventData.start.toISOString() : eventData.start,
+        end: eventData.end instanceof Date ? eventData.end.toISOString() : eventData.end,
+        task_id: eventData.taskInput || null,
+        course_id: eventData.classInput || null,
+        repeat_weekly: eventData.repeatWeekly || false,
+        notes: eventData.notes || [],
+        color: eventData.color || null,
+        user_id: user.id,
+      })
+      .select()
+      .single();
 
-    const payload = {
-      ...eventData,
-      start: eventData.start instanceof Date ? eventData.start.toISOString() : eventData.start,
-      end: eventData.end instanceof Date ? eventData.end.toISOString() : eventData.end,
-    };
+    if (error) throw new Error(error.message);
 
-    const response = await apiClient.post("/event", payload, {
-      headers: { "x-auth-token": authToken },
+    // Create activity
+    await supabase.from('activities').insert({
+      user_id: user.id,
+      type: 'event_created',
+      description: `Created event: ${eventData.title}`,
+      metadata: { eventId: data.id },
     });
-    return response.data;
+
+    return data;
   },
 
   async getEvents(userId: string, token?: string): Promise<any[]> {
-    const authToken = token || getToken() || "";
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
 
-    if (USE_MOCK_DB) {
-      return [];
-    }
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('start', { ascending: true });
 
-    const response = await apiClient.get(`/event/getAllEvents/${userId}`, {
-      headers: { "x-auth-token": authToken },
-    });
-    return response.data;
+    if (error) throw new Error(error.message);
+
+    return (data || []).map(event => ({
+      ...event,
+      start: new Date(event.start),
+      end: new Date(event.end),
+    }));
   },
 
   async updateEvent(eventId: string, eventData: Partial<EventData>, token?: string): Promise<any> {
-    const authToken = token || getToken() || "";
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
 
-    if (USE_MOCK_DB) {
-      return { id: eventId, ...eventData };
+    const updateData: any = {};
+    if (eventData.title !== undefined) updateData.title = eventData.title;
+    if (eventData.start !== undefined) {
+      updateData.start = eventData.start instanceof Date ? eventData.start.toISOString() : eventData.start;
     }
+    if (eventData.end !== undefined) {
+      updateData.end = eventData.end instanceof Date ? eventData.end.toISOString() : eventData.end;
+    }
+    if (eventData.taskInput !== undefined) updateData.task_id = eventData.taskInput;
+    if (eventData.classInput !== undefined) updateData.course_id = eventData.classInput;
+    if (eventData.repeatWeekly !== undefined) updateData.repeat_weekly = eventData.repeatWeekly;
+    if (eventData.notes !== undefined) updateData.notes = eventData.notes;
+    if (eventData.color !== undefined) updateData.color = eventData.color;
 
-    const payload = {
-      ...eventData,
-      start: eventData.start instanceof Date ? eventData.start.toISOString() : eventData.start,
-      end: eventData.end instanceof Date ? eventData.end.toISOString() : eventData.end,
-    };
+    const { data, error } = await supabase
+      .from('events')
+      .update(updateData)
+      .eq('id', eventId)
+      .eq('user_id', user.id)
+      .select()
+      .single();
 
-    const response = await apiClient.post(`/event/editEvent/${eventId}`, payload, {
-      headers: { "x-auth-token": authToken },
+    if (error) throw new Error(error.message);
+
+    // Create activity
+    await supabase.from('activities').insert({
+      user_id: user.id,
+      type: 'event_updated',
+      description: `Updated event: ${data.title}`,
+      metadata: { eventId: data.id },
     });
-    return response.data;
+
+    return {
+      ...data,
+      start: new Date(data.start),
+      end: new Date(data.end),
+    };
   },
 
   async deleteEvent(eventId: string, token?: string): Promise<void> {
-    const authToken = token || getToken() || "";
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
 
-    if (USE_MOCK_DB) {
-      return Promise.resolve();
-    }
+    const { error } = await supabase
+      .from('events')
+      .delete()
+      .eq('id', eventId)
+      .eq('user_id', user.id);
 
-    await apiClient.get(`/event/deleteEvent/${eventId}`, {
-      headers: { "x-auth-token": authToken },
-    });
+    if (error) throw new Error(error.message);
   },
 };
-

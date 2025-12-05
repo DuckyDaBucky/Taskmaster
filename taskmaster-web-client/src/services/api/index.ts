@@ -11,6 +11,7 @@ import { eventService } from "./eventService";
 import { userService } from "./userService";
 import { mlService } from "./mlService";
 import { activityService } from "./activityService";
+import { chatService } from "./chatService";
 
 // Re-export individual services
 export {
@@ -23,6 +24,7 @@ export {
   userService,
   mlService,
   activityService,
+  chatService,
   apiClient,
   mlClient,
 };
@@ -72,7 +74,7 @@ class ApiService {
 
   // Users/Friends
   addHamizAsFriend = userService.addHamizAsFriend;
-  getFriends = userService.getFriends;
+  getFriendsFromUserService = userService.getFriends;
 
   // ML Service
   setPoints = mlService.setPoints;
@@ -82,6 +84,13 @@ class ApiService {
 
   // Activity
   getActivities = activityService.getActivities;
+
+  // Chat
+  getMessages = chatService.getMessages;
+  sendMessage = chatService.sendMessage;
+  getOrCreateChat = chatService.getOrCreateChat;
+  getUserChats = chatService.getUserChats;
+  getFriends = chatService.getFriends;
 }
 
 export const apiService = new ApiService();

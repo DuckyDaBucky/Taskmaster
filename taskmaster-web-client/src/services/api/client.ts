@@ -1,26 +1,26 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
-import { API_BASE_URL, ML_SERVICE_URL } from "../apiConfig";
+import axios, { AxiosInstance } from "axios";
+import { ML_SERVICE_URL } from "../apiConfig";
+import { supabase } from "../../lib/supabase";
 
-// Create axios instance for real API calls
+// API client (not used with Supabase, but kept for compatibility)
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: '',
 });
 
+// ML Service client (Flask) - still separate
 export const mlClient: AxiosInstance = axios.create({
   baseURL: ML_SERVICE_URL,
 });
 
-// Helper to get token from headers or localStorage
-export const getToken = (config?: AxiosRequestConfig): string | null => {
-  if (config?.headers?.["x-auth-token"]) {
-    return config.headers["x-auth-token"] as string;
-  }
-  return localStorage.getItem("token");
+// Helper to get Supabase session token
+export const getToken = async (): Promise<string | null> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
 };
 
 // Handle 401 Unauthorized
-const handle401 = () => {
-  localStorage.removeItem("token");
+const handle401 = async () => {
+  await supabase.auth.signOut();
   localStorage.removeItem("userData");
 
   if (window.location.pathname !== "/login" && window.location.pathname !== "/signup") {
@@ -28,63 +28,24 @@ const handle401 = () => {
   }
 };
 
-// Request Interceptor: Inject JWT Token
-apiClient.interceptors.request.use(
-  (config) => {
-    const isAuthEndpoint = config.url?.includes("/api/auth");
-    const isSignupEndpoint = config.url?.includes("/api/signup");
-
-    if (isAuthEndpoint || isSignupEndpoint) {
-      if (config.headers) {
-        config.headers["Content-Type"] = "application/json";
-      }
-      return config;
-    }
-
-    const token = localStorage.getItem("token");
-    if (token && config.headers) {
-      config.headers["x-auth-token"] = token;
-    }
-
-    // Don't set Content-Type for FormData - let browser set it with boundary
-    if (config.headers && !config.headers["Content-Type"] && config.data && !(config.data instanceof FormData)) {
-      config.headers["Content-Type"] = "application/json";
-    }
-
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
+// ML Client interceptor - add Supabase token for Flask service
 mlClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
+  async (config) => {
+    const token = await getToken();
     if (token && config.headers) {
       config.headers["x-auth-token"] = token;
     }
     return config;
   },
   (error) => Promise.reject(error)
-);
-
-// Response Interceptor: Handle 401 Unauthorized
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      handle401();
-    }
-    return Promise.reject(error);
-  }
 );
 
 mlClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      handle401();
+      await handle401();
     }
     return Promise.reject(error);
   }
 );
-
