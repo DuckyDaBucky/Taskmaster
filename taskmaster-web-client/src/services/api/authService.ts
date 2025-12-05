@@ -92,7 +92,7 @@ export const authService = {
 
   /**
    * Sign up a new user
-   * Creates auth user and profile in one go
+   * Fast signup - creates auth user only, profile created by trigger or on login
    */
   async signup(userData: {
     email: string;
@@ -104,14 +104,13 @@ export const authService = {
     const normalizedEmail = userData.email.trim().toLowerCase();
     const normalizedUserName = userData.userName.trim();
 
-    // Validate input
     if (!normalizedEmail || !normalizedUserName || !userData.password) {
       throw new Error("All fields are required");
     }
 
     console.log("Starting signup for:", normalizedEmail);
 
-    // Sign up with Supabase Auth
+    // Sign up with Supabase Auth - fast path
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password: userData.password,
@@ -148,14 +147,8 @@ export const authService = {
 
     console.log("Auth user created:", authData.user.id);
 
-    // If no session (email confirmation required), just tell user to check email
-    if (!authData.session) {
-      console.log("No session - email confirmation may be required");
-      // Don't throw error - just log it. The profile will be created on first login.
-    }
-
-    // Try to create profile immediately
-    // This may fail due to RLS, but that's okay - we'll try again on login
+    // Fire and forget - profile creation in background
+    // The database trigger should handle this, but we try anyway
     const profileData = {
       id: authData.user.id,
       user_name: normalizedUserName,
@@ -168,42 +161,25 @@ export const authService = {
       role: 'user',
     };
 
-    console.log("Attempting to create profile...");
-    const { error: profileError } = await supabase
-      .from('users')
-      .upsert(profileData, { onConflict: 'id' });
+    // Non-blocking profile creation
+    supabase.from('users').upsert(profileData, { onConflict: 'id' })
+      .then(({ error }) => {
+        if (error) console.warn("Profile upsert warning:", error.message);
+        else console.log("Profile created/updated");
+      });
 
-    if (profileError) {
-      console.warn("Profile creation warning (will retry on login):", profileError.message);
-      // Don't throw - account is created, profile will be created on login
-    } else {
-      console.log("Profile created successfully");
-      
-      // Try to create Personal class
-      await supabase
-        .from('classes')
-        .upsert({
-          name: "Personal",
-          professor: "",
-          timing: "",
-          location: "",
-          topics: [],
-          textbooks: [],
-          grading_policy: "",
-          contact_info: "",
-          user_id: authData.user.id,
-          is_personal: true,
-        }, { onConflict: 'user_id,is_personal' });
-      console.log("Personal class created");
-    }
+    // Non-blocking Personal class creation  
+    supabase.from('classes').upsert({
+      name: "Personal",
+      user_id: authData.user.id,
+      is_personal: true,
+    }, { onConflict: 'user_id,is_personal' })
+      .then(({ error }) => {
+        if (error) console.warn("Personal class warning:", error.message);
+        else console.log("Personal class created");
+      });
 
-    // If we have a session, we're good
-    if (authData.session) {
-      console.log("Signup completed with session");
-    } else {
-      // No session but account created - user can log in
-      console.log("Signup completed - user can now log in");
-    }
+    console.log("Signup completed", authData.session ? "with session" : "- check email");
   },
 
   /**
