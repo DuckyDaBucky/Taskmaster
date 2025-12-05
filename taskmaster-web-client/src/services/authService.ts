@@ -73,33 +73,53 @@ class AuthService {
         lastName: userData.lastName,
       });
 
-      if (!token) {
-        throw new Error("No token received");
+      // If we get a token, signup was successful
+      if (token) {
+        localStorage.setItem("token", token);
+
+        // Try to fetch user data, but don't fail if it doesn't work immediately
+        // The user profile might take a moment to be available
+        try {
+          const user = await apiAuthService.getUserMe(token);
+          localStorage.setItem("userData", JSON.stringify(user));
+        } catch (error) {
+          console.warn("Failed to fetch user data immediately after signup, but signup was successful:", error);
+          // Don't throw - signup was successful, user data can be fetched later
+        }
+
+        return token;
       }
 
-      localStorage.setItem("token", token);
-
-      // Fetch user data and save it
-      try {
-        const user = await apiAuthService.getUserMe(token);
-        localStorage.setItem("userData", JSON.stringify(user));
-      } catch (error) {
-        console.error("Failed to fetch user data after signup:", error);
-      }
-
-      return token;
+      // If no token but no error, might need email confirmation
+      throw new Error("Please check your email to confirm your account");
     } catch (error: any) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("userData");
+      // Only clear storage if signup actually failed
+      // Check if the error is about email confirmation (which is actually a success case)
+      const isEmailConfirmationError = error.message?.includes("check your email") || 
+                                       error.message?.includes("email confirmation") ||
+                                       error.message?.includes("confirm your account");
+      
+      if (!isEmailConfirmationError) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("userData");
+      }
 
-      if (error.message?.includes("already") || error.message?.includes("exists")) {
+      // Check for specific Supabase errors
+      const errorMessage = error.message || "";
+      
+      if (errorMessage.includes("already") || 
+          errorMessage.includes("exists") || 
+          errorMessage.includes("duplicate") ||
+          errorMessage.includes("unique") ||
+          errorMessage.includes("User already registered")) {
         throw new Error("Username or email is already taken");
       }
       
-      if (error.message?.includes("email")) {
+      if (errorMessage.includes("email") && errorMessage.includes("confirm")) {
         throw new Error("Please check your email to confirm your account");
       }
       
+      // Re-throw the original error if it's not one we've handled
       throw error;
     }
   }

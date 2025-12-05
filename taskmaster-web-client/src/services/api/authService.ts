@@ -54,6 +54,11 @@ export const authService = {
     });
 
     if (authError) {
+      // Check for specific Supabase errors
+      const errorMsg = authError.message?.toLowerCase() || "";
+      if (errorMsg.includes("already") || errorMsg.includes("exists") || errorMsg.includes("registered")) {
+        throw new Error("Username or email is already taken");
+      }
       throw new Error(authError.message || "Failed to create account");
     }
 
@@ -76,7 +81,15 @@ export const authService = {
       });
 
     if (profileError) {
-      // If profile creation fails, try to delete the auth user
+      // Check if it's a unique constraint violation
+      const errorMsg = profileError.message?.toLowerCase() || "";
+      if (errorMsg.includes("unique") || errorMsg.includes("duplicate") || errorMsg.includes("already exists")) {
+        // Try to delete the auth user since profile creation failed
+        await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {});
+        throw new Error("Username or email is already taken");
+      }
+      
+      // If profile creation fails for other reasons, try to delete the auth user
       await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {});
       throw new Error(profileError.message || "Failed to create user profile");
     }
