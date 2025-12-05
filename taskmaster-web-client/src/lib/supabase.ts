@@ -3,36 +3,91 @@ import { createClient } from '@supabase/supabase-js';
 /**
  * Supabase Client Configuration
  * 
- * Environment Variables Required:
- * - VITE_SUPABASE_URL: Your Supabase project URL (e.g., https://xxxxx.supabase.co)
- * - VITE_SUPABASE_ANON_KEY: Your Supabase anon/public key
+ * REQUIRED Environment Variables:
+ * ================================
+ * 1. VITE_SUPABASE_URL
+ *    - Your Supabase project URL
+ *    - Example: https://xxxxx.supabase.co
+ *    - Get from: https://app.supabase.com/project/YOUR_PROJECT/settings/api
  * 
- * Get these from: https://app.supabase.com/project/YOUR_PROJECT/settings/api
+ * 2. VITE_SUPABASE_ANON_KEY
+ *    - Your Supabase anon/public key (NOT the service role key!)
+ *    - This is safe to expose in client-side code
+ *    - Get from: https://app.supabase.com/project/YOUR_PROJECT/settings/api
  * 
- * Create a .env file in the root directory with these variables.
- * See .env.example for a template.
+ * Setup:
+ * ------
+ * Local Development:
+ *   - Create .env file in taskmaster-web-client/
+ *   - Add: VITE_SUPABASE_URL=...
+ *   - Add: VITE_SUPABASE_ANON_KEY=...
+ * 
+ * Vercel Deployment:
+ *   - Go to: Vercel Dashboard → Project → Settings → Environment Variables
+ *   - Add both variables for Production, Preview, and Development
+ *   - Redeploy after adding
  */
 
-// Get environment variables - REQUIRED (no fallbacks for security)
+// ============================================
+// ENVIRONMENT VARIABLES - REQUIRED
+// ============================================
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Validate configuration - throw errors if missing
+// ============================================
+// VALIDATION - REQUIRED ENVIRONMENT VARIABLES
+// ============================================
 if (!supabaseUrl) {
   const error = '❌ VITE_SUPABASE_URL is not set in environment variables';
+  console.error('═══════════════════════════════════════════════════════════');
+  console.error('🚨 SUPABASE CONFIGURATION ERROR');
+  console.error('═══════════════════════════════════════════════════════════');
   console.error(error);
-  console.error('For local development: Set VITE_SUPABASE_URL in your .env file');
-  console.error('For Vercel deployment: Add VITE_SUPABASE_URL in Vercel Dashboard → Settings → Environment Variables');
-  console.error('Get your URL from: https://app.supabase.com/project/YOUR_PROJECT/settings/api');
+  console.error('');
+  console.error('📝 Required Environment Variables:');
+  console.error('   1. VITE_SUPABASE_URL');
+  console.error('   2. VITE_SUPABASE_ANON_KEY');
+  console.error('');
+  console.error('💻 Local Development:');
+  console.error('   - Create .env file in taskmaster-web-client/');
+  console.error('   - Add: VITE_SUPABASE_URL=https://your-project.supabase.co');
+  console.error('   - Add: VITE_SUPABASE_ANON_KEY=your-anon-key');
+  console.error('');
+  console.error('☁️  Vercel Deployment:');
+  console.error('   - Go to: Vercel Dashboard → Settings → Environment Variables');
+  console.error('   - Add both variables for Production, Preview, Development');
+  console.error('   - Redeploy after adding');
+  console.error('');
+  console.error('🔗 Get credentials from:');
+  console.error('   https://app.supabase.com/project/YOUR_PROJECT/settings/api');
+  console.error('═══════════════════════════════════════════════════════════');
   throw new Error(error);
 }
 
 if (!supabaseAnonKey) {
   const error = '❌ VITE_SUPABASE_ANON_KEY is not set in environment variables';
+  console.error('═══════════════════════════════════════════════════════════');
+  console.error('🚨 SUPABASE CONFIGURATION ERROR');
+  console.error('═══════════════════════════════════════════════════════════');
   console.error(error);
-  console.error('For local development: Set VITE_SUPABASE_ANON_KEY in your .env file');
-  console.error('For Vercel deployment: Add VITE_SUPABASE_ANON_KEY in Vercel Dashboard → Settings → Environment Variables');
-  console.error('Get your anon key from: https://app.supabase.com/project/YOUR_PROJECT/settings/api');
+  console.error('');
+  console.error('📝 Required Environment Variables:');
+  console.error('   1. VITE_SUPABASE_URL');
+  console.error('   2. VITE_SUPABASE_ANON_KEY');
+  console.error('');
+  console.error('💻 Local Development:');
+  console.error('   - Create .env file in taskmaster-web-client/');
+  console.error('   - Add: VITE_SUPABASE_URL=https://your-project.supabase.co');
+  console.error('   - Add: VITE_SUPABASE_ANON_KEY=your-anon-key');
+  console.error('');
+  console.error('☁️  Vercel Deployment:');
+  console.error('   - Go to: Vercel Dashboard → Settings → Environment Variables');
+  console.error('   - Add both variables for Production, Preview, Development');
+  console.error('   - Redeploy after adding');
+  console.error('');
+  console.error('🔗 Get credentials from:');
+  console.error('   https://app.supabase.com/project/YOUR_PROJECT/settings/api');
+  console.error('═══════════════════════════════════════════════════════════');
   throw new Error(error);
 }
 
