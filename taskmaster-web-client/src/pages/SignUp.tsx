@@ -83,7 +83,7 @@ function Signup() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-y-auto py-8" style={{ backgroundColor: theme.colors.background }}>
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ backgroundColor: theme.colors.background }}>
       {/* Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#6B6BFF] via-[#8B7FFF] to-[#A88FFF] opacity-90" />
       

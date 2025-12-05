@@ -14,22 +14,37 @@ export const authService = {
   async login(emailOrUsername: string, password: string, isEmail: boolean = true): Promise<void> {
     let email = emailOrUsername.trim();
     
+    console.log("Login attempt:", { emailOrUsername, isEmail });
+    
     // If username provided, resolve it to email
     if (!isEmail) {
+      console.log("Looking up username in users table...");
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email')
         .eq('user_name', email)
         .single();
       
-      if (userError || !userData) {
-        throw new Error("Invalid username or password");
+      if (userError) {
+        console.error("Username lookup error:", userError);
+        // Check if it's an RLS error
+        if (userError.message?.includes("RLS") || userError.code === "PGRST301") {
+          throw new Error("Database access error. Please contact support.");
+        }
+        throw new Error("Username not found");
       }
+      
+      if (!userData) {
+        throw new Error("Username not found");
+      }
+      
       email = userData.email;
+      console.log("Found email for username");
     }
 
     // Normalize email
     email = email.toLowerCase().trim();
+    console.log("Attempting Supabase auth login...");
 
     // Sign in with Supabase Auth
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -38,7 +53,7 @@ export const authService = {
     });
 
     if (error) {
-      console.error("Supabase login error:", error.message);
+      console.error("Supabase login error:", error.message, error);
       
       // Handle specific error cases
       if (error.message?.toLowerCase().includes("email not confirmed")) {
@@ -47,11 +62,13 @@ export const authService = {
       
       if (error.message?.toLowerCase().includes("invalid login credentials") || 
           error.message?.toLowerCase().includes("invalid")) {
-        throw new Error("Invalid email or password");
+        throw new Error("Invalid email or password. Make sure you're using the correct credentials.");
       }
       
       throw new Error(error.message || "Login failed. Please try again.");
     }
+    
+    console.log("Supabase auth successful, checking profile...");
 
     if (!data.session) {
       throw new Error("Failed to create session. Please try again.");
