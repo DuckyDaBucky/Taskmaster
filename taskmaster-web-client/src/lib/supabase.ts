@@ -1,14 +1,63 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Use environment variables, fallback to provided values for development
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://oyvdwqzbuevcbgrmtmvp.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95dmR3cXpidWV2Y2Jncm10bXZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4NzgzMTIsImV4cCI6MjA4MDQ1NDMxMn0.Cv_xBgXLIjS-Cy33wf1z45zYMopcQHsIVoLVVFy3zPo';
+/**
+ * Supabase Client Configuration
+ * 
+ * Environment Variables Required:
+ * - VITE_SUPABASE_URL: Your Supabase project URL (e.g., https://xxxxx.supabase.co)
+ * - VITE_SUPABASE_ANON_KEY: Your Supabase anon/public key
+ * 
+ * Get these from: https://app.supabase.com/project/YOUR_PROJECT/settings/api
+ * 
+ * Create a .env file in the root directory with these variables.
+ * See .env.example for a template.
+ */
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase URL and Anon Key must be set in environment variables');
+// Get environment variables - REQUIRED (no fallbacks for security)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Validate configuration - throw errors if missing
+if (!supabaseUrl) {
+  const error = '❌ VITE_SUPABASE_URL is not set in environment variables';
+  console.error(error);
+  console.error('Please set VITE_SUPABASE_URL in your .env file');
+  console.error('Get your URL from: https://app.supabase.com/project/YOUR_PROJECT/settings/api');
+  throw new Error(error);
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseAnonKey) {
+  const error = '❌ VITE_SUPABASE_ANON_KEY is not set in environment variables';
+  console.error(error);
+  console.error('Please set VITE_SUPABASE_ANON_KEY in your .env file');
+  console.error('Get your anon key from: https://app.supabase.com/project/YOUR_PROJECT/settings/api');
+  throw new Error(error);
+}
+
+// Validate URL format
+if (!supabaseUrl.startsWith('https://') && !supabaseUrl.startsWith('http://')) {
+  console.warn('⚠️ Supabase URL should start with https://');
+}
+
+// Validate key format (JWT tokens are typically long)
+if (supabaseAnonKey.length < 100) {
+  console.warn('⚠️ Supabase anon key seems invalid (too short)');
+}
+
+// Create Supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+});
+
+// Log configuration status (only in development)
+if (import.meta.env.DEV) {
+  console.log('✅ Supabase configured using environment variables');
+  console.log('📍 Supabase URL:', supabaseUrl);
+}
 
 // Database types (will be generated from Supabase)
 export type Database = {
@@ -171,4 +220,3 @@ export type Database = {
     };
   };
 };
-

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { authService } from "../services/authService";
+import { supabase } from "../lib/supabase";
 import { theme } from "../constants/theme";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +24,7 @@ const signupSchema = z.object({
 type SignupFormData = z.infer<typeof signupSchema>;
 
 function Signup() {
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
@@ -48,26 +50,31 @@ function Signup() {
         password: data.password,
       });
       
-      // Signup successful - Supabase session is automatically managed
-      // UserContext will pick up the auth state change
-      // Redirect to dashboard
-      window.location.href = "/dashboard";
+      // Wait a moment for session to be fully set
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verify session is set before redirecting
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Use React Router navigation instead of window.location
+        navigate("/dashboard", { replace: true });
+      } else {
+        // If no session, might need email confirmation
+        setFormError(true);
+        setErrorMessage("Please check your email to confirm your account");
+      }
     } catch (error: any) {
       console.error("Error submitting form: ", error);
       setFormError(true);
       
-      // Use the error message from the service, or provide a default
+      // Use the error message from the service
       const errorMsg = error.message || "";
-      if (errorMsg.includes("check your email") || errorMsg.includes("confirm")) {
+      
+      // Show the specific error message from the auth service
+      // It already handles all the cases properly
+      if (errorMsg) {
         setErrorMessage(errorMsg);
-      } else if (errorMsg.includes("already") || errorMsg.includes("taken") || errorMsg.includes("exists") || errorMsg.includes("duplicate") || errorMsg.includes("unique")) {
-        setErrorMessage("Username or email is already taken");
-      } else if (errorMsg.includes("row-level security") || errorMsg.includes("policy") || errorMsg.includes("RLS")) {
-        // Suppress RLS errors - user account was likely created successfully
-        // They can try logging in
-        setErrorMessage("Account may have been created. Please try logging in.");
       } else {
-        // Show a generic error message
         setErrorMessage("Failed to create account. Please try again.");
       }
     } finally {

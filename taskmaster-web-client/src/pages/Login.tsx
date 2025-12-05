@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { authService } from "../services/authService";
+import { supabase } from "../lib/supabase";
 import { theme } from "../constants/theme";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,6 +17,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 function Login() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
@@ -52,10 +54,18 @@ function Login() {
       const isEmail = emailOrUsername.includes("@");
       
       await authService.login(emailOrUsername, data.password, isEmail);
-      // Supabase session is automatically managed
-      // UserContext will pick up the auth state change
-      // Redirect to dashboard
-      window.location.href = "/dashboard";
+      
+      // Wait a moment for session to be fully set
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verify session is set before redirecting
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Use React Router navigation instead of window.location
+        navigate("/dashboard", { replace: true });
+      } else {
+        throw new Error("Session not created. Please try again.");
+      }
     } catch (error: any) {
       console.error("Login error: ", error.message || error);
       setSetInvalidPass(true);
