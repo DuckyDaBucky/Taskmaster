@@ -16,7 +16,7 @@ const TasksPage: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
   const [resources, setResources] = useState<any[]>([]);
   const [personalClassId, setPersonalClassId] = useState<string | null>(null);
-  const [isPersonal, setIsPersonal] = useState(false);
+  const [isPersonal, setIsPersonal] = useState(true); // Default to Personal
   const [formData, setFormData] = useState({
     title: "",
     deadline: "",
@@ -37,33 +37,38 @@ const TasksPage: React.FC = () => {
         return;
       }
 
-      try {
-        setIsLoading(true);
-        // Fetch classes
-        const userClasses = await apiService.getAllClasses();
-        setClasses(userClasses);
+      setIsLoading(true);
+      setError(null);
 
-        // Fetch all tasks (includes personal tasks)
-        const allTasks = await apiService.getAllTasks();
-        setTasks(allTasks);
+      // Fetch all data in parallel for speed
+      const results = await Promise.allSettled([
+        apiService.getAllClasses(),
+        apiService.getAllTasks(),
+        apiService.getAllResources(),
+        apiService.getPersonalClassId(),
+      ]);
 
-        // Fetch all resources for selection
-        const allResources = await apiService.getAllResources();
-        setResources(allResources);
-
-        // Fetch Personal class ID
-        try {
-          const personalClass = await apiService.getPersonalClassId();
-          setPersonalClassId(personalClass.personalClassId);
-        } catch (error) {
-          console.error("Error fetching personal class:", error);
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setError("Failed to load tasks");
-      } finally {
-        setIsLoading(false);
+      // Handle classes
+      if (results[0].status === 'fulfilled') {
+        setClasses(results[0].value);
       }
+
+      // Handle tasks
+      if (results[1].status === 'fulfilled') {
+        setTasks(results[1].value);
+      }
+
+      // Handle resources
+      if (results[2].status === 'fulfilled') {
+        setResources(results[2].value);
+      }
+
+      // Handle personal class ID
+      if (results[3].status === 'fulfilled') {
+        setPersonalClassId(results[3].value.personalClassId);
+      }
+
+      setIsLoading(false);
     };
 
     fetchData();
@@ -71,6 +76,7 @@ const TasksPage: React.FC = () => {
 
   const handleOpenCreateModal = () => {
     setEditingTaskId(null);
+    setIsPersonal(true); // Default to Personal
     setFormData({
       title: "",
       deadline: "",
@@ -104,7 +110,7 @@ const TasksPage: React.FC = () => {
 
   const handleSaveTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title) {
+    if (!formData.title.trim()) {
       setError("Please enter a title");
       return;
     }
@@ -114,42 +120,19 @@ const TasksPage: React.FC = () => {
       setError(null);
 
       const taskData = {
-        title: formData.title,
+        title: formData.title.trim(),
         deadline: formData.deadline || undefined,
         topic: formData.topic || undefined,
         status: formData.status,
         points: formData.points ? parseInt(formData.points) : undefined,
         textbook: formData.textbook || undefined,
-        resources: formData.selectedResources.length > 0 ? formData.selectedResources : undefined,
       };
 
       if (editingTaskId) {
-        // Check if task is being marked as completed
-        const oldTask = tasks.find(t => t._id === editingTaskId);
-        const isCompletingTask = oldTask && oldTask.status !== 'completed' && taskData.status === 'completed';
-        
-        // Update existing task
         await apiService.updateTask(editingTaskId, taskData);
-        
-        // If task was just completed, call Flask API for gamification
-        if (isCompletingTask && user?._id) {
-          try {
-            const result = await apiService.completeTask(editingTaskId, user._id);
-            console.log("Task completed! Points earned:", result);
-            // Optionally show a notification or update UI with points
-          } catch (error) {
-            console.error("Error updating points:", error);
-            // Don't fail the task update if gamification fails
-          }
-        }
       } else {
-        // Create new task
-        const classId = isPersonal && personalClassId ? personalClassId : formData.classId;
-        if (!classId) {
-          setError("Please select a class or use Personal");
-          setIsSubmitting(false);
-          return;
-        }
+        // Use Personal class if selected, otherwise use selected class, or null
+        const classId = isPersonal ? personalClassId : (formData.classId || null);
         await apiService.createTask(classId, taskData);
       }
 
@@ -157,7 +140,7 @@ const TasksPage: React.FC = () => {
       const allTasks = await apiService.getAllTasks();
       setTasks(allTasks);
 
-      // Reset form
+      // Reset and close
       setFormData({
         title: "",
         deadline: "",
@@ -168,12 +151,12 @@ const TasksPage: React.FC = () => {
         classId: "",
         selectedResources: [],
       });
-      setIsPersonal(false);
+      setIsPersonal(true);
       setShowModal(false);
       setEditingTaskId(null);
     } catch (error: any) {
       console.error("Error saving task:", error);
-      setError(error.response?.data?.message || `Failed to ${editingTaskId ? "update" : "create"} task`);
+      setError(error.message || "Failed to save task");
     } finally {
       setIsSubmitting(false);
     }
@@ -186,23 +169,20 @@ const TasksPage: React.FC = () => {
 
     try {
       await apiService.deleteTask(taskId);
-      // Refresh tasks
-      const allTasks = await apiService.getAllTasks();
-      setTasks(allTasks);
+      setTasks(tasks.filter(t => t._id !== taskId));
     } catch (error: any) {
       console.error("Error deleting task:", error);
-      setError(error.response?.data?.message || "Failed to delete task");
+      setError(error.message || "Failed to delete task");
     }
   };
-
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
+        <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
+        <div className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
-        <div className="text-center text-muted-foreground">Loading tasks...</div>
       </div>
     );
   }
@@ -222,70 +202,61 @@ const TasksPage: React.FC = () => {
 
       {/* Task Filters */}
       <div className="flex gap-2 border-b border-border pb-4">
-        <button
-          onClick={() => setFilter("all")}
-          className={`px-3 py-1 text-sm font-medium transition-colors ${
-            filter === "all"
-              ? "text-primary border-b-2 border-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          All Tasks
-        </button>
-        <button
-          onClick={() => setFilter("pending")}
-          className={`px-3 py-1 text-sm font-medium transition-colors ${
-            filter === "pending"
-              ? "text-primary border-b-2 border-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Pending
-        </button>
-        <button
-          onClick={() => setFilter("completed")}
-          className={`px-3 py-1 text-sm font-medium transition-colors ${
-            filter === "completed"
-              ? "text-primary border-b-2 border-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Completed
-        </button>
+        {["all", "pending", "completed"].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f as any)}
+            className={`px-3 py-1 text-sm font-medium transition-colors capitalize ${
+              filter === f
+                ? "text-primary border-b-2 border-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {f === "all" ? "All Tasks" : f}
+          </button>
+        ))}
       </div>
 
       {error && (
         <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md">
           {error}
+          <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
         </div>
       )}
 
-      <TaskList
-        tasks={tasks}
-        classes={classes}
-        filter={filter}
-        onEdit={handleOpenEditModal}
-        onDelete={handleDeleteTask}
-      />
+      {tasks.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <p>No tasks yet. Click "New Task" to create one!</p>
+        </div>
+      ) : (
+        <TaskList
+          tasks={tasks}
+          classes={classes}
+          filter={filter}
+          onEdit={handleOpenEditModal}
+          onDelete={handleDeleteTask}
+        />
+      )}
 
       <TaskModal
         isOpen={showModal}
         isEditing={!!editingTaskId}
         formData={formData}
         isPersonal={isPersonal}
-        classes={classes}
+        classes={classes.filter(c => !c.isPersonal)}
         resources={resources}
         isSubmitting={isSubmitting}
         onClose={() => {
           setShowModal(false);
           setEditingTaskId(null);
-          setIsPersonal(false);
+          setIsPersonal(true);
+          setError(null);
         }}
         onSubmit={handleSaveTask}
         onFormChange={(updates) => setFormData({ ...formData, ...updates })}
-        onPersonalToggle={(isPersonal) => {
-          setIsPersonal(isPersonal);
-          if (isPersonal) {
+        onPersonalToggle={(personal) => {
+          setIsPersonal(personal);
+          if (personal) {
             setFormData({ ...formData, classId: "" });
           }
         }}

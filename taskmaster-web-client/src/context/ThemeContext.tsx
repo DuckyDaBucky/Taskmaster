@@ -12,10 +12,10 @@ const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
-    // Get initial state from localStorage or default to 'default'
+    // Get initial state from localStorage or default to 'light'
     const savedTheme = localStorage.getItem('appTheme') as Theme | null;
-    // Validate saved theme or default
-    return savedTheme && ['default', 'light', 'dark', 'frost', 'retro', 'aqua', 'earth'].includes(savedTheme) ? savedTheme : 'default';
+    // Validate saved theme or default to light
+    return savedTheme && ['default', 'light', 'dark', 'frost', 'retro', 'aqua', 'earth'].includes(savedTheme) ? savedTheme : 'light';
   });
 
   useEffect(() => {

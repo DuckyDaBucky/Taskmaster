@@ -93,7 +93,7 @@ export const authService = {
       streak: 0,
       points: 0,
       level: 1,
-      theme: 'dark',
+      theme: 'light',
     }, { onConflict: 'id' }).then(() => {
       // Create Personal class
       supabase.from('classes').upsert({
@@ -134,7 +134,7 @@ export const authService = {
         streak: 0,
         points: 0,
         level: 1,
-        theme: 'dark',
+        theme: 'light',
       };
 
       await supabase.from('users').upsert(newProfile, { onConflict: 'id' });

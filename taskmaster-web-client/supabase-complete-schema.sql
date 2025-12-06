@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     points INTEGER DEFAULT 0,
     level INTEGER DEFAULT 1,
     role TEXT DEFAULT 'user',
-    theme TEXT DEFAULT 'dark',
+    theme TEXT DEFAULT 'light',
     settings JSONB DEFAULT '{"emailNotifications": true, "pushNotifications": false, "weeklyDigest": true}',
     personality FLOAT DEFAULT 0.5,
     time_preference INTEGER DEFAULT 0,

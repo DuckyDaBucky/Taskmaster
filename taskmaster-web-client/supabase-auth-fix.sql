@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     streak INTEGER DEFAULT 0,
     points INTEGER DEFAULT 0,
     level INTEGER DEFAULT 1,
-    theme TEXT DEFAULT 'dark',
+    theme TEXT DEFAULT 'light',
     personality FLOAT DEFAULT 0.5,
     time_preference INTEGER DEFAULT 0,
     in_person INTEGER DEFAULT 0,
