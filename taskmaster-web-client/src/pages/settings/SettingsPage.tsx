@@ -1,77 +1,117 @@
 import React, { useState, useEffect } from "react";
 import { useTheme, Theme } from "../../context/ThemeContext";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
 import { supabase } from "../../lib/supabase";
+import { User, Palette, Bell, Shield, Trash2 } from "lucide-react";
 
 const SettingsPage: React.FC = () => {
   const { theme, setTheme } = useTheme();
-  const { user, setUserState } = useUser();
+  const { user, setUserState, logout } = useUser();
+  
+  // Profile editing
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+    displayName: "",
+  });
+  
+  // Preferences
   const [preferences, setPreferences] = useState({
     personality: 0.5,
     time: 0,
     inPerson: 0,
-    privateSpace: 0,
   });
+  
+  // Notifications
   const [notifications, setNotifications] = useState({
     emailNotifications: true,
     pushNotifications: false,
     weeklyDigest: true,
+    taskReminders: true,
+    friendRequests: true,
   });
+  
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Load user preferences on mount
+  // Load user data
   useEffect(() => {
     if (user) {
+      setProfileForm({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        displayName: user.displayName || user.username || "",
+      });
       setPreferences({
         personality: user.preferences?.personality ?? 0.5,
         time: user.preferences?.time ?? 0,
         inPerson: user.preferences?.inPerson ?? 0,
-        privateSpace: user.preferences?.privateSpace ?? 0,
       });
       setNotifications({
         emailNotifications: user.settings?.emailNotifications ?? true,
         pushNotifications: user.settings?.pushNotifications ?? false,
         weeklyDigest: user.settings?.weeklyDigest ?? true,
+        taskReminders: true,
+        friendRequests: true,
       });
     }
   }, [user]);
 
-  const handleSavePreferences = async () => {
-    if (!user?._id) {
-      setSaveMessage("Please log in to save preferences");
-      return;
-    }
+  const showMessage = (type: "success" | "error", text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
 
+  const handleSaveProfile = async () => {
+    if (!user?._id) return;
     setIsSaving(true);
-    setSaveMessage(null);
     try {
-      // Save preferences directly to Supabase
+      const { error } = await supabase
+        .from('users')
+        .update({
+          first_name: profileForm.firstName,
+          last_name: profileForm.lastName,
+          display_name: profileForm.displayName,
+        })
+        .eq('id', user._id);
+      
+      if (error) throw error;
+      
+      setUserState({
+        firstName: profileForm.firstName,
+        lastName: profileForm.lastName,
+        displayName: profileForm.displayName,
+      });
+      setIsEditingProfile(false);
+      showMessage("success", "Profile updated!");
+    } catch (error: any) {
+      showMessage("error", error.message || "Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    if (!user?._id) return;
+    setIsSaving(true);
+    try {
       const { error } = await supabase
         .from('users')
         .update({
           personality: preferences.personality,
           time_preference: preferences.time,
           in_person: preferences.inPerson,
-          private_space: preferences.privateSpace,
           settings: notifications,
         })
         .eq('id', user._id);
-
+      
       if (error) throw error;
-
-      // Update local state
-      setUserState({
-        preferences,
-        settings: notifications,
-      });
-
-      setSaveMessage("Preferences saved successfully!");
-      setTimeout(() => setSaveMessage(null), 3000);
-    } catch (error) {
-      console.error("Error saving preferences:", error);
-      setSaveMessage("Failed to save preferences. Please try again.");
+      
+      setUserState({ preferences, settings: notifications });
+      showMessage("success", "Preferences saved!");
+    } catch (error: any) {
+      showMessage("error", error.message || "Failed to save preferences");
     } finally {
       setIsSaving(false);
     }
@@ -79,109 +119,161 @@ const SettingsPage: React.FC = () => {
 
   const handleThemeChange = async (newTheme: Theme) => {
     setTheme(newTheme);
-    
-    // Save theme to database if user is logged in
     if (user?._id) {
-      try {
-        await supabase
-          .from('users')
-          .update({ theme: newTheme })
-          .eq('id', user._id);
-        setUserState({ theme: newTheme });
-      } catch (error) {
-        console.error("Failed to save theme:", error);
-      }
+      await supabase.from('users').update({ theme: newTheme }).eq('id', user._id);
     }
   };
 
-  const themes: { id: Theme; label: string; color: string; primary: string }[] = [
-    { id: 'light', label: 'Light', color: '#f8fafc', primary: '#3b82f6' },
-    { id: 'dark', label: 'Dark', color: '#020617', primary: '#3b82f6' },
-    { id: 'frost', label: 'Frost', color: '#1e1b4b', primary: '#a5b4fc' },
-    { id: 'retro', label: 'Retro', color: '#244855', primary: '#E64833' },
-    { id: 'aqua', label: 'Aqua', color: '#003135', primary: '#0FA4AF' },
-    { id: 'earth', label: 'Earth', color: '#3E362E', primary: '#AC8968' },
+  const themes: { id: Theme; label: string; bg: string; accent: string }[] = [
+    { id: 'light', label: 'Light', bg: '#ffffff', accent: '#3b82f6' },
+    { id: 'dark', label: 'Dark', bg: '#0f172a', accent: '#3b82f6' },
+    { id: 'frost', label: 'Frost', bg: '#1e1b4b', accent: '#a5b4fc' },
+    { id: 'retro', label: 'Retro', bg: '#244855', accent: '#E64833' },
+    { id: 'aqua', label: 'Aqua', bg: '#003135', accent: '#0FA4AF' },
+    { id: 'earth', label: 'Earth', bg: '#3E362E', accent: '#AC8968' },
+  ];
+
+  const timeOptions = [
+    { value: 0, label: "Morning (6am-12pm)" },
+    { value: 1, label: "Afternoon (12pm-6pm)" },
+    { value: 2, label: "Evening (6pm-12am)" },
+    { value: 3, label: "Night (12am-6am)" },
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-6 pb-12">
       <h1 className="text-2xl font-bold text-foreground">Settings</h1>
 
-      {/* Account Section */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border-color pb-2">Account</h2>
-        <div className="bg-surface border border-border-color rounded-md p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Username</label>
-              <input 
-                type="text" 
-                value={user?.username || "Not set"} 
-                readOnly
-                className="w-full bg-background border border-border-color rounded px-3 py-2 text-foreground focus:outline-none focus:border-primary transition-colors"
-              />
+      {/* Message */}
+      {message && (
+        <div className={`p-3 rounded-lg text-sm ${
+          message.type === "success" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+        }`}>
+          {message.text}
+        </div>
+      )}
+
+      {/* Profile Section */}
+      <section className="bg-card border border-border rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <User size={20} className="text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Profile</h2>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-2xl font-bold text-primary">
+              {(user?.firstName?.[0] || user?.displayName?.[0] || "U").toUpperCase()}
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Email</label>
-              <input 
-                type="email" 
-                value={user?.email || "Not set"} 
-                readOnly
-                className="w-full bg-background border border-border-color rounded px-3 py-2 text-foreground focus:outline-none focus:border-primary transition-colors"
-              />
+            <div>
+              <p className="font-medium text-foreground">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
+              <p className="text-sm text-muted-foreground">@{user?.displayName || user?.username}</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Contact support to update your account information
-          </p>
+
+          {isEditingProfile ? (
+            <div className="space-y-3 pt-4 border-t border-border">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">First Name</label>
+                  <input
+                    type="text"
+                    value={profileForm.firstName}
+                    onChange={(e) => setProfileForm({ ...profileForm, firstName: e.target.value })}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Last Name</label>
+                  <input
+                    type="text"
+                    value={profileForm.lastName}
+                    onChange={(e) => setProfileForm({ ...profileForm, lastName: e.target.value })}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={profileForm.displayName}
+                  onChange={(e) => setProfileForm({ ...profileForm, displayName: e.target.value })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsEditingProfile(false)}
+                  className="px-4 py-2 border border-border rounded-lg text-foreground hover:bg-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsEditingProfile(true)}
+              className="text-sm text-primary hover:underline"
+            >
+              Edit Profile
+            </button>
+          )}
         </div>
       </section>
 
       {/* Appearance Section */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border-color pb-2">Appearance</h2>
-        <div className="bg-surface border border-border-color rounded-md p-6">
-          <h3 className="text-foreground font-medium mb-4">Theme</h3>
-          <div className="flex flex-wrap gap-4">
-            {themes.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => handleThemeChange(t.id)}
-                className={`
-                  group flex flex-col items-center gap-2 p-2 rounded-lg transition-all
-                  ${theme === t.id ? 'bg-primary/10 ring-2 ring-primary ring-offset-2 ring-offset-surface' : 'hover:bg-background'}
-                `}
+      <section className="bg-card border border-border rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Palette size={20} className="text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Appearance</h2>
+        </div>
+
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+          {themes.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => handleThemeChange(t.id)}
+              className={`p-2 rounded-lg border-2 transition-all ${
+                theme === t.id ? "border-primary" : "border-transparent hover:border-border"
+              }`}
+            >
+              <div
+                className="w-full aspect-square rounded-md mb-1 flex items-center justify-center"
+                style={{ backgroundColor: t.bg }}
               >
-                <div 
-                  className="w-24 h-24 rounded-md shadow-sm border border-border-color flex items-center justify-center relative overflow-hidden"
-                  style={{ backgroundColor: t.color }}
-                >
-                  <div 
-                    className="w-8 h-8 rounded-full shadow-sm"
-                    style={{ backgroundColor: t.primary }}
-                  />
-                </div>
-                <span className={`text-sm font-medium ${theme === t.id ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                  {t.label}
-                </span>
-              </button>
-            ))}
-          </div>
+                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: t.accent }} />
+              </div>
+              <span className="text-xs text-foreground">{t.label}</span>
+            </button>
+          ))}
         </div>
       </section>
 
       {/* Study Preferences Section */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border-color pb-2">Study Preferences</h2>
-        <div className="bg-surface border border-border-color rounded-md p-6 space-y-6">
-          <p className="text-sm text-muted-foreground">
-            Set your study preferences to help us match you with compatible study partners.
-          </p>
+      <section className="bg-card border border-border rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Shield size={20} className="text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Study Preferences</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Used for matching you with study partners
+        </p>
 
-          {/* Personality */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Personality (0 = Introverted, 1 = Extroverted)
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Personality: {preferences.personality < 0.4 ? "Introvert" : preferences.personality > 0.6 ? "Extrovert" : "Ambivert"}
             </label>
             <input
               type="range"
@@ -190,50 +282,48 @@ const SettingsPage: React.FC = () => {
               step="0.1"
               value={preferences.personality}
               onChange={(e) => setPreferences({ ...preferences, personality: parseFloat(e.target.value) })}
-              className="w-full"
+              className="w-full accent-primary"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Introverted</span>
-              <span className="font-medium">{preferences.personality.toFixed(1)}</span>
-              <span>Extroverted</span>
+              <span>Introvert</span>
+              <span>Extrovert</span>
             </div>
           </div>
 
-          {/* Preferred Time */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Preferred Study Time</label>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Preferred Study Time</label>
             <select
               value={preferences.time}
               onChange={(e) => setPreferences({ ...preferences, time: parseInt(e.target.value) })}
-              className="w-full bg-background border border-border-color rounded px-3 py-2 text-foreground focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground"
             >
-              <option value={0}>Morning (6 AM - 12 PM)</option>
-              <option value={1}>Afternoon (12 PM - 6 PM)</option>
-              <option value={2}>Evening (6 PM - 12 AM)</option>
-              <option value={3}>Night (12 AM - 6 AM)</option>
+              {timeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </div>
 
-          {/* In Person or Virtual */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Study Preference</label>
-            <div className="flex gap-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Study Style</label>
+            <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setPreferences({ ...preferences, inPerson: 1 })}
-                className={`flex-1 px-4 py-2 rounded-md border transition-colors ${
+                className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
                   preferences.inPerson === 1
                     ? "bg-primary text-white border-primary"
-                    : "bg-background text-foreground border-border-color hover:border-primary"
+                    : "bg-background text-foreground border-border hover:border-primary"
                 }`}
               >
                 In Person
               </button>
               <button
+                type="button"
                 onClick={() => setPreferences({ ...preferences, inPerson: 0 })}
-                className={`flex-1 px-4 py-2 rounded-md border transition-colors ${
+                className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
                   preferences.inPerson === 0
                     ? "bg-primary text-white border-primary"
-                    : "bg-background text-foreground border-border-color hover:border-primary"
+                    : "bg-background text-foreground border-border hover:border-primary"
                 }`}
               >
                 Virtual
@@ -241,93 +331,78 @@ const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Private or Public Space (only if in-person) */}
-          {preferences.inPerson === 1 && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Study Space Preference</label>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setPreferences({ ...preferences, privateSpace: 1 })}
-                  className={`flex-1 px-4 py-2 rounded-md border transition-colors ${
-                    preferences.privateSpace === 1
-                      ? "bg-primary text-white border-primary"
-                      : "bg-background text-foreground border-border-color hover:border-primary"
-                  }`}
-                >
-                  Private Space
-                </button>
-                <button
-                  onClick={() => setPreferences({ ...preferences, privateSpace: 0 })}
-                  className={`flex-1 px-4 py-2 rounded-md border transition-colors ${
-                    preferences.privateSpace === 0
-                      ? "bg-primary text-white border-primary"
-                      : "bg-background text-foreground border-border-color hover:border-primary"
-                  }`}
-                >
-                  Public Space
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Save Button */}
-          <div className="pt-4 border-t border-border-color">
-            <button
-              onClick={handleSavePreferences}
-              disabled={isSaving}
-              className="px-4 py-2 bg-primary hover:opacity-90 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving ? "Saving..." : "Save Preferences"}
-            </button>
-            {saveMessage && (
-              <p className={`mt-2 text-sm ${saveMessage.includes("success") ? "text-green-500" : "text-red-500"}`}>
-                {saveMessage}
-              </p>
-            )}
-          </div>
+          <button
+            onClick={handleSavePreferences}
+            disabled={isSaving}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+          >
+            {isSaving ? "Saving..." : "Save Preferences"}
+          </button>
         </div>
       </section>
 
       {/* Notifications Section */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground border-b border-border-color pb-2">Notifications</h2>
-        <div className="bg-surface border border-border-color rounded-md p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-foreground">Email Notifications</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
-                checked={notifications.emailNotifications}
-                onChange={(e) => setNotifications({ ...notifications, emailNotifications: e.target.checked })}
-              />
-              <div className="w-11 h-6 bg-background peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-            </label>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-foreground">Push Notifications</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
-                checked={notifications.pushNotifications}
-                onChange={(e) => setNotifications({ ...notifications, pushNotifications: e.target.checked })}
-              />
-              <div className="w-11 h-6 bg-background peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-            </label>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-foreground">Weekly Digest</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
-                checked={notifications.weeklyDigest}
-                onChange={(e) => setNotifications({ ...notifications, weeklyDigest: e.target.checked })}
-              />
-              <div className="w-11 h-6 bg-background peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-            </label>
-          </div>
+      <section className="bg-card border border-border rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Bell size={20} className="text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Notifications</h2>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            { key: "emailNotifications", label: "Email Notifications" },
+            { key: "pushNotifications", label: "Push Notifications" },
+            { key: "weeklyDigest", label: "Weekly Digest" },
+            { key: "taskReminders", label: "Task Reminders" },
+            { key: "friendRequests", label: "Friend Request Alerts" },
+          ].map((item) => (
+            <div key={item.key} className="flex items-center justify-between">
+              <span className="text-foreground">{item.label}</span>
+              <button
+                onClick={() => setNotifications({ ...notifications, [item.key]: !notifications[item.key as keyof typeof notifications] })}
+                className={`w-11 h-6 rounded-full relative transition-colors ${
+                  notifications[item.key as keyof typeof notifications] ? "bg-primary" : "bg-secondary"
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                    notifications[item.key as keyof typeof notifications] ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          ))}
+          
+          <button
+            onClick={handleSavePreferences}
+            disabled={isSaving}
+            className="mt-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+          >
+            {isSaving ? "Saving..." : "Save Notifications"}
+          </button>
+        </div>
+      </section>
+
+      {/* Danger Zone */}
+      <section className="bg-card border border-red-500/30 rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Trash2 size={20} className="text-red-500" />
+          <h2 className="text-lg font-semibold text-red-500">Danger Zone</h2>
+        </div>
+
+        <div className="space-y-3">
+          <button
+            onClick={logout}
+            className="w-full px-4 py-2 border border-red-500/30 text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"
+          >
+            Log Out
+          </button>
+          <button
+            onClick={() => alert("Contact support to delete your account")}
+            className="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+          >
+            Delete Account
+          </button>
         </div>
       </section>
     </div>
