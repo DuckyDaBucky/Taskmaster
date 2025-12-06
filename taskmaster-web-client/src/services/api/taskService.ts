@@ -1,16 +1,17 @@
 import { supabase } from "../../lib/supabase";
+import { getCachedUserId } from "./authCache";
 import type { TasksData } from "../types";
 
 export const taskService = {
-  async getAllTasks(token?: string): Promise<TasksData[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async getAllTasks(): Promise<TasksData[]> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('tasks')
-      .select('*, class:classes(*)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .select('id, title, topic, description, status, points, task_type, deadline, earned_points, completed, textbook, class_id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (error) throw new Error(error.message);
     
@@ -27,21 +28,16 @@ export const taskService = {
       completed: task.completed || false,
       textbook: task.textbook || '',
       class: task.class_id || undefined,
-      classData: task.class ? {
-        _id: task.class.id,
-        name: task.class.name || '',
-      } : undefined,
     }));
   },
 
-  async getTasksByClassId(classId: string, token?: string): Promise<TasksData[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async getTasksByClassId(classId: string): Promise<TasksData[]> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('tasks')
-      .select('*, class:classes(*)')
-      .eq('user_id', user.id)
+      .select('id, title, topic, description, status, points, task_type, deadline, earned_points, completed, textbook, class_id')
+      .eq('user_id', userId)
       .eq('class_id', classId)
       .order('created_at', { ascending: false });
 
@@ -60,27 +56,18 @@ export const taskService = {
       completed: task.completed || false,
       textbook: task.textbook || '',
       class: task.class_id || undefined,
-      classData: task.class ? {
-        _id: task.class.id,
-        name: task.class.name || '',
-      } : undefined,
     }));
   },
 
-  async createTask(
-    classId: string | null,
-    taskData: {
-      title: string;
-      deadline?: string;
-      topic?: string;
-      status?: "pending" | "completed" | "overdue";
-      points?: number;
-      textbook?: string;
-    },
-    token?: string
-  ): Promise<TasksData> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async createTask(classId: string | null, taskData: {
+    title: string;
+    deadline?: string;
+    topic?: string;
+    status?: "pending" | "completed" | "overdue";
+    points?: number;
+    textbook?: string;
+  }): Promise<TasksData> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('tasks')
@@ -92,21 +79,13 @@ export const taskService = {
         deadline: taskData.deadline || null,
         textbook: taskData.textbook || null,
         class_id: classId || null,
-        user_id: user.id,
+        user_id: userId,
         completed: false,
       })
-      .select()
+      .select('id, title, topic, description, status, points, task_type, deadline, earned_points, completed, textbook, class_id')
       .single();
 
     if (error) throw new Error(error.message);
-
-    // Create activity (non-blocking)
-    supabase.from('activities').insert({
-      user_id: user.id,
-      type: 'task_created',
-      description: `Created task: ${taskData.title}`,
-      metadata: { taskId: data.id },
-    }).then(() => {}).catch(() => {});
 
     return {
       _id: data.id,
@@ -124,9 +103,8 @@ export const taskService = {
     };
   },
 
-  async updateTask(taskId: string, updates: Partial<TasksData>, token?: string): Promise<TasksData> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async updateTask(taskId: string, updates: Partial<TasksData>): Promise<TasksData> {
+    const userId = await getCachedUserId();
 
     const updateData: any = {};
     if (updates.title !== undefined) updateData.title = updates.title;
@@ -141,19 +119,11 @@ export const taskService = {
       .from('tasks')
       .update(updateData)
       .eq('id', taskId)
-      .eq('user_id', user.id)
-      .select()
+      .eq('user_id', userId)
+      .select('id, title, topic, description, status, points, task_type, deadline, earned_points, completed, textbook, class_id')
       .single();
 
     if (error) throw new Error(error.message);
-
-    // Create activity (non-blocking)
-    supabase.from('activities').insert({
-      user_id: user.id,
-      type: 'task_updated',
-      description: `Updated task: ${data.title}`,
-      metadata: { taskId: data.id },
-    }).then(() => {}).catch(() => {});
 
     return {
       _id: data.id,
@@ -171,15 +141,14 @@ export const taskService = {
     };
   },
 
-  async deleteTask(taskId: string, token?: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async deleteTask(taskId: string): Promise<void> {
+    const userId = await getCachedUserId();
 
     const { error } = await supabase
       .from('tasks')
       .delete()
       .eq('id', taskId)
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (error) throw new Error(error.message);
   },

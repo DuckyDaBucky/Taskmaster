@@ -1,22 +1,20 @@
 import { supabase } from "../../lib/supabase";
+import { getCachedUserId } from "./authCache";
 import type { UserData } from "../types";
 
 export const userService = {
-  async addHamizAsFriend(token?: string): Promise<any> {
-    // This is a specific feature - you may want to implement friend system
-    // For now, return success message
+  async addHamizAsFriend(): Promise<any> {
     return { message: "Hamiz Iqbal added as friend successfully" };
   },
 
-  async getFriends(_userId?: string, token?: string): Promise<UserData[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async getFriends(): Promise<UserData[]> {
+    const userId = await getCachedUserId();
 
     // Get user's friends list from users table
     const { data: userProfile, error: userError } = await supabase
       .from('users')
       .select('friends_list')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
     if (userError || !userProfile || !userProfile.friends_list || userProfile.friends_list.length === 0) {
@@ -26,7 +24,7 @@ export const userService = {
     // Get friend profiles
     const { data: friends, error: friendsError } = await supabase
       .from('users')
-      .select('*')
+      .select('id, first_name, last_name, email, user_name, display_name, pfp, personality, time_preference, in_person, private_space, points, streak, level')
       .in('id', userProfile.friends_list);
 
     if (friendsError) throw new Error(friendsError.message);
@@ -36,8 +34,8 @@ export const userService = {
       firstName: friend.first_name,
       lastName: friend.last_name,
       email: friend.email,
-      username: friend.user_name,
-      userName: friend.user_name,
+      username: friend.display_name || friend.user_name,
+      displayName: friend.display_name || friend.user_name,
       profileImageUrl: friend.pfp || undefined,
       preferences: {
         personality: friend.personality || 0,

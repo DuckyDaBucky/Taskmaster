@@ -1,20 +1,20 @@
 import { supabase } from "../../lib/supabase";
+import { getCachedUserId } from "./authCache";
 
 export interface EventData {
   title: string;
   start: Date | string;
   end: Date | string;
-  taskInput?: string;
+  description?: string;
+  location?: string;
   classInput?: string;
   repeatWeekly?: boolean;
-  notes?: string[];
   color?: string;
 }
 
 export const eventService = {
-  async createEvent(eventData: EventData, token?: string): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async createEvent(eventData: EventData): Promise<any> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('events')
@@ -22,56 +22,56 @@ export const eventService = {
         title: eventData.title,
         start_time: eventData.start instanceof Date ? eventData.start.toISOString() : eventData.start,
         end_time: eventData.end instanceof Date ? eventData.end.toISOString() : eventData.end,
-        description: eventData.notes?.[0] || null,
+        description: eventData.description || null,
+        location: eventData.location || null,
         class_id: eventData.classInput || null,
         recurrence: eventData.repeatWeekly ? 'weekly' : null,
         color: eventData.color || '#6B6BFF',
-        user_id: user.id,
+        user_id: userId,
       })
-      .select()
+      .select('id, title, start_time, end_time, description, location, class_id, recurrence, color')
       .single();
 
     if (error) throw new Error(error.message);
 
-    // Create activity (non-blocking)
-    supabase.from('activities').insert({
-      user_id: user.id,
-      type: 'event_created',
-      description: `Created event: ${eventData.title}`,
-      metadata: { eventId: data.id },
-    }).then(() => {}).catch(console.warn);
-
     return {
-      ...data,
-      start: data.start_time,
-      end: data.end_time,
+      _id: data.id,
+      id: data.id,
+      title: data.title,
+      start: new Date(data.start_time),
+      end: data.end_time ? new Date(data.end_time) : new Date(data.start_time),
+      description: data.description,
+      location: data.location,
+      color: data.color,
     };
   },
 
-  async getEvents(userId: string, token?: string): Promise<any[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async getEvents(): Promise<any[]> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('events')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('start_time', { ascending: true });
+      .select('id, title, start_time, end_time, description, location, class_id, recurrence, color')
+      .eq('user_id', userId)
+      .order('start_time', { ascending: true })
+      .limit(200);
 
     if (error) throw new Error(error.message);
 
     return (data || []).map(event => ({
-      ...event,
       _id: event.id,
+      id: event.id,
+      title: event.title,
       start: new Date(event.start_time),
       end: event.end_time ? new Date(event.end_time) : new Date(event.start_time),
-      notes: event.description ? [event.description] : [],
+      description: event.description,
+      location: event.location,
+      color: event.color,
     }));
   },
 
-  async updateEvent(eventId: string, eventData: Partial<EventData>, token?: string): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async updateEvent(eventId: string, eventData: Partial<EventData>): Promise<any> {
+    const userId = await getCachedUserId();
 
     const updateData: any = {};
     if (eventData.title !== undefined) updateData.title = eventData.title;
@@ -81,46 +81,42 @@ export const eventService = {
     if (eventData.end !== undefined) {
       updateData.end_time = eventData.end instanceof Date ? eventData.end.toISOString() : eventData.end;
     }
+    if (eventData.description !== undefined) updateData.description = eventData.description;
+    if (eventData.location !== undefined) updateData.location = eventData.location;
     if (eventData.classInput !== undefined) updateData.class_id = eventData.classInput;
     if (eventData.repeatWeekly !== undefined) updateData.recurrence = eventData.repeatWeekly ? 'weekly' : null;
-    if (eventData.notes !== undefined) updateData.description = eventData.notes?.[0] || null;
     if (eventData.color !== undefined) updateData.color = eventData.color;
 
     const { data, error } = await supabase
       .from('events')
       .update(updateData)
       .eq('id', eventId)
-      .eq('user_id', user.id)
-      .select()
+      .eq('user_id', userId)
+      .select('id, title, start_time, end_time, description, location, class_id, recurrence, color')
       .single();
 
     if (error) throw new Error(error.message);
 
-    // Create activity (non-blocking)
-    supabase.from('activities').insert({
-      user_id: user.id,
-      type: 'event_updated',
-      description: `Updated event: ${data.title}`,
-      metadata: { eventId: data.id },
-    }).then(() => {}).catch(console.warn);
-
     return {
-      ...data,
       _id: data.id,
+      id: data.id,
+      title: data.title,
       start: new Date(data.start_time),
       end: data.end_time ? new Date(data.end_time) : new Date(data.start_time),
+      description: data.description,
+      location: data.location,
+      color: data.color,
     };
   },
 
-  async deleteEvent(eventId: string, token?: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async deleteEvent(eventId: string): Promise<void> {
+    const userId = await getCachedUserId();
 
     const { error } = await supabase
       .from('events')
       .delete()
       .eq('id', eventId)
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (error) throw new Error(error.message);
   },

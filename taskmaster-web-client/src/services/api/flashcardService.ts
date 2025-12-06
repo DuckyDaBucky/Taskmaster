@@ -1,16 +1,17 @@
 import { supabase } from "../../lib/supabase";
+import { getCachedUserId } from "./authCache";
 import type { FlashcardsData } from "../types";
 
 export const flashcardService = {
-  async getAllFlashcards(token?: string): Promise<FlashcardsData[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async getAllFlashcards(): Promise<FlashcardsData[]> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('flashcards')
-      .select('*, class:classes(*)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .select('id, class_id, topic, question, answer, description')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(200);
 
     if (error) throw new Error(error.message);
 
@@ -21,21 +22,16 @@ export const flashcardService = {
       question: card.question || '',
       answer: card.answer || '',
       description: card.description,
-      classData: card.class ? {
-        _id: card.class.id,
-        name: card.class.name || '',
-      } : undefined,
     }));
   },
 
-  async getFlashcardsByClassId(classId: string, token?: string): Promise<FlashcardsData[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async getFlashcardsByClassId(classId: string): Promise<FlashcardsData[]> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('flashcards')
-      .select('*, class:classes(*)')
-      .eq('user_id', user.id)
+      .select('id, class_id, topic, question, answer, description')
+      .eq('user_id', userId)
       .eq('class_id', classId)
       .order('created_at', { ascending: false });
 
@@ -48,54 +44,34 @@ export const flashcardService = {
       question: card.question || '',
       answer: card.answer || '',
       description: card.description,
-      classData: card.class ? {
-        _id: card.class.id,
-        name: card.class.name || '',
-      } : undefined,
     }));
   },
 
-  async generateFlashcards(
-    classId: string,
-    resourceId?: string,
-    token?: string
-  ): Promise<FlashcardsData[]> {
-    // This would call your Flask ML service to generate flashcards
-    // For now, return empty array - you'll need to integrate with your ML service
+  async generateFlashcards(classId: string, resourceId?: string): Promise<FlashcardsData[]> {
     throw new Error("Flashcard generation requires ML service integration");
   },
 
   async createManualFlashcards(
     classId: string,
-    cards: Array<{ question: string; answer: string; topic?: string }>,
-    token?: string
+    cards: Array<{ question: string; answer: string; topic?: string }>
   ): Promise<{ count: number }> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const userId = await getCachedUserId();
 
     const flashcards = cards.map(card => ({
-      class_id: classId,
+      class_id: classId || null,
       topic: card.topic || null,
       question: card.question,
       answer: card.answer,
       description: null,
-      user_id: user.id,
+      user_id: userId,
     }));
 
     const { data, error } = await supabase
       .from('flashcards')
       .insert(flashcards)
-      .select();
+      .select('id');
 
     if (error) throw new Error(error.message);
-
-    // Create activity
-    await supabase.from('activities').insert({
-      user_id: user.id,
-      type: 'flashcard_generated',
-      description: `Created ${cards.length} flashcards`,
-      metadata: { classId },
-    });
 
     return { count: data?.length || cards.length };
   },

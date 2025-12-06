@@ -1,24 +1,17 @@
 import { supabase } from "../../lib/supabase";
+import { getCachedUserId } from "./authCache";
 import type { ResourceData } from "../types";
 
 export const resourceService = {
-  async getAllResources(token?: string): Promise<ResourceData[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    // Get resources for user's classes OR personal resources (class_id is null)
-    const { data: classes } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('user_id', user.id);
-
-    const classIds = classes?.map(c => c.id) || [];
+  async getAllResources(): Promise<ResourceData[]> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('resources')
-      .select('*, class:classes(*)')
-      .or(`class_id.in.(${classIds.join(',')}),and(class_id.is.null,user_id.eq.${user.id})`)
-      .order('created_at', { ascending: false });
+      .select('id, title, urls, websites, files, summary, description, class_id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (error) throw new Error(error.message);
 
@@ -31,21 +24,16 @@ export const resourceService = {
       summary: resource.summary,
       description: resource.description,
       class: resource.class_id || undefined,
-      classData: resource.class ? {
-        _id: resource.class.id,
-        name: resource.class.name || '',
-      } : undefined,
     }));
   },
 
-  async getResourcesByClassId(classId: string, token?: string): Promise<ResourceData[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async getResourcesByClassId(classId: string): Promise<ResourceData[]> {
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('resources')
-      .select('*, class:classes(*)')
-      .eq('user_id', user.id)
+      .select('id, title, urls, websites, files, summary, description, class_id')
+      .eq('user_id', userId)
       .eq('class_id', classId)
       .order('created_at', { ascending: false });
 
@@ -60,20 +48,14 @@ export const resourceService = {
       summary: resource.summary,
       description: resource.description,
       class: resource.class_id || undefined,
-      classData: resource.class ? {
-        _id: resource.class.id,
-        name: resource.class.name || '',
-      } : undefined,
     }));
   },
 
   async createResource(
     classId: string | null,
-    resourceData: { urls?: string[]; websites?: string[]; title?: string },
-    token?: string
+    resourceData: { urls?: string[]; websites?: string[]; title?: string }
   ): Promise<ResourceData> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const userId = await getCachedUserId();
 
     const { data, error } = await supabase
       .from('resources')
@@ -83,20 +65,12 @@ export const resourceService = {
         websites: resourceData.websites || [],
         files: [],
         class_id: classId || null,
-        user_id: user.id,
+        user_id: userId,
       })
-      .select()
+      .select('id, title, urls, websites, files, summary, description, class_id')
       .single();
 
     if (error) throw new Error(error.message);
-
-    // Create activity
-    await supabase.from('activities').insert({
-      user_id: user.id,
-      type: 'resource_added',
-      description: `Added resource: ${data.title}`,
-      metadata: { resourceId: data.id },
-    });
 
     return {
       _id: data.id,
@@ -110,17 +84,15 @@ export const resourceService = {
     };
   },
 
-  async smartUploadResource(file: File, token?: string): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  async smartUploadResource(file: File): Promise<any> {
+    const userId = await getCachedUserId();
 
     // Upload file to Supabase Storage
     const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `resources/${fileName}`;
 
-    // Upload to Supabase Storage bucket 'resources'
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('resources')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -129,12 +101,10 @@ export const resourceService = {
 
     if (uploadError) throw new Error(uploadError.message);
 
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from('resources')
       .getPublicUrl(filePath);
 
-    // Create resource record in database
     const fileRecord = {
       filename: fileName,
       originalName: file.name,
@@ -149,25 +119,16 @@ export const resourceService = {
       .insert({
         title: file.name,
         files: [fileRecord],
-        class_id: null, // Personal resource
-        user_id: user.id,
+        class_id: null,
+        user_id: userId,
       })
-      .select()
+      .select('id, title, urls, websites, files, summary, description, class_id')
       .single();
 
     if (resourceError) {
-      // Clean up uploaded file if database insert fails
       await supabase.storage.from('resources').remove([filePath]);
       throw new Error(resourceError.message);
     }
-
-    // Create activity
-    await supabase.from('activities').insert({
-      user_id: user.id,
-      type: 'resource_added',
-      description: `Uploaded resource: ${file.name}`,
-      metadata: { resourceId: resource.id },
-    });
 
     return resource;
   },
