@@ -37,4 +37,4 @@ const ProtectedRoute = () => {
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
-export default ProtectedRoute;
+export { ProtectedRoute };
