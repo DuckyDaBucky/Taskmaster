@@ -86,20 +86,47 @@ export const resourceService = {
 
   async smartUploadResource(file: File): Promise<any> {
     const userId = await getCachedUserId();
+    console.log("smartUploadResource: Starting upload for", file.name, "user:", userId);
 
     // Upload file to Supabase Storage
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `resources/${fileName}`;
+    const filePath = fileName; // Don't include bucket name in path
 
-    const { error: uploadError } = await supabase.storage
+    console.log("Uploading to path:", filePath);
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('resources')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false,
       });
 
-    if (uploadError) throw new Error(uploadError.message);
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError);
+      // If bucket doesn't exist, try creating resource without file storage
+      if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('not found')) {
+        console.warn("Storage bucket 'resources' not found - creating resource without file upload");
+        // Create resource record without file storage
+        const { data: resource, error: resourceError } = await supabase
+          .from('resources')
+          .insert({
+            title: file.name,
+            files: [],
+            urls: [],
+            class_id: null,
+            user_id: userId,
+          })
+          .select('id, title, urls, websites, files, summary, description, class_id')
+          .single();
+
+        if (resourceError) throw new Error(resourceError.message);
+        return resource;
+      }
+      throw new Error(`Storage error: ${uploadError.message}`);
+    }
+
+    console.log("Upload successful:", uploadData);
 
     const { data: urlData } = supabase.storage
       .from('resources')
@@ -126,10 +153,12 @@ export const resourceService = {
       .single();
 
     if (resourceError) {
+      console.error("Resource insert error:", resourceError);
       await supabase.storage.from('resources').remove([filePath]);
       throw new Error(resourceError.message);
     }
 
+    console.log("Resource created:", resource);
     return resource;
   },
 };

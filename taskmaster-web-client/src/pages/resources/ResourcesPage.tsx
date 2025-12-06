@@ -81,45 +81,49 @@ const ResourcesPage: React.FC = () => {
   const handleUpload = async () => {
     if (files.length === 0 || !user?._id) return;
 
-    try {
-      setIsUploading(true);
-      setUploadStatus("Uploading files...");
+    setIsUploading(true);
+    let successCount = 0;
+    let failCount = 0;
 
-      for (const file of files) {
-        // Upload to Supabase Storage
+    for (const file of files) {
+      try {
         setUploadStatus(`Uploading ${file.name}...`);
-        const result = await apiService.smartUploadResource(file);
+        console.log("Starting upload for:", file.name);
         
-        // Trigger AI processing in background
+        const result = await apiService.smartUploadResource(file);
+        console.log("Upload result:", result);
+        successCount++;
+        
+        // Fire-and-forget AI processing (don't await)
         if (result?.id) {
-          setUploadStatus(`Processing ${file.name} with AI...`);
-          try {
-            await aiService.processDocument(result.id, user._id);
-          } catch (aiError) {
-            console.warn("AI processing queued:", aiError);
-            // Non-blocking - processing continues in background
-          }
+          aiService.processDocument(result.id, user._id)
+            .then(() => console.log("AI processing started for:", result.id))
+            .catch((err) => console.warn("AI processing failed:", err));
         }
+      } catch (error: any) {
+        console.error("Upload error for", file.name, ":", error);
+        failCount++;
       }
-
-      setUploadStatus("✓ Files uploaded! AI is analyzing...");
-      
-      // Refresh resources
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const allResources = await apiService.getAllResources();
-      setResources(allResources);
-
-      setTimeout(() => {
-        setFiles([]);
-        setUploadStatus("");
-      }, 2000);
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      setUploadStatus("✗ Upload failed: " + (error.message || "Unknown error"));
-      setTimeout(() => setUploadStatus(""), 3000);
-    } finally {
-      setIsUploading(false);
     }
+
+    if (successCount > 0) {
+      setUploadStatus(`✓ ${successCount} file(s) uploaded!`);
+      // Refresh resources
+      try {
+        const allResources = await apiService.getAllResources();
+        setResources(allResources);
+      } catch (e) {
+        console.error("Error refreshing resources:", e);
+      }
+    } else {
+      setUploadStatus(`✗ Upload failed. Check console for details.`);
+    }
+
+    setTimeout(() => {
+      setFiles([]);
+      setUploadStatus("");
+      setIsUploading(false);
+    }, 2000);
   };
 
   const handleSearch = async () => {
