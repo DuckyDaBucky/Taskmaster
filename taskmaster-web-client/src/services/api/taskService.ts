@@ -100,13 +100,13 @@ export const taskService = {
 
     if (error) throw new Error(error.message);
 
-    // Create activity
-    await supabase.from('activities').insert({
+    // Create activity (non-blocking)
+    supabase.from('activities').insert({
       user_id: user.id,
       type: 'task_created',
       description: `Created task: ${taskData.title}`,
       metadata: { taskId: data.id },
-    });
+    }).then(() => {}).catch(() => {});
 
     return {
       _id: data.id,
@@ -147,13 +147,13 @@ export const taskService = {
 
     if (error) throw new Error(error.message);
 
-    // Create activity
-    await supabase.from('activities').insert({
+    // Create activity (non-blocking)
+    supabase.from('activities').insert({
       user_id: user.id,
       type: 'task_updated',
       description: `Updated task: ${data.title}`,
       metadata: { taskId: data.id },
-    });
+    }).then(() => {}).catch(() => {});
 
     return {
       _id: data.id,

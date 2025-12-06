@@ -109,13 +109,13 @@ export const classService = {
 
     if (error) throw new Error(error.message);
 
-    // Create activity
-    await supabase.from('activities').insert({
+    // Create activity (non-blocking)
+    supabase.from('activities').insert({
       user_id: user.id,
       type: 'class_created',
       description: `Created class: ${classData.name}`,
       metadata: { classId: data.id },
-    });
+    }).then(() => {}).catch(() => {});
 
     return {
       _id: data.id,
@@ -170,13 +170,13 @@ export const classService = {
 
     if (error) throw new Error(error.message);
 
-    // Create activity
-    await supabase.from('activities').insert({
+    // Create activity (non-blocking)
+    supabase.from('activities').insert({
       user_id: user.id,
       type: 'class_updated',
       description: `Updated class: ${data.name}`,
       metadata: { classId: data.id },
-    });
+    }).then(() => {}).catch(() => {});
 
     return {
       _id: data.id,
