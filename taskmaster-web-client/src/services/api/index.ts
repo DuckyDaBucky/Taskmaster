@@ -12,6 +12,7 @@ import { userService } from "./userService";
 import { mlService } from "./mlService";
 import { activityService } from "./activityService";
 import { chatService } from "./chatService";
+import { aiService } from "./aiService";
 
 // Re-export individual services
 export {
@@ -25,6 +26,7 @@ export {
   mlService,
   activityService,
   chatService,
+  aiService,
   apiClient,
   mlClient,
 };
@@ -91,6 +93,13 @@ class ApiService {
   getOrCreateChat = chatService.getOrCreateChat;
   getUserChats = chatService.getUserChats;
   getFriends = chatService.getFriends;
+
+  // AI Service (RAG)
+  processDocument = aiService.processDocument;
+  searchDocuments = aiService.search;
+  generateAIFlashcards = aiService.generateFlashcards;
+  chatWithAgent = aiService.chat;
+  aiHealthCheck = aiService.healthCheck;
 }
 
 export const apiService = new ApiService();

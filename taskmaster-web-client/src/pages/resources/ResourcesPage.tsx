@@ -1,16 +1,33 @@
 import React, { useState, useEffect } from "react";
-import { Upload, X, Loader } from "lucide-react";
+import { Upload, X, Loader, Search, Sparkles, CheckCircle, AlertCircle } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/apiService";
+import { aiService } from "../../services/api/aiService";
+
+interface ResourceWithStatus {
+  _id: string;
+  title?: string;
+  files?: any[];
+  urls?: string[];
+  websites?: string[];
+  summary?: string;
+  processing_status?: 'pending' | 'processing' | 'completed' | 'failed';
+  class?: any;
+}
 
 const ResourcesPage: React.FC = () => {
   const { user } = useUser();
-  const [resources, setResources] = useState<any[]>([]);
+  const [resources, setResources] = useState<ResourceWithStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -22,7 +39,6 @@ const ResourcesPage: React.FC = () => {
       try {
         setIsLoading(true);
         const allResources = await apiService.getAllResources();
-        console.log("Initial resources fetch:", allResources);
         setResources(allResources || []);
       } catch (error) {
         console.error("Error fetching resources:", error);
@@ -63,37 +79,74 @@ const ResourcesPage: React.FC = () => {
   };
 
   const handleUpload = async () => {
-    if (files.length === 0) return;
+    if (files.length === 0 || !user?._id) return;
 
     try {
       setIsUploading(true);
-      setUploadStatus("Uploading and analyzing files...");
+      setUploadStatus("Uploading files...");
 
       for (const file of files) {
-        // Use Supabase Storage for file upload
+        // Upload to Supabase Storage
+        setUploadStatus(`Uploading ${file.name}...`);
         const result = await apiService.smartUploadResource(file);
-        console.log("Upload result:", result);
+        
+        // Trigger AI processing in background
+        if (result?.id) {
+          setUploadStatus(`Processing ${file.name} with AI...`);
+          try {
+            await aiService.processDocument(result.id, user._id);
+          } catch (aiError) {
+            console.warn("AI processing queued:", aiError);
+            // Non-blocking - processing continues in background
+          }
+        }
       }
 
-      setUploadStatus("✓ Files uploaded and classified!");
+      setUploadStatus("✓ Files uploaded! AI is analyzing...");
       
-      // Wait a bit for database to update, then refresh resources
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Refresh resources
+      await new Promise(resolve => setTimeout(resolve, 1000));
       const allResources = await apiService.getAllResources();
-      console.log("Fetched resources:", allResources);
       setResources(allResources);
 
-      // Reset
       setTimeout(() => {
         setFiles([]);
         setUploadStatus("");
       }, 2000);
     } catch (error: any) {
       console.error("Upload error:", error);
-      setUploadStatus("✗ Upload failed");
+      setUploadStatus("✗ Upload failed: " + (error.message || "Unknown error"));
       setTimeout(() => setUploadStatus(""), 3000);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !user?._id) return;
+
+    try {
+      setIsSearching(true);
+      const result = await aiService.search(searchQuery, user._id);
+      setSearchResults(result.results || []);
+    } catch (error) {
+      console.error("Search error:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const getStatusIcon = (status?: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="text-green-500" size={16} />;
+      case 'processing':
+        return <Loader className="text-yellow-500 animate-spin" size={16} />;
+      case 'failed':
+        return <AlertCircle className="text-red-500" size={16} />;
+      default:
+        return <Sparkles className="text-muted-foreground" size={16} />;
     }
   };
 
@@ -101,7 +154,9 @@ const ResourcesPage: React.FC = () => {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-foreground">Resources</h1>
-        <div className="text-center text-muted-foreground">Loading...</div>
+        <div className="flex items-center justify-center py-12">
+          <Loader className="animate-spin text-primary" size={32} />
+        </div>
       </div>
     );
   }
@@ -109,10 +164,50 @@ const ResourcesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Smart Upload</h1>
+        <h1 className="text-2xl font-bold text-foreground">Smart Resources</h1>
         <p className="text-sm text-muted-foreground">
-          AI automatically organizes your files
+          AI-powered document analysis
         </p>
+      </div>
+
+      {/* Search Bar */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="Search your documents with AI..."
+              className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <button
+            onClick={handleSearch}
+            disabled={isSearching || !searchQuery.trim()}
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {isSearching ? <Loader className="animate-spin" size={16} /> : <Sparkles size={16} />}
+            Search
+          </button>
+        </div>
+
+        {/* Search Results */}
+        {searchResults.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <h4 className="text-sm font-medium text-foreground">Results:</h4>
+            {searchResults.map((result, index) => (
+              <div key={index} className="p-3 bg-secondary/30 rounded-md">
+                <p className="text-sm text-foreground">{result.text}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Relevance: {Math.round((result.score || 0) * 100)}%
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Upload Area */}
@@ -122,7 +217,7 @@ const ResourcesPage: React.FC = () => {
         onDrop={handleDrop}
         className={`border-2 border-dashed rounded-lg p-12 text-center transition-all ${
           isDragging
-            ? "border-primary bg-primary/10 scale-105"
+            ? "border-primary bg-primary/10 scale-[1.02]"
             : "border-border hover:border-primary/50"
         }`}
       >
@@ -131,11 +226,12 @@ const ResourcesPage: React.FC = () => {
           Drop files here
         </h3>
         <p className="text-sm text-muted-foreground mb-4">
-          AI will analyze and organize them automatically
+          PDFs, documents, images - AI will analyze and index them
         </p>
         <input
           type="file"
           multiple
+          accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
           onChange={handleFileSelect}
           className="hidden"
           id="file-upload"
@@ -161,12 +257,13 @@ const ResourcesPage: React.FC = () => {
               className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {isUploading && <Loader className="animate-spin" size={16} />}
-              {isUploading ? "Uploading..." : "Upload All"}
+              {isUploading ? "Processing..." : "Upload & Analyze"}
             </button>
           </div>
 
           {uploadStatus && (
-            <div className="text-sm text-center py-2 bg-secondary/50 rounded">
+            <div className="text-sm text-center py-2 bg-secondary/50 rounded flex items-center justify-center gap-2">
+              {isUploading && <Loader className="animate-spin" size={14} />}
               {uploadStatus}
             </div>
           )}
@@ -179,6 +276,9 @@ const ResourcesPage: React.FC = () => {
               >
                 <span className="text-sm text-foreground truncate flex-1">
                   {file.name}
+                </span>
+                <span className="text-xs text-muted-foreground mx-2">
+                  {(file.size / 1024).toFixed(1)} KB
                 </span>
                 <button
                   type="button"
@@ -196,33 +296,41 @@ const ResourcesPage: React.FC = () => {
       {/* Resources List */}
       <div className="bg-card border border-border rounded-lg p-4">
         <h3 className="font-semibold text-foreground mb-3">
-          Uploaded Resources ({resources.length})
+          Your Resources ({resources.length})
         </h3>
         {resources.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No resources yet. Upload your first file!
+          <p className="text-muted-foreground text-sm py-4 text-center">
+            No resources yet. Upload your first file to get started!
           </p>
         ) : (
           <div className="space-y-2">
-            {resources.slice(0, 10).map((resource) => {
-              // Determine display name from available fields
+            {resources.map((resource) => {
               const displayName = resource.title 
                 || resource.files?.[0]?.originalName 
                 || resource.urls?.[0] 
-                || resource.websites?.[0] 
                 || "Untitled Resource";
-              
-              const className = resource.class?.name || resource.class || "Personal";
               
               return (
                 <div
                   key={resource._id}
-                  className="text-sm py-2 border-b border-border last:border-0"
+                  className="p-3 bg-secondary/20 rounded-md hover:bg-secondary/30 transition-colors"
                 >
-                  <div className="text-foreground font-medium">{displayName}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {className} • {resource.files?.length > 0 ? `${resource.files.length} file(s)` : ''}
-                    {resource.urls?.length > 0 ? ` • ${resource.urls.length} URL(s)` : ''}
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(resource.processing_status)}
+                        <span className="text-foreground font-medium">{displayName}</span>
+                      </div>
+                      {resource.summary && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {resource.summary}
+                        </p>
+                      )}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {resource.files?.length ? `${resource.files.length} file(s)` : ''}
+                        {resource.urls?.length ? ` • ${resource.urls.length} URL(s)` : ''}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
