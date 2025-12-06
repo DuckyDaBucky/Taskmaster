@@ -95,10 +95,11 @@ const ResourcesPage: React.FC = () => {
         successCount++;
         
         // Fire-and-forget AI processing (don't await)
-        if (result?.id) {
-          aiService.processDocument(result.id, user._id)
+        if (result?.id && result?.files?.[0]?.path) {
+          const filePath = result.files[0].path;
+          aiService.processDocument(result.id, user._id, filePath)
             .then((res) => console.log("AI processing started:", res))
-            .catch((err) => console.warn("AI processing skipped (service may be warming up):", err.message));
+            .catch((err) => console.warn("AI processing skipped:", err.message));
         }
       } catch (error: any) {
         console.error("Upload error for", file.name, ":", error);

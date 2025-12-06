@@ -18,21 +18,25 @@ export const aiService = {
   /**
    * Process an uploaded document - extracts text, generates embeddings, stores in Qdrant
    */
-  async processDocument(resourceId: string, userId: string): Promise<{ status: string; message: string }> {
+  async processDocument(resourceId: string, userId: string, filePath?: string): Promise<{ status: string; message: string }> {
     try {
-      console.log("AI Service: Processing document", resourceId, "for user", userId);
+      console.log("AI Service: Processing document", resourceId, "for user", userId, "path:", filePath);
       
       const response = await fetch(`${AI_SERVICE_URL}/api/documents/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resource_id: resourceId, user_id: userId }),
+        body: JSON.stringify({ 
+          resource_id: resourceId, 
+          user_id: userId,
+          file_path: filePath || ''
+        }),
       });
       
       const data = await response.json().catch(() => null);
       console.log("AI Service response:", response.status, data);
       
       if (!response.ok) {
-        const errorMessage = data?.detail || data?.message || JSON.stringify(data) || 'Processing failed';
+        const errorMessage = data?.detail?.[0]?.msg || data?.detail || data?.message || JSON.stringify(data) || 'Processing failed';
         throw new Error(errorMessage);
       }
       
