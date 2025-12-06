@@ -17,7 +17,7 @@ import { authService } from "../services/authService";
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout: logoutUserContext } = useUser();
+  const { user } = useUser();
 
   const menuItems = [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -93,14 +93,18 @@ export const Sidebar: React.FC = () => {
         </button>
         
         <button 
-          onClick={(e) => {
+          onClick={async (e) => {
             e.preventDefault();
             e.stopPropagation();
             console.log("Logout button clicked");
-            // Clear UserContext state first
-            logoutUserContext();
-            // Then clear localStorage and redirect
-            authService.logout();
+            try {
+              // Use authService.logout() which handles everything
+              await authService.logout();
+            } catch (error) {
+              console.error("Logout error:", error);
+              // Force redirect even if there's an error
+              window.location.replace("/login");
+            }
           }}
           className="w-full flex items-center gap-3 px-4 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-background hover:text-destructive transition-colors"
         >
