@@ -47,6 +47,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (session) {
         const userData = await authService.getUserMe();
         setUser(userData);
+        
+        // Apply user's saved theme preference
+        if (userData.theme) {
+          localStorage.setItem('appTheme', userData.theme);
+          document.documentElement.setAttribute('data-theme', userData.theme);
+        }
       } else {
         setUser(null);
       }

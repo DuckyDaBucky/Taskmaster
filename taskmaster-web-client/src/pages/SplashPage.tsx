@@ -1,22 +1,44 @@
 import { useNavigate } from "react-router-dom";
 import NavBar from "../components/navbar";
 import { motion } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "../context/ThemeContext";
+import { supabase } from "../lib/supabase";
 
 function SplashPage() {
   const { setTheme } = useTheme();
+  const navigate = useNavigate();
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    setTheme("light");
-    localStorage.setItem("appTheme", "light");
-  }, [setTheme]);
-  
-  const navigate = useNavigate();
+    // Check if user is already logged in
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // User is logged in, redirect to dashboard
+        navigate("/dashboard", { replace: true });
+      } else {
+        setIsChecking(false);
+        // Only set light theme for splash page if not logged in
+        setTheme("light");
+        localStorage.setItem("appTheme", "light");
+      }
+    };
+    checkAuth();
+  }, [navigate, setTheme]);
 
   const handleSignup = () => {
-    navigate("signup");
+    navigate("/signup");
   };
+
+  // Show loading while checking auth
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   return (
     <>
       <NavBar />

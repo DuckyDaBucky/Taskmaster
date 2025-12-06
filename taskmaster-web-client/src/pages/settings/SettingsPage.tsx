@@ -239,6 +239,12 @@ const SettingsPage: React.FC = () => {
           <h2 className="text-lg font-semibold text-foreground">Appearance</h2>
         </div>
 
+        <div className="mb-4">
+          <p className="text-sm text-muted-foreground mb-3">
+            Select your preferred theme. This will be your default when you log in.
+          </p>
+        </div>
+
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
           {themes.map((t) => (
             <button
@@ -258,6 +264,10 @@ const SettingsPage: React.FC = () => {
             </button>
           ))}
         </div>
+
+        <p className="text-xs text-muted-foreground mt-3">
+          ✓ Current theme: <span className="font-medium capitalize">{theme}</span> (saved to your profile)
+        </p>
       </section>
 
       {/* Study Preferences Section */}
