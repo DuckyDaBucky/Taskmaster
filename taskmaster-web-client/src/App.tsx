@@ -15,6 +15,7 @@ import ProfilePage from "./pages/profile/ProfilePage";
 import { ThemeProvider } from "./context/ThemeContext";
 import { UserProvider } from "./context/UserContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import AIAssistant from "./components/AIAssistant";
 
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
     <ThemeProvider>
       <UserProvider>
         <Router>
+          <AIAssistant />
           <Routes>
             {/* Public routes */}
             <Route 

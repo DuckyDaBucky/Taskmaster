@@ -13,6 +13,7 @@ import { mlService } from "./mlService";
 import { activityService } from "./activityService";
 import { chatService } from "./chatService";
 import { nebulaService } from "./nebulaService";
+import { courseCatalogService } from "./courseCatalogService";
 
 // Re-export individual services
 export {
@@ -27,6 +28,7 @@ export {
   activityService,
   chatService,
   nebulaService,
+  courseCatalogService,
   apiClient,
   mlClient,
 };
