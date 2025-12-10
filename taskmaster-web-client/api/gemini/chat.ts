@@ -1,88 +1,79 @@
 /**
  * Gemini Chat API
- * Vercel Serverless Function
+ * POST /api/gemini/chat
  * 
- * Handles chat with context (RAG)
+ * Body: { message: string, systemPrompt?: string, context?: string }
+ * Returns: { response: string } or { error: string }
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta';
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'Gemini API key not configured' });
+    return res.status(500).json({ error: 'GEMINI_API_KEY not set in Vercel' });
   }
 
   try {
-    const { message, context, history, systemPrompt } = req.body;
-    
+    const { message, systemPrompt, context } = req.body || {};
+
     if (!message) {
-      return res.status(400).json({ error: 'No message provided' });
+      return res.status(400).json({ error: 'message is required' });
     }
 
-    // Build prompt with context
-    let fullPrompt = systemPrompt || 'You are a helpful study assistant for UTD students. Be concise and helpful.';
-    
+    // Build prompt
+    let prompt = systemPrompt || 'You are a helpful assistant.';
     if (context) {
-      fullPrompt += `\n\nRelevant context from user's documents:\n${context}\n\n`;
+      prompt += `\n\nContext:\n${context}`;
     }
-    
-    fullPrompt += `User: ${message}`;
+    prompt += `\n\nUser: ${message}\n\nAssistant:`;
 
-    // Gemini chat model
-    const model = 'models/gemini-1.5-flash';
-    const url = `${GEMINI_API_URL}/${model}:generateContent?key=${apiKey}`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: fullPrompt }],
+    // Call Gemini
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024,
           },
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        },
-        safetySettings: [
-          {
-            category: 'HARM_CATEGORY_HARASSMENT',
-            threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-          },
-          {
-            category: 'HARM_CATEGORY_HATE_SPEECH',
-            threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-          },
-        ],
-      }),
-    });
+        }),
+      }
+    );
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error: ${error}`);
+      const errorText = await response.text();
+      console.error('Gemini error:', errorText);
+      return res.status(500).json({ error: `Gemini API error: ${response.status}` });
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    return res.status(200).json({ 
-      response: text,
-      model,
-    });
+    if (!text) {
+      return res.status(500).json({ error: 'No response from Gemini' });
+    }
+
+    return res.status(200).json({ response: text });
 
   } catch (error: any) {
-    console.error('Gemini chat error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to generate response' });
+    console.error('Chat error:', error);
+    return res.status(500).json({ error: error.message || 'Unknown error' });
   }
 }
-
