@@ -62,8 +62,6 @@ const AIAssistant: React.FC = () => {
       });
 
       const data = await response.json();
-      
-      // Show actual error if there is one
       const content = data.error 
         ? `Error: ${data.error}` 
         : (data.response || "No response received");
@@ -77,7 +75,7 @@ const AIAssistant: React.FC = () => {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `Connection error: ${error.message}. Check if API routes are deployed.`,
+        content: `Connection error: ${error.message}`,
       }]);
     } finally {
       setIsLoading(false);
@@ -91,15 +89,19 @@ const AIAssistant: React.FC = () => {
     }
   };
 
-  // Closed - just the button
+  // Closed - just the logo, no circle
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-primary hover:bg-primary/90 rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105"
+        className="fixed bottom-6 right-6 z-50 w-12 h-12 hover:scale-110 transition-transform"
         title="Open TaskMaster AI"
       >
-        <img src="/favicon.png" alt="TaskMaster" className="w-8 h-8" />
+        <img 
+          src="/favicon.png" 
+          alt="TaskMaster" 
+          className="w-full h-full drop-shadow-lg"
+        />
       </button>
     );
   }
@@ -109,10 +111,10 @@ const AIAssistant: React.FC = () => {
     return (
       <button
         onClick={() => setIsMinimized(false)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-full shadow-lg hover:bg-secondary/50"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-3 py-1.5 bg-card border border-border rounded-lg shadow-lg hover:bg-secondary/50"
       >
         <img src="/favicon.png" alt="" className="w-5 h-5" />
-        <span className="text-sm font-medium">TaskMaster</span>
+        <span className="text-sm font-medium text-foreground">TaskMaster</span>
       </button>
     );
   }

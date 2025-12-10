@@ -8,7 +8,7 @@ export const resourceService = {
 
     const { data, error } = await supabase
       .from('resources')
-      .select('id, title, urls, websites, files, summary, description, class_id')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -24,6 +24,7 @@ export const resourceService = {
       summary: resource.summary,
       description: resource.description,
       class: resource.class_id || undefined,
+      processing_status: resource.processing_status,
     }));
   },
 
@@ -32,7 +33,7 @@ export const resourceService = {
 
     const { data, error } = await supabase
       .from('resources')
-      .select('id, title, urls, websites, files, summary, description, class_id')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status')
       .eq('user_id', userId)
       .eq('class_id', classId)
       .order('created_at', { ascending: false });
@@ -48,6 +49,7 @@ export const resourceService = {
       summary: resource.summary,
       description: resource.description,
       class: resource.class_id || undefined,
+      processing_status: resource.processing_status,
     }));
   },
 
@@ -84,81 +86,127 @@ export const resourceService = {
     };
   },
 
-  async smartUploadResource(file: File): Promise<any> {
+  /**
+   * Upload a file and trigger document processing for RAG
+   */
+  async smartUploadResource(file: File, classId?: string): Promise<any> {
     const userId = await getCachedUserId();
-    console.log("smartUploadResource: Starting upload for", file.name, "user:", userId);
+    console.log("smartUploadResource:", file.name);
 
-    // Upload file to Supabase Storage
+    // 1. Upload to Supabase Storage
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = fileName; // Don't include bucket name in path
-
-    console.log("Uploading to path:", filePath);
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('resources')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false,
-      });
+      .upload(fileName, file, { cacheControl: '3600', upsert: false });
 
     if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-      // If bucket doesn't exist, try creating resource without file storage
-      if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('not found')) {
-        console.warn("Storage bucket 'resources' not found - creating resource without file upload");
-        // Create resource record without file storage
-        const { data: resource, error: resourceError } = await supabase
-          .from('resources')
-          .insert({
-            title: file.name,
-            files: [],
-            urls: [],
-            class_id: null,
-            user_id: userId,
-          })
-          .select('id, title, urls, websites, files, summary, description, class_id')
-          .single();
-
-        if (resourceError) throw new Error(resourceError.message);
-        return resource;
-      }
-      throw new Error(`Storage error: ${uploadError.message}`);
+      console.error("Storage error:", uploadError);
+      throw new Error(`Upload failed: ${uploadError.message}`);
     }
 
-    console.log("Upload successful:", uploadData);
-
+    // 2. Get public URL
     const { data: urlData } = supabase.storage
       .from('resources')
-      .getPublicUrl(filePath);
+      .getPublicUrl(fileName);
 
     const fileRecord = {
       filename: fileName,
       originalName: file.name,
       mimetype: file.type,
       size: file.size,
-      path: filePath,
+      path: fileName,
       url: urlData.publicUrl,
     };
 
+    // 3. Create resource record
     const { data: resource, error: resourceError } = await supabase
       .from('resources')
       .insert({
         title: file.name,
         files: [fileRecord],
-        class_id: null,
+        class_id: classId || null,
         user_id: userId,
+        processing_status: 'pending',
       })
-      .select('id, title, urls, websites, files, summary, description, class_id')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status')
       .single();
 
     if (resourceError) {
-      console.error("Resource insert error:", resourceError);
-      await supabase.storage.from('resources').remove([filePath]);
+      await supabase.storage.from('resources').remove([fileName]);
       throw new Error(resourceError.message);
     }
 
-    console.log("Resource created:", resource);
+    // 4. Trigger document processing (non-blocking)
+    this.triggerProcessing(resource.id, userId, urlData.publicUrl, classId).catch(e => {
+      console.error("Processing trigger failed:", e);
+    });
+
     return resource;
+  },
+
+  /**
+   * Trigger document processing API
+   */
+  async triggerProcessing(resourceId: string, userId: string, fileUrl: string, classId?: string): Promise<void> {
+    try {
+      const response = await fetch('/api/process/document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resource_id: resourceId,
+          user_id: userId,
+          file_url: fileUrl,
+          class_id: classId,
+          document_type: 'other',
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        console.error("Processing failed:", data.error);
+      }
+    } catch (e) {
+      console.error("Processing request failed:", e);
+    }
+  },
+
+  /**
+   * Delete a resource (handles archiving if user allows)
+   */
+  async deleteResource(resourceId: string): Promise<void> {
+    const userId = await getCachedUserId();
+
+    // Get resource info first
+    const { data: resource } = await supabase
+      .from('resources')
+      .select('files')
+      .eq('id', resourceId)
+      .eq('user_id', userId)
+      .single();
+
+    // Archive chunks if user allows (handled by DB function)
+    await supabase.rpc('archive_user_chunks', {
+      p_resource_id: resourceId,
+      p_user_id: userId,
+    });
+
+    // Delete storage files
+    if (resource?.files?.length) {
+      const paths = resource.files.map((f: any) => f.path).filter(Boolean);
+      if (paths.length) {
+        await supabase.storage.from('resources').remove(paths);
+      }
+    }
+
+    // Delete resource record
+    const { error } = await supabase
+      .from('resources')
+      .delete()
+      .eq('id', resourceId)
+      .eq('user_id', userId);
+
+    if (error) throw new Error(error.message);
   },
 };

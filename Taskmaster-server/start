@@ -1,0 +1,46 @@
+#!/bin/bash
+# Universal launcher for macOS, Linux, and Windows
+# Ensures .env file exists before starting
+
+# ---- CHECK .ENV ----
+if [ ! -f ".env" ]; then
+  echo "No .env file detected in the project root!"
+  echo "Please create a .env file before starting the servers."
+  exit 1
+fi
+
+# ---- DETECT PLATFORM ----
+case "$(uname -s 2>/dev/null)" in
+  Linux*|Darwin*)
+    echo "Detected macOS/Linux environment"
+    if [ -f "./start.sh" ]; then
+      echo "Running start.sh..."
+      exec bash "./start.sh"
+    else
+      echo "Missing start.sh script!"
+      exit 1
+    fi
+    ;;
+  *)
+    # Likely Windows — check environment variables
+    if [ -n "$ComSpec" ]; then
+      # Prefer PowerShell if available
+      if command -v pwsh >/dev/null 2>&1; then
+        echo "Detected PowerShell Core environment"
+        exec pwsh -ExecutionPolicy Bypass -File "./start.ps1"
+      elif command -v powershell >/dev/null 2>&1; then
+        echo "Detected PowerShell environment"
+        exec powershell -ExecutionPolicy Bypass -File "./start.ps1"
+      elif [ -f "./start.cmd" ]; then
+        echo "Detected Command Prompt environment"
+        exec cmd /c start.cmd
+      else
+        echo "No compatible start script found!"
+        exit 1
+      fi
+    else
+      echo "Could not detect environment. Please run start.sh, start.ps1, or start.cmd manually."
+      exit 1
+    fi
+    ;;
+esac
