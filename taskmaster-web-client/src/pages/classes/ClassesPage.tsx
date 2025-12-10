@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MoreVertical, Plus, X, Edit, Trash2 } from "lucide-react";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 import type { ClassData } from "../../services/types";
 
 const ClassesPage: React.FC = () => {

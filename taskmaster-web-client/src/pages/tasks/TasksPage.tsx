@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 import { TaskModal } from "../../components/tasks/TaskModal";
 import { TaskList } from "../../components/tasks/TaskList";
 import type { TasksData, ClassData } from "../../services/types";

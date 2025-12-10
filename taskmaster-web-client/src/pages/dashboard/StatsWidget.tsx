@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { CheckSquare, Zap, TrendingUp, X } from "lucide-react";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 import { useUser } from "../../context/UserContext";
 import type { TasksData } from "../../services/types";
 

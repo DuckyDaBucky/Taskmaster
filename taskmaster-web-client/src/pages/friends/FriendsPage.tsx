@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { FriendCard } from "./FriendCard";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 
 interface Friend {
   id: string;

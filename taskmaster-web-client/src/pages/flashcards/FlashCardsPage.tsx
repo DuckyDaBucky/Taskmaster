@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Play } from "lucide-react";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 import { CreateDeckModal } from "../../components/flashcards/CreateDeckModal";
 import { FlashcardPlayer } from "../../components/flashcards/FlashcardPlayer";
 import type { ClassData } from "../../services/types";

@@ -12,7 +12,7 @@ import {
   LogOut 
 } from "lucide-react";
 import { useUser } from "../context/UserContext";
-import { authService } from "../services/authService";
+import { authService } from "../services/api";
 
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();

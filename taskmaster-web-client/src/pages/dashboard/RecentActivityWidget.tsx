@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 
 interface Activity {
   _id: string;

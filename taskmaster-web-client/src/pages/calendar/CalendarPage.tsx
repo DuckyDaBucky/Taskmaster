@@ -6,7 +6,7 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import "../../styles/calendar.css";
 import AddEventModal from "../../components/AddEventModal";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 import type { TasksData } from "../../services/types";
 
 const locales = {

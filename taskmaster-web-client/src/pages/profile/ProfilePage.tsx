@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MapPin, Link as LinkIcon, Calendar, Edit, Save, X, Upload, Image as ImageIcon } from "lucide-react";
 import { useUser } from "../../context/UserContext";
-import { authService } from "../../services/authService";
+import { authService } from "../../services/api";
 
 const ProfilePage: React.FC = () => {
   const { user, setUserState } = useUser();

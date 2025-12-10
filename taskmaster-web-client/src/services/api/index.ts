@@ -1,7 +1,10 @@
-// Centralized API service exports
-// This maintains backward compatibility while using modular services
+/**
+ * API Services - Central Export
+ * 
+ * All database operations go through these services.
+ * Services use Supabase client directly.
+ */
 
-import { apiClient, mlClient } from "./client";
 import { authService } from "./authService";
 import { taskService } from "./taskService";
 import { classService } from "./classService";
@@ -9,13 +12,12 @@ import { resourceService } from "./resourceService";
 import { flashcardService } from "./flashcardService";
 import { eventService } from "./eventService";
 import { userService } from "./userService";
-import { mlService } from "./mlService";
 import { activityService } from "./activityService";
 import { chatService } from "./chatService";
 import { nebulaService } from "./nebulaService";
 import { courseCatalogService } from "./courseCatalogService";
 
-// Re-export individual services
+// Individual service exports (preferred)
 export {
   authService,
   taskService,
@@ -24,16 +26,17 @@ export {
   flashcardService,
   eventService,
   userService,
-  mlService,
   activityService,
   chatService,
   nebulaService,
   courseCatalogService,
-  apiClient,
-  mlClient,
 };
 
-// Legacy ApiService class for backward compatibility
+/**
+ * Legacy ApiService class
+ * Provides a single object with all methods for backward compatibility.
+ * New code should import individual services instead.
+ */
 class ApiService {
   // Auth
   login = authService.login;
@@ -80,12 +83,6 @@ class ApiService {
   addHamizAsFriend = userService.addHamizAsFriend;
   getFriendsFromUserService = userService.getFriends;
 
-  // ML Service
-  setPoints = mlService.setPoints;
-  matchFriends = mlService.matchFriends;
-  setPreferences = mlService.setPreferences;
-  completeTask = mlService.completeTask;
-
   // Activity
   getActivities = activityService.getActivities;
 
@@ -98,4 +95,3 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
-

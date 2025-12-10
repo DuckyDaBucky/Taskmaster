@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Upload, X, Loader, FileText, Trash2 } from "lucide-react";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 
 interface Resource {
   _id: string;

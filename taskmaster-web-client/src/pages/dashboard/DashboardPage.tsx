@@ -4,7 +4,7 @@ import { RecentActivityWidget } from "./RecentActivityWidget";
 import { ActivityChart } from "./ActivityChart";
 import { ProgressChart } from "./ProgressChart";
 import { useUser } from "../../context/UserContext";
-import { apiService } from "../../services/apiService";
+import { apiService } from "../../services/api";
 import type { TasksData } from "../../services/types";
 
 const DashboardPage: React.FC = () => {

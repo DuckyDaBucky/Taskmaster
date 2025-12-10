@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authService } from "../services/authService";
+import { authService } from "../services/api";
 import { supabase } from "../lib/supabase";
 import { theme } from "../constants/theme";
 import { motion } from "framer-motion";
