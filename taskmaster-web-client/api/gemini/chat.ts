@@ -1,9 +1,6 @@
 /**
  * Gemini Chat API
  * POST /api/gemini/chat
- * 
- * Body: { message: string, systemPrompt?: string, context?: string }
- * Returns: { response: string } or { error: string }
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -24,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY not set in Vercel' });
+    return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
   }
 
   try {
@@ -34,46 +31,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'message is required' });
     }
 
-    // Build prompt
-    let prompt = systemPrompt || 'You are a helpful assistant.';
+    // Build conversation
+    let fullMessage = '';
+    if (systemPrompt) {
+      fullMessage += systemPrompt + '\n\n';
+    }
     if (context) {
-      prompt += `\n\nContext:\n${context}`;
+      fullMessage += 'Context:\n' + context + '\n\n';
     }
-    prompt += `\n\nUser: ${message}\n\nAssistant:`;
+    fullMessage += 'User: ' + message;
 
-    // Call Gemini
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024,
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini error:', errorText);
-      return res.status(500).json({ error: `Gemini API error: ${response.status}` });
-    }
+    // Gemini API - using gemini-pro model (more stable)
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [{ text: fullMessage }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1024,
+        },
+      }),
+    });
 
     const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Gemini error:', JSON.stringify(data));
+      const errorMsg = data.error?.message || `API error ${response.status}`;
+      return res.status(500).json({ error: errorMsg });
+    }
+
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {
-      return res.status(500).json({ error: 'No response from Gemini' });
+      console.error('No text in response:', JSON.stringify(data));
+      return res.status(500).json({ error: 'Empty response from Gemini' });
     }
 
     return res.status(200).json({ response: text });
 
   } catch (error: any) {
     console.error('Chat error:', error);
-    return res.status(500).json({ error: error.message || 'Unknown error' });
+    return res.status(500).json({ error: error.message || 'Server error' });
   }
 }
