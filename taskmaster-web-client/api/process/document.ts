@@ -245,4 +245,3 @@ async function generateEmbedding(text: string): Promise<number[]> {
   const data = await response.json();
   return data.embedding?.values || [];
 }
-
