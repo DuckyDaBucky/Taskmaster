@@ -136,17 +136,6 @@ What subject do you need help with?"
 
 ---
 
-## Environment Variables Required
-
-Already configured in your `.env`:
-```bash
-GEMINI_API_KEY=AIzaSyC_-xLVK5UY91PavqtaUa6_A3rrcpKVlKA
-VITE_SUPABASE_URL=https://oyvdwqzbuevcbgrmtmvp.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
----
-
 ## Testing the Changes
 
 ### Quick Test:
