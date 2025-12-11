@@ -66,6 +66,7 @@ class ApiService {
   getResourcesByClassId = resourceService.getResourcesByClassId;
   createResource = resourceService.createResource;
   smartUploadResource = resourceService.smartUploadResource;
+  deleteResource = resourceService.deleteResource;
 
   // Flashcards
   getAllFlashcards = flashcardService.getAllFlashcards;

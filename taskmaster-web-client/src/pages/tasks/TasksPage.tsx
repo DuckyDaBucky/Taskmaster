@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, List, Clock } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import { TaskModal } from "../../components/tasks/TaskModal";
 import { TaskList } from "../../components/tasks/TaskList";
+import { TaskTimeline } from "../../components/tasks/TaskTimeline";
 import type { TasksData, ClassData } from "../../services/types";
 
 const TasksPage: React.FC = () => {
@@ -14,6 +15,7 @@ const TasksPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
+  const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
   const [resources, setResources] = useState<any[]>([]);
   const [personalClassId, setPersonalClassId] = useState<string | null>(null);
   const [isPersonal, setIsPersonal] = useState(true); // Default to Personal
@@ -191,31 +193,61 @@ const TasksPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
-        <button
-          onClick={handleOpenCreateModal}
-          className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors"
-        >
-          <Plus size={16} className="inline mr-1" />
-          New Task
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex bg-secondary/30 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
+                viewMode === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <List size={16} />
+              List
+            </button>
+            <button
+              onClick={() => setViewMode("timeline")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
+                viewMode === "timeline"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Clock size={16} />
+              Timeline
+            </button>
+          </div>
+          
+          <button
+            onClick={handleOpenCreateModal}
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors"
+          >
+            <Plus size={16} className="inline mr-1" />
+            New Task
+          </button>
+        </div>
       </div>
 
-      {/* Task Filters */}
-      <div className="flex gap-2 border-b border-border pb-4">
-        {["all", "pending", "completed"].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f as any)}
-            className={`px-3 py-1 text-sm font-medium transition-colors capitalize ${
-              filter === f
-                ? "text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {f === "all" ? "All Tasks" : f}
-          </button>
-        ))}
-      </div>
+      {/* Task Filters - Only show in list view */}
+      {viewMode === "list" && (
+        <div className="flex gap-2 border-b border-border pb-4">
+          {["all", "pending", "completed"].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f as any)}
+              className={`px-3 py-1 text-sm font-medium transition-colors capitalize ${
+                filter === f
+                  ? "text-primary border-b-2 border-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {f === "all" ? "All Tasks" : f}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md">
@@ -228,6 +260,11 @@ const TasksPage: React.FC = () => {
         <div className="text-center py-12 text-muted-foreground">
           <p>No tasks yet. Click "New Task" to create one!</p>
         </div>
+      ) : viewMode === "timeline" ? (
+        <TaskTimeline
+          tasks={tasks}
+          onTaskClick={handleOpenEditModal}
+        />
       ) : (
         <TaskList
           tasks={tasks}

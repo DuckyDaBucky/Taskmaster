@@ -11,6 +11,9 @@ interface Resource {
   websites?: string[];
   summary?: string;
   class?: any;
+  classification?: string;
+  processing_status?: string;
+  ai_summary?: string;
 }
 
 const ResourcesPage: React.FC = () => {
@@ -76,10 +79,12 @@ const ResourcesPage: React.FC = () => {
 
     setIsUploading(true);
     let successCount = 0;
+    let totalFiles = files.length;
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       try {
-        setUploadStatus(`Uploading ${file.name}...`);
+        setUploadStatus(`Uploading ${i + 1}/${totalFiles}: ${file.name}...`);
         await apiService.smartUploadResource(file);
         successCount++;
       } catch (error: any) {
@@ -88,7 +93,7 @@ const ResourcesPage: React.FC = () => {
     }
 
     if (successCount > 0) {
-      setUploadStatus(`✓ ${successCount} file(s) uploaded!`);
+      setUploadStatus(`✓ ${successCount} file(s) uploaded and processing!`);
       // Refresh resources
       try {
         const allResources = await apiService.getAllResources();
@@ -104,7 +109,19 @@ const ResourcesPage: React.FC = () => {
       setFiles([]);
       setUploadStatus("");
       setIsUploading(false);
-    }, 2000);
+    }, 3000);
+  };
+
+  const handleDelete = async (resourceId: string) => {
+    if (!window.confirm('Delete this resource? This action cannot be undone.')) return;
+    
+    try {
+      await apiService.deleteResource(resourceId);
+      setResources(prev => prev.filter(r => r._id !== resourceId));
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete resource');
+    }
   };
 
   if (isLoading) {
@@ -225,30 +242,76 @@ const ResourcesPage: React.FC = () => {
             No resources yet. Upload your first file to get started!
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {resources.map((resource) => {
               const displayName = resource.title 
                 || resource.files?.[0]?.originalName 
                 || resource.urls?.[0] 
                 || "Untitled Resource";
               
+              const classificationColors: Record<string, string> = {
+                syllabus: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+                homework: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+                assignment: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
+                project: 'bg-green-500/10 text-green-600 border-green-500/20',
+                exam: 'bg-red-500/10 text-red-600 border-red-500/20',
+                quiz: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+                textbook: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
+                lecture_notes: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
+                class_material: 'bg-pink-500/10 text-pink-600 border-pink-500/20',
+                study_guide: 'bg-teal-500/10 text-teal-600 border-teal-500/20',
+                misc: 'bg-gray-500/10 text-gray-600 border-gray-500/20',
+              };
+              
+              const classificationLabel = resource.classification?.replace('_', ' ').toUpperCase() || 'MISC';
+              const classificationClass = classificationColors[resource.classification || 'misc'] || classificationColors.misc;
+              
               return (
                 <div
                   key={resource._id}
-                  className="flex items-center justify-between p-3 bg-secondary/20 rounded-md hover:bg-secondary/30 transition-colors"
+                  className="p-4 bg-secondary/20 rounded-lg hover:bg-secondary/30 transition-colors border border-border"
                 >
-                  <div className="flex items-center gap-3">
-                    <FileText size={18} className="text-primary" />
-                    <div>
-                      <span className="text-foreground font-medium">{displayName}</span>
-                      <div className="text-xs text-muted-foreground">
-                        {resource.files?.length ? `${resource.files.length} file(s)` : ''}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <FileText size={20} className="text-primary mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="text-foreground font-medium truncate">{displayName}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${classificationClass}`}>
+                            {classificationLabel}
+                          </span>
+                          {resource.processing_status === 'pending' && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 flex items-center gap-1">
+                              <Loader className="animate-spin" size={10} />
+                              Processing
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          {resource.files?.length > 0 && (
+                            <div>{resource.files.length} file(s) • {(resource.files.reduce((sum: number, f: any) => sum + (f.size || 0), 0) / 1024).toFixed(1)} KB</div>
+                          )}
+                          {resource.ai_summary && (
+                            <div className="text-xs text-foreground/70 mt-2 p-2 bg-background/50 rounded border border-border">
+                              {resource.ai_summary}
+                            </div>
+                          )}
+                          {resource.summary && !resource.ai_summary && (
+                            <div className="text-xs text-foreground/70 mt-2 p-2 bg-background/50 rounded border border-border">
+                              {resource.summary}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    <button 
+                      onClick={() => handleDelete(resource._id)}
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1 hover:bg-destructive/10 rounded flex-shrink-0"
+                      title="Delete resource"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                  <button className="text-muted-foreground hover:text-destructive transition-colors">
-                    <Trash2 size={16} />
-                  </button>
                 </div>
               );
             })}

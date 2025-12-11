@@ -1,6 +1,16 @@
 # TaskMaster
 
-Student productivity app for UTD.
+Student productivity app for UTD with AI-powered study assistant.
+
+## ✨ Recent Updates
+
+**🤖 AI Assistant Enhanced!** The AI is now deeply integrated with your TaskMaster data:
+- Knows your tasks, classes, deadlines, and events
+- Provides personalized study recommendations  
+- Guides you through platform features
+- Remembers conversation context
+
+See [AI_ASSISTANT_GUIDE.md](./AI_ASSISTANT_GUIDE.md) for examples and [AI_INTEGRATION_SUMMARY.md](./AI_INTEGRATION_SUMMARY.md) for technical details.
 
 ## Setup
 

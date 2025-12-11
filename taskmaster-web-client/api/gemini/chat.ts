@@ -24,12 +24,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
 
-  const { message, systemPrompt, context } = req.body || {};
+  const { message, systemPrompt, conversationHistory } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
+  // Build conversation with history
   let prompt = systemPrompt || 'You are a helpful assistant.';
-  if (context) prompt += '\n\nContext:\n' + context;
-  prompt += '\n\nUser: ' + message;
+  
+  // Add conversation history if provided
+  if (conversationHistory && Array.isArray(conversationHistory)) {
+    prompt += '\n\nCONVERSATION HISTORY:\n';
+    conversationHistory.forEach((msg: any) => {
+      prompt += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n`;
+    });
+    prompt += '\n';
+  }
+  
+  prompt += `User: ${message}`;
 
   // Try each model until one works
   for (const model of MODELS) {

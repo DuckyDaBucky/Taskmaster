@@ -139,8 +139,16 @@ export const resourceService = {
     }
 
     // 4. Trigger document processing (non-blocking)
-    this.triggerProcessing(resource.id, userId, urlData.publicUrl, classId).catch(e => {
+    resourceService.triggerProcessing(resource.id, userId, urlData.publicUrl, classId).catch(e => {
       console.error("Processing trigger failed:", e);
+    });
+
+    // 5. Log activity
+    await supabase.from('activities').insert({
+      user_id: userId,
+      type: 'resource_uploaded',
+      description: `Uploaded ${file.name}`,
+      metadata: { resourceId: resource.id, fileName: file.name }
     });
 
     return resource;
