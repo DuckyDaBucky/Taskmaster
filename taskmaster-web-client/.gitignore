@@ -1,2 +1,29 @@
+# Dependencies
 node_modules
+dist
+.vercel
+
+# Environment variables  
 .env
+.env.local
+.env*.local
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Backup files
+*.old.*
+*.backup.*

@@ -8,6 +8,7 @@ import { useUser } from '../context/UserContext';
 import { aiContextService } from '../services/aiContextService';
 import { supabase } from '../lib/supabase';
 import { apiService } from '../services/api';
+import { apiService } from '../services/api';
 
 interface Message {
   id: string;
