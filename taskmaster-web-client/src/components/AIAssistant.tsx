@@ -240,7 +240,7 @@ const AIAssistant: React.FC = () => {
 
   // Open
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-[360px] h-[480px] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed bottom-6 right-6 z-50 w-[360px] h-[480px] bg-card rounded-xl shadow-2xl flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-primary text-white">
         <div className="flex items-center gap-2">
