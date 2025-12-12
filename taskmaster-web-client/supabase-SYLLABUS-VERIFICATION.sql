@@ -107,18 +107,15 @@ BEGIN
   IF NEW.title IS NOT NULL AND NEW.verified_course_number IS NULL THEN
     NEW.verified_course_number := public.extract_course_number(NEW.title);
     
-    -- Try to match with course_catalog
+    -- Try to match with course_catalog (optional enrichment)
     IF NEW.verified_course_number IS NOT NULL THEN
       SELECT id INTO NEW.verified_course_id
       FROM public.course_catalog
       WHERE course_number = NEW.verified_course_number
       LIMIT 1;
       
-      IF NEW.verified_course_id IS NOT NULL THEN
-        NEW.verification_status := 'verified';
-      ELSE
-        NEW.verification_status := 'pending';
-      END IF;
+      -- Always set to pending initially - document processing will verify
+      NEW.verification_status := 'pending';
     END IF;
   END IF;
   

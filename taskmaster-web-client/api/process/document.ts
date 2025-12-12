@@ -113,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error('Failed to store chunks');
     }
 
-    // 7. Generate summary and classification
+    // 7. Extract structured information and generate summary
     const analysisResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
       {
@@ -122,19 +122,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({
           contents: [{
             parts: [{ 
-              text: `Analyze this document and provide:
-1. A 2-3 sentence summary
-2. Classification (choose ONE): syllabus, homework, assignment, project, exam, quiz, textbook, lecture_notes, class_material, study_guide, or misc
+              text: `Extract ALL key information from this document and provide:
+
+1. Document Type: syllabus, homework, assignment, project, exam, quiz, textbook, lecture_notes, class_material, study_guide, or misc
+2. Course Number: (e.g., CS3305, MATH2413, ECS2390)
+3. Course Title: (full course name)
+4. Semester: (e.g., Fall 2024, Spring 2025)
+5. Professor: (professor name if mentioned)
+6. Due Date: (if this is an assignment/homework)
+7. Key Topics: (comma-separated list of main topics)
+8. Summary: (2-3 sentence overview)
 
 Document text:
-${extractedText.slice(0, 4000)}
+${extractedText.slice(0, 6000)}
 
-Respond in JSON format: {"summary": "...", "classification": "..."}` 
+Respond ONLY with valid JSON:
+{
+  "classification": "...",
+  "course_number": "...",
+  "course_title": "...",
+  "semester": "...",
+  "professor": "...",
+  "due_date": "...",
+  "topics": ["...", "..."],
+  "summary": "..."
+}` 
             }]
           }],
           generationConfig: { 
-            maxOutputTokens: 512,
-            temperature: 0.3
+            maxOutputTokens: 1024,
+            temperature: 0.2
           },
         }),
       }
@@ -143,17 +160,29 @@ Respond in JSON format: {"summary": "...", "classification": "..."}`
     const analysisData = await analysisResponse.json();
     const analysisText = analysisData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     
-    // Try to parse JSON response, fallback to defaults
+    // Parse extracted information
     let summary = '';
     let classification = document_type || 'misc';
+    let courseNumber = null;
+    let courseTitle = null;
+    let semester = null;
+    let professorName = null;
+    let dueDate = null;
+    let topics: string[] = [];
     
     try {
-      // Extract JSON from response (might be wrapped in markdown)
+      // Extract JSON from response (might be wrapped in markdown code blocks)
       const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         summary = parsed.summary || '';
         classification = parsed.classification || classification;
+        courseNumber = parsed.course_number || null;
+        courseTitle = parsed.course_title || null;
+        semester = parsed.semester || null;
+        professorName = parsed.professor || null;
+        dueDate = parsed.due_date || null;
+        topics = parsed.topics || [];
       } else {
         summary = analysisText.slice(0, 500);
       }
@@ -162,15 +191,31 @@ Respond in JSON format: {"summary": "...", "classification": "..."}`
       summary = analysisText.slice(0, 500);
     }
 
-    // 8. Update resource with summary, classification, and status
+    // 8. Update resource with ALL extracted information
+    const updateData: any = { 
+      processing_status: 'completed',
+      summary,
+      classification,
+      chunk_count: chunks.length,
+      verified_course_number: courseNumber,
+      semester,
+      professor_name: professorName,
+      course_metadata: {
+        course_title: courseTitle,
+        due_date: dueDate,
+        topics,
+        extracted_at: new Date().toISOString()
+      }
+    };
+
+    // If we extracted course info, mark as verified (no longer need Nebula)
+    if (courseNumber) {
+      updateData.verification_status = 'verified';
+    }
+
     await supabase
       .from('resources')
-      .update({ 
-        processing_status: 'completed',
-        summary,
-        classification,
-        chunk_count: chunks.length
-      })
+      .update(updateData)
       .eq('id', resource_id);
 
     // 9. Check if user allows sharing, if so copy to shared_chunks

@@ -143,23 +143,9 @@ export const resourceService = {
       console.error("Processing trigger failed:", e);
     });
 
-    // 5. Verify with Nebula if it looks like a syllabus (non-blocking)
-    const isSyllabus = file.name.toLowerCase().includes('syllabus') || 
-                       file.name.toLowerCase().includes('sylabi');
-    if (isSyllabus || resource.verified_course_number) {
-      import('../syllabusService').then(({ syllabusService }) => {
-        syllabusService.verifySyllabus(resource.id, file.name).then(result => {
-          if (result.verified) {
-            console.log(`✅ Syllabus verified: ${result.courseNumber}`, result.nebulaData?.title);
-          } else {
-            // Note: Not setting processing_status='failed' here
-            // Verification can be 'manual' (course not in Nebula yet) but file is fine
-            // Only document processing errors should set processing_status='failed'
-            console.log(`📝 Syllabus: ${result.error}`);
-          }
-        });
-      });
-    }
+    // 5. Nebula enrichment is now optional - document processing extracts everything
+    // No longer blocking on Nebula verification
+    console.log(`📤 Document processing will extract all course information automatically`);
 
     // 6. Log activity
     await supabase.from('activities').insert({
