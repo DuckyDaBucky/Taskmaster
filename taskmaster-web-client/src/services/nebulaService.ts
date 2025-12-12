@@ -138,15 +138,17 @@ export const nebulaService = {
 
   /**
    * Extract course numbers from text (syllabus, user message, etc.)
+   * Handles: CS3305, CS 3305, ECS2390.0W1 → ECS2390, MATH2413, etc.
    */
   extractCourseNumbers(text: string): string[] {
-    // Match patterns like CS3305, CS 3305, MATH 2413, etc.
-    const pattern = /\b([A-Z]{2,4})\s*(\d{4})\b/g;
+    // Match patterns like CS3305, CS 3305, MATH 2413, ECS2390.0W1, etc.
+    // Strips section numbers (anything after the 4-digit course number)
+    const pattern = /\b([A-Z]{2,4})\s*(\d{4})/gi;
     const matches = new Set<string>();
     
     let match;
     while ((match = pattern.exec(text)) !== null) {
-      const prefix = match[1];
+      const prefix = match[1].toUpperCase();
       const number = match[2];
       matches.add(`${prefix}${number}`);
     }

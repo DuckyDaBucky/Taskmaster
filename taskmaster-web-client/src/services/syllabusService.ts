@@ -34,10 +34,16 @@ export const syllabusService = {
    */
   async verifySyllabus(resourceId: string, fileName: string): Promise<SyllabusVerification> {
     try {
-      // Extract course number from filename
+      // Extract course number from filename (handles ECS2390.0W1 → ECS2390)
       const courseNumber = nebulaService.extractCourseNumbers(fileName)[0];
       
       if (!courseNumber) {
+        // Still mark with extracted info even if no course number
+        await supabase
+          .from('resources')
+          .update({ verification_status: 'pending' })
+          .eq('id', resourceId);
+          
         return {
           resourceId,
           courseNumber: null,
@@ -51,16 +57,31 @@ export const syllabusService = {
       const nebulaCourse = await nebulaService.getCourse(courseNumber);
       
       if (!nebulaCourse) {
+        // Mark as "manual" - we have the course number but Nebula doesn't have it
+        // This is OK! Not all UTD courses are in Nebula yet
+        await supabase
+          .from('resources')
+          .update({
+            verified_course_number: courseNumber,
+            verification_status: 'manual',
+            course_metadata: {
+              note: 'Course number extracted but not found in Nebula catalog. May need manual verification.'
+            }
+          })
+          .eq('id', resourceId);
+          
+        console.log(`📝 Course ${courseNumber} extracted but not in Nebula - marked as manual`);
+        
         return {
           resourceId,
           courseNumber,
-          verified: false,
+          verified: false, // Not fully verified, but extracted
           nebulaData: null,
-          error: 'Course not found in Nebula catalog'
+          error: `Course ${courseNumber} not in Nebula catalog (marked as manual)`
         };
       }
 
-      // Update resource with verified data
+      // Update resource with verified data from Nebula
       const { error } = await supabase
         .from('resources')
         .update({

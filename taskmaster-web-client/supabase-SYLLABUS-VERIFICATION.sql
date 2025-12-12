@@ -75,13 +75,14 @@ ORDER BY cc.course_number;
 CREATE OR REPLACE FUNCTION public.extract_course_number(resource_title TEXT)
 RETURNS TEXT AS $$
 DECLARE
-  course_pattern TEXT := '\y([A-Z]{2,4})\s*(\d{4})\y';
+  course_pattern TEXT := '([A-Z]{2,4})\s*(\d{4})';
   matched_course TEXT;
 BEGIN
-  -- Extract course number like "CS3305", "MATH 2413", etc.
+  -- Extract course number like "CS3305", "MATH 2413", "ECS2390.0W1" → "ECS2390"
+  -- Handles spaces, dots, and section numbers
   SELECT CONCAT(matches[1], matches[2])
   INTO matched_course
-  FROM regexp_matches(resource_title, course_pattern, 'gi') AS matches
+  FROM regexp_matches(resource_title, course_pattern, 'i') AS matches
   LIMIT 1;
   
   RETURN matched_course;
@@ -127,7 +128,8 @@ SELECT
   public.extract_course_number('CS3305 Syllabus Fall 2024') as test1,
   public.extract_course_number('MATH 2413 - Calculus I') as test2,
   public.extract_course_number('Database Systems CS 3305') as test3,
-  public.extract_course_number('Random Document') as test4;
+  public.extract_course_number('ECS2390.0W1SyllabusFall2025(1).doc') as test4_section,
+  public.extract_course_number('Random Document') as test5_none;
 
 -- 8. Stats query
 SELECT 
