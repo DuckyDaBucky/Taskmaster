@@ -15,7 +15,7 @@ import { TaskViewToggle } from "../../components/tasks/TaskViewToggle";
 import type { TasksData, ClassData } from "../../services/types";
 
 const TasksPage: React.FC = () => {
-  const { user } = useUser();
+  const { user, isLoadingUser } = useUser();
   const [tasks, setTasks] = useState<TasksData[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,8 +26,10 @@ const TasksPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [user?._id]);
+    if (!isLoadingUser) {
+      fetchData();
+    }
+  }, [user?._id, isLoadingUser]);
 
   const fetchData = async () => {
     if (!user?._id) {

@@ -30,7 +30,7 @@ interface Class {
 }
 
 const ResourcesPage: React.FC = () => {
-  const { user } = useUser();
+  const { user, isLoadingUser } = useUser();
   const [resources, setResources] = useState<Resource[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,8 +41,10 @@ const ResourcesPage: React.FC = () => {
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [user?._id]);
+    if (!isLoadingUser) {
+      fetchData();
+    }
+  }, [user?._id, isLoadingUser]);
 
   const fetchData = async () => {
     if (!user?._id) {
