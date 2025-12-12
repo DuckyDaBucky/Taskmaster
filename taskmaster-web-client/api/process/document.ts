@@ -9,13 +9,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_KEY || ''
-);
-
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const CHUNK_SIZE = 500; // tokens approx
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB max for Gemini
+
+// Only create client if we have credentials
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_KEY 
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  : null;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -25,8 +28,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  // Check environment variables
   if (!GEMINI_API_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
+    return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+  }
+  
+  if (!supabase) {
+    return res.status(500).json({ 
+      error: 'Supabase not configured', 
+      details: {
+        hasUrl: !!SUPABASE_URL,
+        hasServiceKey: !!SUPABASE_SERVICE_KEY
+      }
+    });
   }
 
   try {
@@ -45,40 +59,149 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 2. Fetch the file
     const fileResponse = await fetch(file_url);
     if (!fileResponse.ok) {
-      throw new Error('Failed to fetch file');
+      throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
     }
 
-    // 3. Extract text using Gemini Vision (works for PDFs, images, docs)
+    // Check file size before processing
+    const contentLength = fileResponse.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) > MAX_FILE_SIZE) {
+      throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+    }
+
+    // 3. Extract text using Gemini
     const fileBuffer = await fileResponse.arrayBuffer();
     const base64File = Buffer.from(fileBuffer).toString('base64');
-    const mimeType = fileResponse.headers.get('content-type') || 'application/pdf';
+    
+    // Get MIME type - handle edge cases for document types
+    let mimeType = fileResponse.headers.get('content-type') || 'application/pdf';
+    
+    // Fix MIME type based on file extension from URL if needed
+    const urlLower = file_url.toLowerCase();
+    const isDocFile = urlLower.endsWith('.doc') || urlLower.endsWith('.docx') || 
+                      mimeType.includes('msword') || mimeType.includes('wordprocessingml');
+    
+    if (urlLower.endsWith('.pdf')) {
+      mimeType = 'application/pdf';
+    } else if (urlLower.endsWith('.txt') || urlLower.endsWith('.md')) {
+      mimeType = 'text/plain';
+    } else if (urlLower.endsWith('.png')) {
+      mimeType = 'image/png';
+    } else if (urlLower.endsWith('.jpg') || urlLower.endsWith('.jpeg')) {
+      mimeType = 'image/jpeg';
+    }
+    
+    console.log(`Processing file: ${file_url}, MIME type: ${mimeType}, Size: ${fileBuffer.byteLength} bytes, isDoc: ${isDocFile}`);
 
-    const extractResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { 
-                inline_data: { 
-                  mime_type: mimeType, 
-                  data: base64File 
-                } 
-              },
-              { 
-                text: 'Extract ALL text from this document. Return only the raw text content, no commentary.' 
-              }
-            ]
-          }],
-          generationConfig: { maxOutputTokens: 8192 },
-        }),
+    let extractedText: string;
+    
+    // For .doc/.docx files, use Gemini File API (supports more formats)
+    if (isDocFile) {
+      // Upload to Gemini File API first
+      const uploadResponse = await fetch(
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': mimeType.includes('docx') 
+              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              : 'application/msword',
+            'X-Goog-Upload-Protocol': 'raw',
+          },
+          body: Buffer.from(fileBuffer),
+        }
+      );
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('Gemini File Upload error:', uploadResponse.status, errorText);
+        throw new Error(`Failed to upload file to Gemini: ${uploadResponse.status}`);
       }
-    );
 
-    const extractData = await extractResponse.json();
-    const extractedText = extractData.candidates?.[0]?.content?.parts?.[0]?.text;
+      const uploadData = await uploadResponse.json();
+      const fileUri = uploadData.file?.uri;
+      
+      if (!fileUri) {
+        console.error('No file URI returned:', uploadData);
+        throw new Error('Failed to get file URI from Gemini');
+      }
+
+      console.log('Uploaded to Gemini, URI:', fileUri);
+
+      // Now use the file URI for text extraction
+      const extractResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { file_data: { file_uri: fileUri, mime_type: mimeType.includes('docx') 
+                  ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                  : 'application/msword' } },
+                { text: 'Extract ALL text from this document. Return only the raw text content, no commentary.' }
+              ]
+            }],
+            generationConfig: { maxOutputTokens: 8192 },
+          }),
+        }
+      );
+
+      if (!extractResponse.ok) {
+        const errorText = await extractResponse.text();
+        console.error('Gemini API error:', extractResponse.status, errorText);
+        throw new Error(`Gemini API error: ${extractResponse.status}`);
+      }
+
+      const extractData = await extractResponse.json();
+      
+      if (extractData.error) {
+        console.error('Gemini returned error:', extractData.error);
+        throw new Error(`Gemini error: ${extractData.error.message || 'Unknown error'}`);
+      }
+      
+      extractedText = extractData.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else {
+      // For PDFs, images, text - use inline_data directly
+      const extractResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { 
+                  inline_data: { 
+                    mime_type: mimeType, 
+                    data: base64File 
+                  } 
+                },
+                { 
+                  text: 'Extract ALL text from this document. Return only the raw text content, no commentary.' 
+                }
+              ]
+            }],
+            generationConfig: { maxOutputTokens: 8192 },
+          }),
+        }
+      );
+
+      if (!extractResponse.ok) {
+        const errorText = await extractResponse.text();
+        console.error('Gemini API error:', extractResponse.status, errorText);
+        throw new Error(`Gemini API error: ${extractResponse.status}`);
+      }
+
+      const extractData = await extractResponse.json();
+      
+      if (extractData.error) {
+        console.error('Gemini returned error:', extractData.error);
+        throw new Error(`Gemini error: ${extractData.error.message || 'Unknown error'}`);
+      }
+      
+      extractedText = extractData.candidates?.[0]?.content?.parts?.[0]?.text;
+    }
 
     if (!extractedText) {
       throw new Error('Failed to extract text from document');
