@@ -61,7 +61,7 @@ const AIAssistant: React.FC = () => {
               classes: context.classes.length,
               stats: context.stats
             });
-            const prompt = aiContextService.buildSystemPrompt(context);
+            const prompt = await aiContextService.buildSystemPrompt(context);
             console.log('System prompt built, length:', prompt.length);
             setSystemPrompt(prompt);
             setContextLoaded(true);
@@ -90,7 +90,7 @@ const AIAssistant: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
         const context = await aiContextService.getUserContext(session.user.id);
-        const prompt = aiContextService.buildSystemPrompt(context);
+        const prompt = await aiContextService.buildSystemPrompt(context);
         setSystemPrompt(prompt);
         setContextLoaded(true);
         

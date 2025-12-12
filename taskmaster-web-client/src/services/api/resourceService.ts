@@ -87,7 +87,7 @@ export const resourceService = {
   },
 
   /**
-   * Upload a file and trigger document processing for RAG
+   * Upload a file and trigger document processing for RAG + Nebula verification
    */
   async smartUploadResource(file: File, classId?: string): Promise<any> {
     const userId = await getCachedUserId();
@@ -120,7 +120,7 @@ export const resourceService = {
       url: urlData.publicUrl,
     };
 
-    // 3. Create resource record
+    // 3. Create resource record (trigger will auto-extract course number)
     const { data: resource, error: resourceError } = await supabase
       .from('resources')
       .insert({
@@ -130,7 +130,7 @@ export const resourceService = {
         user_id: userId,
         processing_status: 'pending',
       })
-      .select('id, title, urls, websites, files, summary, description, class_id, processing_status')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, verified_course_number, verification_status')
       .single();
 
     if (resourceError) {
@@ -143,7 +143,22 @@ export const resourceService = {
       console.error("Processing trigger failed:", e);
     });
 
-    // 5. Log activity
+    // 5. Verify with Nebula if it looks like a syllabus (non-blocking)
+    const isSyllabus = file.name.toLowerCase().includes('syllabus') || 
+                       file.name.toLowerCase().includes('sylabi');
+    if (isSyllabus || resource.verified_course_number) {
+      import('../syllabusService').then(({ syllabusService }) => {
+        syllabusService.verifySyllabus(resource.id, file.name).then(result => {
+          if (result.verified) {
+            console.log(`✅ Syllabus verified: ${result.courseNumber}`, result.nebulaData?.title);
+          } else {
+            console.warn(`⚠️ Syllabus verification failed:`, result.error);
+          }
+        });
+      });
+    }
+
+    // 6. Log activity
     await supabase.from('activities').insert({
       user_id: userId,
       type: 'resource_uploaded',
@@ -172,11 +187,18 @@ export const resourceService = {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        console.error("Processing failed:", data.error);
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          const data = await response.json();
+          console.error("Processing failed:", data.error);
+        } else {
+          console.error("Processing failed with status:", response.status);
+        }
       }
     } catch (e) {
       console.error("Processing request failed:", e);
+      // Don't throw - processing is background task, shouldn't fail upload
     }
   },
 

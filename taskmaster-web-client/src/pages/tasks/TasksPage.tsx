@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Plus, Loader } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
+import { streakService } from "../../services/streakService";
 import { TaskModal } from "../../components/tasks/TaskModal";
 import { TaskList } from "../../components/tasks/TaskList";
 import { TaskTimeline } from "../../components/tasks/TaskTimeline";
@@ -74,6 +75,23 @@ const TasksPage: React.FC = () => {
   const handleOpenEditModal = (task: TasksData) => {
     setEditingTaskId(task._id);
     setShowModal(true);
+  };
+
+  const handleToggleComplete = async (taskId: string, completed: boolean) => {
+    try {
+      await apiService.updateTask(taskId, { completed });
+      setTasks(prev => prev.map(t => 
+        t._id === taskId ? { ...t, completed } : t
+      ));
+      
+      // Update streak on task completion
+      if (completed) {
+        await streakService.updateStreak();
+      }
+    } catch (error: any) {
+      console.error("Error updating task:", error);
+      setError(error.message || "Failed to update task");
+    }
   };
 
   // Calculate filter counts
@@ -166,6 +184,7 @@ const TasksPage: React.FC = () => {
           filter={filter}
           onEdit={handleOpenEditModal}
           onDelete={handleDeleteTask}
+          onToggleComplete={handleToggleComplete}
         />
       )}
 

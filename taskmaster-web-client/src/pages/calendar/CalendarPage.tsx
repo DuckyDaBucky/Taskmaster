@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
+import { Calendar as BigCalendar, dateFnsLocalizer, Components } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
@@ -7,6 +7,7 @@ import "../../styles/calendar.css";
 import AddEventModal from "../../components/AddEventModal";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
+import { authService } from "../../services/api/authService";
 import type { TasksData } from "../../services/types";
 
 const locales = {
@@ -38,6 +39,7 @@ interface CalendarEvent {
 const CalendarPage: React.FC = () => {
   const { user } = useUser();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loginDates, setLoginDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -60,6 +62,11 @@ const CalendarPage: React.FC = () => {
 
       try {
         setIsLoading(true);
+        
+        // Fetch login dates for streak indicators
+        const loginData = await authService.getLoginDates();
+        setLoginDates(loginData.loginDates || []);
+        
         // Fetch classes
         const userClasses = await apiService.getClassesByUserId(user._id);
 
@@ -392,6 +399,25 @@ const CalendarPage: React.FC = () => {
               onSelectSlot={handleSelectSlot}
               onSelectEvent={handleSelectEvent}
               selectable
+              components={{
+                dateCellWrapper: (props: any) => {
+                  const dateStr = format(props.value, 'yyyy-MM-dd');
+                  const hasStreak = loginDates.some(d => 
+                    format(new Date(d), 'yyyy-MM-dd') === dateStr
+                  );
+                  
+                  return (
+                    <div className="relative">
+                      {props.children}
+                      {hasStreak && (
+                        <div className="absolute top-1 right-1 text-xs" title="Login streak!">
+                          🔥
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+              }}
             />
           </div>
         )}

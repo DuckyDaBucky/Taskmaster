@@ -5,10 +5,11 @@ import { ActivityChart } from "./ActivityChart";
 import { ProgressChart } from "./ProgressChart";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
+import { streakService } from "../../services/streakService";
 import type { TasksData } from "../../services/types";
 
 const DashboardPage: React.FC = () => {
-  const { user } = useUser();
+  const { user, refreshUser } = useUser();
   const [tasks, setTasks] = useState<TasksData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -21,6 +22,13 @@ const DashboardPage: React.FC = () => {
 
       try {
         setIsLoading(true);
+        
+        // Update streak on dashboard load
+        const streakResult = await streakService.updateStreak();
+        if (streakResult.isNewLogin && refreshUser) {
+          refreshUser(); // Refresh user context with new streak
+        }
+        
         // Fetch all tasks (includes personal tasks)
         const allTasks = await apiService.getAllTasks();
         setTasks(allTasks);
@@ -33,6 +41,13 @@ const DashboardPage: React.FC = () => {
     };
 
     fetchAllTasks();
+    
+    // Check for midnight every minute
+    const midnightInterval = setInterval(() => {
+      streakService.checkMidnightUpdate();
+    }, 60000); // Check every minute
+
+    return () => clearInterval(midnightInterval);
   }, [user?._id]);
 
   const displayName = user?.firstName || user?.username || user?.email || "User";

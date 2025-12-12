@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { nebulaService } from './nebulaService';
 
 export interface AIContext {
   user: {
@@ -139,7 +140,7 @@ export const aiContextService = {
   /**
    * Format context into a readable string for the AI
    */
-  formatContextForAI(context: AIContext): string {
+  async formatContextForAI(context: AIContext, includeNebula: boolean = true): Promise<string> {
     let formatted = `TASKMASTER PLATFORM CONTEXT\n`;
     formatted += `=============================\n\n`;
 
@@ -201,13 +202,33 @@ export const aiContextService = {
       formatted += `\n`;
     }
 
+    // Add Nebula course context if requested
+    if (includeNebula && context.classes.length > 0) {
+      const courseNumbers = context.classes
+        .map(c => c.name)
+        .flatMap(name => nebulaService.extractCourseNumbers(name));
+
+      if (courseNumbers.length > 0) {
+        try {
+          const enrichedCourses = await nebulaService.getEnrichedContext(courseNumbers);
+          if (enrichedCourses.length > 0) {
+            formatted += `\n--- UTD COURSE CATALOG DATA (NEBULA) ---\n`;
+            formatted += nebulaService.formatContextForAI(enrichedCourses);
+            formatted += `\n`;
+          }
+        } catch (error) {
+          console.error('Error fetching Nebula context:', error);
+        }
+      }
+    }
+
     return formatted;
   },
 
   /**
    * Build system prompt for the AI
    */
-  buildSystemPrompt(context: AIContext): string {
+  async buildSystemPrompt(context: AIContext): Promise<string> {
     return `You are TaskMaster AI, an intelligent study assistant deeply integrated with the TaskMaster platform for UTD students.
 
 CRITICAL ROLE:
@@ -231,7 +252,7 @@ WHEN USER ASKS ABOUT PLATFORM FEATURES:
 - Suggest features they might not know about
 
 USER'S CURRENT DATA:
-${this.formatContextForAI(context)}
+${await this.formatContextForAI(context, true)}
 
 RESPONSE STYLE:
 - Friendly, concise, and action-oriented

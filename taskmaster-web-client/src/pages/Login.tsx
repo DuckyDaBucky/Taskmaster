@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authService } from "../services/api";
+import { streakService } from "../services/streakService";
 import { supabase } from "../lib/supabase";
 import { theme } from "../constants/theme";
 import { motion } from "framer-motion";
@@ -30,6 +31,8 @@ function Login() {
 
     try {
       await authService.login(email, password, true);
+      // Track login streak
+      await streakService.updateStreak();
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
       setError(err.message || "Login failed");
