@@ -33,7 +33,7 @@ export const resourceService = {
 
     const { data, error } = await supabase
       .from('resources')
-      .select('id, title, urls, websites, files, summary, description, class_id, processing_status')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, classification')
       .eq('user_id', userId)
       .eq('class_id', classId)
       .order('created_at', { ascending: false });
@@ -69,7 +69,7 @@ export const resourceService = {
         class_id: classId || null,
         user_id: userId,
       })
-      .select('id, title, urls, websites, files, summary, description, class_id')
+      .select('id, title, urls, websites, files, summary, description, class_id, classification')
       .single();
 
     if (error) throw new Error(error.message);
@@ -130,7 +130,7 @@ export const resourceService = {
         user_id: userId,
         processing_status: 'pending',
       })
-      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, verified_course_number, verification_status')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, classification, verified_course_number, verification_status')
       .single();
 
     if (resourceError) {

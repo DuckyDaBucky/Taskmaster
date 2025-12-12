@@ -54,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const mimeType = fileResponse.headers.get('content-type') || 'application/pdf';
 
     const extractResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -113,34 +113,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error('Failed to store chunks');
     }
 
-    // 7. Generate summary
-    const summaryResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    // 7. Generate summary and classification
+    const analysisResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{
             parts: [{ 
-              text: `Summarize this document in 2-3 sentences:\n\n${extractedText.slice(0, 4000)}` 
+              text: `Analyze this document and provide:
+1. A 2-3 sentence summary
+2. Classification (choose ONE): syllabus, homework, assignment, project, exam, quiz, textbook, lecture_notes, class_material, study_guide, or misc
+
+Document text:
+${extractedText.slice(0, 4000)}
+
+Respond in JSON format: {"summary": "...", "classification": "..."}` 
             }]
           }],
-          generationConfig: { maxOutputTokens: 256 },
+          generationConfig: { 
+            maxOutputTokens: 512,
+            temperature: 0.3
+          },
         }),
       }
     );
 
-    const summaryData = await summaryResponse.json();
-    const summary = summaryData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const analysisData = await analysisResponse.json();
+    const analysisText = analysisData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    
+    // Try to parse JSON response, fallback to defaults
+    let summary = '';
+    let classification = document_type || 'misc';
+    
+    try {
+      // Extract JSON from response (might be wrapped in markdown)
+      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        summary = parsed.summary || '';
+        classification = parsed.classification || classification;
+      } else {
+        summary = analysisText.slice(0, 500);
+      }
+    } catch (e) {
+      console.error('Failed to parse analysis:', e);
+      summary = analysisText.slice(0, 500);
+    }
 
-    // 8. Update resource with summary and status
+    // 8. Update resource with summary, classification, and status
     await supabase
       .from('resources')
       .update({ 
         processing_status: 'completed',
         summary,
-        chunk_count: chunks.length,
-        document_type: document_type || 'other'
+        classification,
+        chunk_count: chunks.length
       })
       .eq('id', resource_id);
 
@@ -193,16 +222,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('Document processing error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     
-    // Update status to failed
+    // Update status to failed with error message
     if (req.body?.resource_id) {
       await supabase
         .from('resources')
-        .update({ processing_status: 'failed' })
+        .update({ 
+          processing_status: 'failed',
+          summary: `Processing failed: ${error.message}`
+        })
         .eq('id', req.body.resource_id);
     }
 
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ 
+      error: error.message,
+      details: error.toString()
+    });
   }
 }
 
