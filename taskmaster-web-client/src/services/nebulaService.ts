@@ -139,18 +139,32 @@ export const nebulaService = {
   /**
    * Extract course numbers from text (syllabus, user message, etc.)
    * Handles: CS3305, CS 3305, ECS2390.0W1 → ECS2390, MATH2413, etc.
+   * Fallback: "2414 - Syllabus.pdf" → "2414" (number-only for manual prefix)
    */
   extractCourseNumbers(text: string): string[] {
-    // Match patterns like CS3305, CS 3305, MATH 2413, ECS2390.0W1, etc.
-    // Strips section numbers (anything after the 4-digit course number)
-    const pattern = /\b([A-Z]{2,4})\s*(\d{4})/gi;
     const matches = new Set<string>();
     
+    // Primary pattern: Full course codes (CS3305, MATH 2413, ECS2390)
+    // Strips section numbers (anything after the 4-digit course number)
+    const fullPattern = /\b([A-Z]{2,4})\s*(\d{4})/gi;
     let match;
-    while ((match = pattern.exec(text)) !== null) {
+    while ((match = fullPattern.exec(text)) !== null) {
       const prefix = match[1].toUpperCase();
       const number = match[2];
       matches.add(`${prefix}${number}`);
+    }
+    
+    // Fallback: Number-only pattern for files like "2414 - Syllabus.pdf"
+    // Only use if no full patterns found (to avoid false positives like years)
+    if (matches.size === 0) {
+      const numberPattern = /\b(\d{4})\b/g;
+      while ((match = numberPattern.exec(text)) !== null) {
+        // Must be exactly 4 digits and not look like a year
+        const num = parseInt(match[1]);
+        if (num >= 1000 && num <= 9999 && num < 2100) {
+          matches.add(match[1]);
+        }
+      }
     }
     
     return Array.from(matches);

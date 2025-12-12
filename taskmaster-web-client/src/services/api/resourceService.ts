@@ -152,7 +152,10 @@ export const resourceService = {
           if (result.verified) {
             console.log(`✅ Syllabus verified: ${result.courseNumber}`, result.nebulaData?.title);
           } else {
-            console.warn(`⚠️ Syllabus verification failed:`, result.error);
+            // Note: Not setting processing_status='failed' here
+            // Verification can be 'manual' (course not in Nebula yet) but file is fine
+            // Only document processing errors should set processing_status='failed'
+            console.log(`📝 Syllabus: ${result.error}`);
           }
         });
       });
@@ -187,6 +190,12 @@ export const resourceService = {
       });
 
       if (!response.ok) {
+        // Mark as failed so user can delete
+        await supabase
+          .from('resources')
+          .update({ processing_status: 'failed' })
+          .eq('id', resourceId);
+        
         // Check if response is JSON before parsing
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
@@ -197,6 +206,12 @@ export const resourceService = {
         }
       }
     } catch (e) {
+      // Also mark as failed on network/exception errors
+      await supabase
+        .from('resources')
+        .update({ processing_status: 'failed' })
+        .eq('id', resourceId);
+      
       console.error("Processing request failed:", e);
       // Don't throw - processing is background task, shouldn't fail upload
     }

@@ -76,14 +76,24 @@ CREATE OR REPLACE FUNCTION public.extract_course_number(resource_title TEXT)
 RETURNS TEXT AS $$
 DECLARE
   course_pattern TEXT := '([A-Z]{2,4})\s*(\d{4})';
+  number_only_pattern TEXT := '\b(\d{4})\b';
   matched_course TEXT;
 BEGIN
-  -- Extract course number like "CS3305", "MATH 2413", "ECS2390.0W1" → "ECS2390"
-  -- Handles spaces, dots, and section numbers
+  -- Try full pattern first: CS3305, MATH 2413, ECS2390.0W1 → ECS2390
   SELECT CONCAT(matches[1], matches[2])
   INTO matched_course
   FROM regexp_matches(resource_title, course_pattern, 'i') AS matches
   LIMIT 1;
+  
+  -- If no match, try number-only pattern (for files like "2414 - Syllabus.pdf")
+  -- We'll store just the number and let manual verification add the prefix
+  IF matched_course IS NULL THEN
+    SELECT matches[1]
+    INTO matched_course
+    FROM regexp_matches(resource_title, number_only_pattern) AS matches
+    WHERE matches[1] ~ '^\d{4}$' -- Must be exactly 4 digits
+    LIMIT 1;
+  END IF;
   
   RETURN matched_course;
 END;
@@ -125,11 +135,12 @@ CREATE TRIGGER trigger_auto_extract_course
 -- 7. Test the extraction function
 SELECT 
   'Test course extraction' as test,
-  public.extract_course_number('CS3305 Syllabus Fall 2024') as test1,
-  public.extract_course_number('MATH 2413 - Calculus I') as test2,
-  public.extract_course_number('Database Systems CS 3305') as test3,
+  public.extract_course_number('CS3305 Syllabus Fall 2024') as test1_full,
+  public.extract_course_number('MATH 2413 - Calculus I') as test2_space,
+  public.extract_course_number('Database Systems CS 3305') as test3_embedded,
   public.extract_course_number('ECS2390.0W1SyllabusFall2025(1).doc') as test4_section,
-  public.extract_course_number('Random Document') as test5_none;
+  public.extract_course_number('2414 - F25 Syllabus full v6.pdf') as test5_number_only,
+  public.extract_course_number('Random Document') as test6_none;
 
 -- 8. Stats query
 SELECT 
