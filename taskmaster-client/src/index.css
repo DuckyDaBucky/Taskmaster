@@ -1,6 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-@import "react-big-calendar/lib/css/react-big-calendar.css";
-@import "../styles/calendar.css";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -86,31 +84,31 @@
 
   [data-theme="retro"] {
     --bg-app: #244855;
-    --bg-surface: #2d5a6a;
-    --border: #90aead;
-    --primary: #e64833;
-    --accent: #fbe9d0;
-    --text-primary: #fbe9d0;
+    --bg-surface: #2D5A6A;
+    --border: #90AEAD;
+    --primary: #E64833;
+    --accent: #FBE9D0;
+    --text-primary: #FBE9D0;
     /* Cream text for contrast */
-    --text-secondary: #90aead;
+    --text-secondary: #90AEAD;
   }
 
   [data-theme="aqua"] {
     --bg-app: #003135;
     --bg-surface: #024950;
-    --border: #0fa4af;
-    --primary: #0fa4af;
+    --border: #0FA4AF;
+    --primary: #0FA4AF;
     --accent: #964734;
     --text-primary: #e0f2f1;
     --text-secondary: #80cbc4;
   }
 
   [data-theme="earth"] {
-    --bg-app: #3e362e;
-    --bg-surface: #52463a;
-    --border: #865d36;
-    --primary: #ac8968;
-    --accent: #a69080;
+    --bg-app: #3E362E;
+    --bg-surface: #52463A;
+    --border: #865D36;
+    --primary: #AC8968;
+    --accent: #A69080;
     --text-primary: #f5f5f5;
     --text-secondary: #d7ccc8;
   }
@@ -118,8 +116,7 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     /* Force grid pattern */
-    background-image: linear-gradient(to right, #80808012 1px, transparent 1px),
-      linear-gradient(to bottom, #80808012 1px, transparent 1px);
+    background-image: linear-gradient(to right, #80808012 1px, transparent 1px), linear-gradient(to bottom, #80808012 1px, transparent 1px);
     background-size: 24px 24px;
   }
 }
