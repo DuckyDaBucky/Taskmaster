@@ -159,11 +159,12 @@ export const resourceService = {
   },
 
   /**
-   * Trigger document processing API
+   * Trigger Gemini File Search upload & indexing
+   * Replaces old pgvector chunking pipeline
    */
   async triggerProcessing(resourceId: string, userId: string, fileUrl: string, classId?: string): Promise<void> {
     try {
-      const response = await fetch('/api/process/document', {
+      const response = await fetch('/api/files/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,7 +172,6 @@ export const resourceService = {
           user_id: userId,
           file_url: fileUrl,
           class_id: classId,
-          document_type: 'other',
         }),
       });
 
@@ -186,10 +186,16 @@ export const resourceService = {
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
           const data = await response.json();
-          console.error("Processing failed:", data.error);
+          console.error("Gemini File Search indexing failed:", data.error);
         } else {
-          console.error("Processing failed with status:", response.status);
+          console.error("Gemini File Search indexing failed with status:", response.status);
         }
+      } else {
+        // Mark as complete on success
+        await supabase
+          .from('resources')
+          .update({ processing_status: 'complete' })
+          .eq('id', resourceId);
       }
     } catch (e) {
       // Also mark as failed on network/exception errors
@@ -198,7 +204,7 @@ export const resourceService = {
         .update({ processing_status: 'failed' })
         .eq('id', resourceId);
       
-      console.error("Processing request failed:", e);
+      console.error("Gemini File Search request failed:", e);
       // Don't throw - processing is background task, shouldn't fail upload
     }
   },
