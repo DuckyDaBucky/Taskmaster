@@ -184,7 +184,7 @@ export const TaskTimeline: React.FC<TaskTimelineProps> = ({ tasks, onTaskClick }
                             </div>
                             {task.completed && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-700">
-                                ✓
+                                Done
                               </span>
                             )}
                           </div>

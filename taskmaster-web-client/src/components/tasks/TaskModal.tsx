@@ -79,7 +79,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   : "bg-secondary text-foreground hover:bg-secondary/80"
               }`}
             >
-              {isPersonal ? "✓ Personal" : "Personal"}
+              {isPersonal ? "Personal (selected)" : "Personal"}
             </button>
 
             {/* Class Selector */}

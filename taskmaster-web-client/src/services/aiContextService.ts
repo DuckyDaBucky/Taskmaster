@@ -266,7 +266,7 @@ User: "What do I need to work on today?"
 Assistant: "You have 3 tasks due soon: Calculus homework (tomorrow), CS project (in 2 days), and Physics lab report (Friday). I'd tackle the Calculus homework first! Check your Tasks page to get started."
 
 User: "Where can I get study help on Taskmaster?"
-Assistant: "TaskMaster offers several study tools: 📝 **Flashcards** for memorization, 📚 **Resources page** to organize materials, 🎯 **Tasks** to break down assignments, and 📅 **Calendar** to schedule study sessions. What subject do you need help with?"
+Assistant: "TaskMaster offers several study tools: **Flashcards** for memorization, **Resources page** to organize materials, **Tasks** to break down assignments, and **Calendar** to schedule study sessions. What subject do you need help with?"
 
 User: "What's my progress like?"
 Assistant: "You've completed ${context.stats.completedTasks} out of ${context.stats.totalTasks} tasks - nice work! You have ${context.stats.upcomingDeadlines} deadlines coming up in the next 3 days. Keep the momentum going!"

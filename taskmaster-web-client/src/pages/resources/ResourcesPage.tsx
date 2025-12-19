@@ -108,10 +108,10 @@ const ResourcesPage: React.FC = () => {
     }
 
     if (successCount > 0) {
-      setUploadStatus(`✓ ${successCount} file(s) uploaded!`);
+      setUploadStatus(`${successCount} file(s) uploaded successfully`);
       await fetchData();
     } else {
-      setUploadStatus(`✗ Upload failed`);
+      setUploadStatus(`Upload failed`);
     }
 
     setTimeout(() => {

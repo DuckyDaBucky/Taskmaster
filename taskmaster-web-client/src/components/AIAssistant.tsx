@@ -98,7 +98,7 @@ const AIAssistant: React.FC = () => {
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           role: 'assistant',
-          content: '✅ Context refreshed! I now have your latest tasks, classes, and events.',
+          content: 'Context refreshed! I now have your latest tasks, classes, and events.',
         }]);
       }
     } catch (error) {
@@ -125,20 +125,20 @@ const AIAssistant: React.FC = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.id) {
           const resource = await apiService.smartUploadResource(fileToUpload);
-          userContent += `\n\n[📎 Uploaded: ${fileToUpload.name}]`;
+          userContent += `\n\n[Attached: ${fileToUpload.name}]`;
           
           // Add confirmation message
           setMessages(prev => [...prev, {
             id: Date.now().toString(),
             role: 'assistant',
-            content: `✅ File "${fileToUpload.name}" uploaded successfully! I'll analyze it and help you with any questions about it.`,
+            content: `File "${fileToUpload.name}" uploaded successfully! I'll analyze it and help you with any questions about it.`,
           }]);
         }
       } catch (error: any) {
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `❌ Failed to upload file: ${error.message}`,
+          content: `Failed to upload file: ${error.message}`,
         }]);
         setIsUploading(false);
         setAttachedFile(null);

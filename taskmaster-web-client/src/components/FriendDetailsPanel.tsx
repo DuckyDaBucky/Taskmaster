@@ -53,7 +53,7 @@ const FriendDetailsPanel: React.FC<FriendDetailsPanelProps> = ({ friend }) => {
               Chat with {friend.username}:
             </div>
             <div className="bg-card p-3 rounded-md shadow-sm">
-              <p className="text-sm">Hey! 👋 How's it going?</p>
+              <p className="text-sm">Hey! How's it going?</p>
             </div>
           </div>
           <div className="mt-4 flex gap-2">

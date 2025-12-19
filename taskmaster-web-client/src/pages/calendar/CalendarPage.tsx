@@ -410,8 +410,8 @@ const CalendarPage: React.FC = () => {
                     <div className="relative">
                       {props.children}
                       {hasStreak && (
-                        <div className="absolute top-1 right-1 text-xs" title="Login streak!">
-                          🔥
+                        <div className="absolute top-1 right-1 text-xs text-orange-500 font-bold" title="Login streak!">
+                          *
                         </div>
                       )}
                     </div>

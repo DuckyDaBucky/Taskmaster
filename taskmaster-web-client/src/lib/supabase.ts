@@ -38,67 +38,67 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // VALIDATION - REQUIRED ENVIRONMENT VARIABLES
 // ============================================
 if (!supabaseUrl) {
-  const error = '❌ VITE_SUPABASE_URL is not set in environment variables';
-  console.error('═══════════════════════════════════════════════════════════');
-  console.error('🚨 SUPABASE CONFIGURATION ERROR');
-  console.error('═══════════════════════════════════════════════════════════');
+  const error = 'VITE_SUPABASE_URL is not set in environment variables';
+  console.error('-----------------------------------------------------------');
+  console.error('SUPABASE CONFIGURATION ERROR');
+  console.error('-----------------------------------------------------------');
   console.error(error);
   console.error('');
-  console.error('📝 Required Environment Variables:');
+  console.error('Required Environment Variables:');
   console.error('   1. VITE_SUPABASE_URL');
   console.error('   2. VITE_SUPABASE_ANON_KEY');
   console.error('');
-  console.error('💻 Local Development:');
+  console.error('Local Development:');
   console.error('   - Create .env file in taskmaster-web-client/');
   console.error('   - Add: VITE_SUPABASE_URL=https://your-project.supabase.co');
   console.error('   - Add: VITE_SUPABASE_ANON_KEY=your-anon-key');
   console.error('');
-  console.error('☁️  Vercel Deployment:');
-  console.error('   - Go to: Vercel Dashboard → Settings → Environment Variables');
+  console.error('Vercel Deployment:');
+  console.error('   - Go to: Vercel Dashboard > Settings > Environment Variables');
   console.error('   - Add both variables for Production, Preview, Development');
   console.error('   - Redeploy after adding');
   console.error('');
-  console.error('🔗 Get credentials from:');
+  console.error('Get credentials from:');
   console.error('   https://app.supabase.com/project/YOUR_PROJECT/settings/api');
-  console.error('═══════════════════════════════════════════════════════════');
+  console.error('-----------------------------------------------------------');
   throw new Error(error);
 }
 
 if (!supabaseAnonKey) {
-  const error = '❌ VITE_SUPABASE_ANON_KEY is not set in environment variables';
-  console.error('═══════════════════════════════════════════════════════════');
-  console.error('🚨 SUPABASE CONFIGURATION ERROR');
-  console.error('═══════════════════════════════════════════════════════════');
+  const error = 'VITE_SUPABASE_ANON_KEY is not set in environment variables';
+  console.error('-----------------------------------------------------------');
+  console.error('SUPABASE CONFIGURATION ERROR');
+  console.error('-----------------------------------------------------------');
   console.error(error);
   console.error('');
-  console.error('📝 Required Environment Variables:');
+  console.error('Required Environment Variables:');
   console.error('   1. VITE_SUPABASE_URL');
   console.error('   2. VITE_SUPABASE_ANON_KEY');
   console.error('');
-  console.error('💻 Local Development:');
+  console.error('Local Development:');
   console.error('   - Create .env file in taskmaster-web-client/');
   console.error('   - Add: VITE_SUPABASE_URL=https://your-project.supabase.co');
   console.error('   - Add: VITE_SUPABASE_ANON_KEY=your-anon-key');
   console.error('');
-  console.error('☁️  Vercel Deployment:');
-  console.error('   - Go to: Vercel Dashboard → Settings → Environment Variables');
+  console.error('Vercel Deployment:');
+  console.error('   - Go to: Vercel Dashboard > Settings > Environment Variables');
   console.error('   - Add both variables for Production, Preview, Development');
   console.error('   - Redeploy after adding');
   console.error('');
-  console.error('🔗 Get credentials from:');
+  console.error('Get credentials from:');
   console.error('   https://app.supabase.com/project/YOUR_PROJECT/settings/api');
-  console.error('═══════════════════════════════════════════════════════════');
+  console.error('-----------------------------------------------------------');
   throw new Error(error);
 }
 
 // Validate URL format
 if (!supabaseUrl.startsWith('https://') && !supabaseUrl.startsWith('http://')) {
-  console.warn('⚠️ Supabase URL should start with https://');
+  console.warn('[Warning] Supabase URL should start with https://');
 }
 
 // Validate key format (JWT tokens are typically long)
 if (supabaseAnonKey.length < 100) {
-  console.warn('⚠️ Supabase anon key seems invalid (too short)');
+  console.warn('[Warning] Supabase anon key seems invalid (too short)');
 }
 
 // Create Supabase client
@@ -112,8 +112,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // Log configuration status (only in development)
 if (import.meta.env.DEV) {
-  console.log('✅ Supabase configured using environment variables');
-  console.log('📍 Supabase URL:', supabaseUrl);
+  console.log('[Supabase] Configured using environment variables');
+  console.log('[Supabase] URL:', supabaseUrl);
 }
 
 // Database types (will be generated from Supabase)

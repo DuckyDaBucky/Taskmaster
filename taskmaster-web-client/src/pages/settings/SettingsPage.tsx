@@ -266,7 +266,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         <p className="text-xs text-muted-foreground mt-3">
-          ✓ Current theme: <span className="font-medium capitalize">{theme}</span> (saved to your profile)
+          Current theme: <span className="font-medium capitalize">{theme}</span> (saved to your profile)
         </p>
       </section>
 

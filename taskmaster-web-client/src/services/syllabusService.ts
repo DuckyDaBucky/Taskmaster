@@ -70,7 +70,7 @@ export const syllabusService = {
           })
           .eq('id', resourceId);
           
-        console.log(`📝 Course ${courseNumber} extracted but not in Nebula - marked as manual`);
+        console.log(`[Syllabus] Course ${courseNumber} extracted but not in Nebula - marked as manual`);
         
         return {
           resourceId,

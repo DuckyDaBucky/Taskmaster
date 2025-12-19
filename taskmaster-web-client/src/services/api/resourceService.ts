@@ -145,7 +145,7 @@ export const resourceService = {
 
     // 5. Nebula enrichment is now optional - document processing extracts everything
     // No longer blocking on Nebula verification
-    console.log(`📤 Document processing will extract all course information automatically`);
+    console.log(`[Upload] Document processing will extract all course information automatically`);
 
     // 6. Log activity
     await supabase.from('activities').insert({
@@ -159,12 +159,12 @@ export const resourceService = {
   },
 
   /**
-   * Trigger Gemini File Search upload & indexing
-   * Replaces old pgvector chunking pipeline
+   * Trigger document analysis with Gemini
+   * Extracts metadata, summary, and structured data from uploaded documents
    */
   async triggerProcessing(resourceId: string, userId: string, fileUrl: string, classId?: string): Promise<void> {
     try {
-      const response = await fetch('/api/files/upload', {
+      const response = await fetch('/api/documents/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -176,35 +176,24 @@ export const resourceService = {
       });
 
       if (!response.ok) {
-        // Mark as failed so user can delete
-        await supabase
-          .from('resources')
-          .update({ processing_status: 'failed' })
-          .eq('id', resourceId);
-        
         // Check if response is JSON before parsing
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
           const data = await response.json();
-          console.error("Gemini File Search indexing failed:", data.error);
+          console.error("[Document Analysis] Failed:", data.error);
         } else {
-          console.error("Gemini File Search indexing failed with status:", response.status);
+          console.error("[Document Analysis] Failed with status:", response.status);
         }
-      } else {
-        // Mark as complete on success
-        await supabase
-          .from('resources')
-          .update({ processing_status: 'complete' })
-          .eq('id', resourceId);
+        // Note: The API endpoint already marks as failed on error
       }
     } catch (e) {
-      // Also mark as failed on network/exception errors
+      // Mark as failed on network/exception errors
       await supabase
         .from('resources')
         .update({ processing_status: 'failed' })
         .eq('id', resourceId);
       
-      console.error("Gemini File Search request failed:", e);
+      console.error("[Document Analysis] Request failed:", e);
       // Don't throw - processing is background task, shouldn't fail upload
     }
   },

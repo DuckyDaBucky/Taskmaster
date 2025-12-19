@@ -320,8 +320,8 @@ const ProfilePage: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map(i => (
                 <div key={i} className="aspect-square bg-secondary rounded-md flex flex-col items-center justify-center gap-2 p-4 text-center hover:bg-secondary/80 transition-colors cursor-pointer">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-                    🏆
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                    ★
                   </div>
                   <span className="text-xs font-medium text-foreground">Achievement {i}</span>
                 </div>
