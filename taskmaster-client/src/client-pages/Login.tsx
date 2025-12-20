@@ -16,15 +16,6 @@ function Login() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    // Debug: Check if Supabase URL is loaded
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!url || url.includes("placeholder")) {
-      setError("Critical: Missing NEXT_PUBLIC_SUPABASE_URL. Please check your .env.local file.");
-    }
-  }, []);
-
-
   // Redirect if already logged in
   useEffect(() => {
     const checkAuth = async () => {

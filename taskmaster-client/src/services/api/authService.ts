@@ -12,7 +12,7 @@ export const authService = {
    */
   async login(emailOrUsername: string, password: string, isEmail: boolean = true): Promise<void> {
     let email = emailOrUsername.trim().toLowerCase();
-    
+
     // If username, look up email
     if (!isEmail) {
       const { data } = await supabase
@@ -21,7 +21,7 @@ export const authService = {
         .or(`user_name.eq.${emailOrUsername},display_name.eq.${emailOrUsername}`)
         .limit(1)
         .single();
-      
+
       if (!data?.email) {
         throw new Error("Username not found");
       }
@@ -138,7 +138,7 @@ export const authService = {
       };
 
       await supabase.from('users').upsert(newProfile, { onConflict: 'id' });
-      
+
       // Also create Personal class
       await supabase.from('classes').upsert({
         name: 'Personal',

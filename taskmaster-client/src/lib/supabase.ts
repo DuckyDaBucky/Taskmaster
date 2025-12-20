@@ -1,31 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
 /**
  * Supabase Client Configuration
- * 
- * REQUIRED Environment Variables:
  * ================================
+ * REQUIRED Environment Variables:
  * 1. NEXT_PUBLIC_SUPABASE_URL
- *    - Your Supabase project URL
- *    - Example: https://xxxxx.supabase.co
- *    - Get from: https://app.supabase.com/project/YOUR_PROJECT/settings/api
- * 
  * 2. NEXT_PUBLIC_SUPABASE_ANON_KEY
- *    - Your Supabase anon/public key (NOT the service role key!)
- *    - This is safe to expose in client-side code
- *    - Get from: https://app.supabase.com/project/YOUR_PROJECT/settings/api
- * 
- * Setup:
- * ------
- * Local Development:
- *   - Create .env.local file in taskmaster-client/
- *   - Add: NEXT_PUBLIC_SUPABASE_URL=...
- *   - Add: NEXT_PUBLIC_SUPABASE_ANON_KEY=...
- * 
- * Vercel Deployment:
- *   - Go to: Vercel Dashboard → Project → Settings → Environment Variables
- *   - Add both variables for Production, Preview, and Development
- *   - Redeploy after adding
  */
 
 // ============================================
@@ -48,16 +28,10 @@ if (!isBuildTime && !supabaseAnonKey) {
 }
 
 // Create Supabase client (with fallback for build time)
-export const supabase = createClient(
+// Uses createBrowserClient to ensure cookies are properly handled for SSR
+export const supabase = createBrowserClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key',
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  }
+  supabaseAnonKey || 'placeholder-key'
 );
 
 // Database types (will be generated from Supabase)
