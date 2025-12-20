@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { X, Send, Loader2, Minimize2, RefreshCw, Paperclip, File } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { aiContextService } from '../services/aiContextService';
@@ -210,11 +211,15 @@ const AIAssistant: React.FC = () => {
         title="Open TaskMaster AI"
         style={{ background: 'transparent', border: 'none' }}
       >
-        <img 
-          src="/favicon.png" 
-          alt="TaskMaster" 
-          className="w-full h-full drop-shadow-lg"
-        />
+        <div className="relative w-full h-full"> 
+          <Image 
+            src="/favicon.png" 
+            alt="TaskMaster" 
+            fill
+            className="drop-shadow-lg object-contain"
+            sizes="48px"
+          />
+        </div>
       </button>
     );
   }
@@ -228,11 +233,15 @@ const AIAssistant: React.FC = () => {
         title="Open TaskMaster AI"
         style={{ background: 'transparent', border: 'none' }}
       >
-        <img 
-          src="/favicon.png" 
-          alt="TaskMaster" 
-          className="w-full h-full drop-shadow-lg"
-        />
+        <div className="relative w-full h-full"> 
+          <Image 
+            src="/favicon.png" 
+            alt="TaskMaster" 
+            fill
+            className="drop-shadow-lg object-contain"
+            sizes="48px"
+          />
+        </div>
       </button>
     );
   }
@@ -243,7 +252,9 @@ const AIAssistant: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-primary text-white">
         <div className="flex items-center gap-2">
-          <img src="/favicon.png" alt="" className="w-6 h-6" />
+          <div className="relative w-6 h-6">
+            <Image src="/favicon.png" alt="" fill className="object-contain" sizes="24px" />
+          </div>
           <span className="font-semibold text-sm">TaskMaster AI</span>
           {contextLoaded && (
             <span className="text-xs opacity-75">● Connected</span>

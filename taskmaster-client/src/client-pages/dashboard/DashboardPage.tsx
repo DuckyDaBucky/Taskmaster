@@ -1,14 +1,29 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { StatsWidget } from "./StatsWidget";
-import { RecentActivityWidget } from "./RecentActivityWidget";
-import { ActivityChart } from "./ActivityChart";
-import { ProgressChart } from "./ProgressChart";
+import dynamic from "next/dynamic";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import { streakService } from "../../services/streakService";
 import type { TasksData } from "../../services/types";
+
+// Lazy load heavy widgets
+const StatsWidget = dynamic(() => import("./StatsWidget").then(mod => mod.StatsWidget), {
+  loading: () => <div className="h-32 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
+  ssr: false // Client-side only for charts
+});
+const RecentActivityWidget = dynamic(() => import("./RecentActivityWidget").then(mod => mod.RecentActivityWidget), {
+  loading: () => <div className="h-64 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
+});
+const ActivityChart = dynamic(() => import("./ActivityChart").then(mod => mod.ActivityChart), {
+  loading: () => <div className="h-64 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
+  ssr: false
+});
+const ProgressChart = dynamic(() => import("./ProgressChart").then(mod => mod.ProgressChart), {
+  loading: () => <div className="h-64 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
+  ssr: false
+});
+
 
 interface DashboardPageProps {
   initialTasks?: TasksData[];

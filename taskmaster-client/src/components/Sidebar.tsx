@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
@@ -70,11 +71,15 @@ export const Sidebar: React.FC = () => {
         {/* Profile Row */}
         <div className="flex items-center gap-3 px-2 py-2 mb-2">
           {(user as any)?.pfp ? (
-            <img 
-              src={(user as any).pfp} 
-              alt={user?.firstName || user?.username || user?.email || "User"} 
-              className="w-8 h-8 rounded-full object-cover"
-            />
+            <div className="relative w-8 h-8 rounded-full overflow-hidden">
+               <Image 
+                src={(user as any).pfp} 
+                alt={user?.firstName || user?.username || user?.email || "User"} 
+                fill
+                className="object-cover"
+                sizes="32px"
+              />
+            </div>
           ) : (
             <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xs">
               {(user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0] || "U").toUpperCase()}
