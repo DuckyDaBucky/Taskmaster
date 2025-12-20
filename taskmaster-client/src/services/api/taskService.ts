@@ -1,12 +1,22 @@
 import { supabase } from "../../lib/supabase";
 import { getCachedUserId } from "./authCache";
 import type { TasksData } from "../types";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export const taskService = {
-  async getAllTasks(): Promise<TasksData[]> {
-    const userId = await getCachedUserId();
+  async getAllTasks(client?: SupabaseClient): Promise<TasksData[]> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { data, error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return [];
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { data, error } = await supabaseClient
       .from('tasks')
       .select('id, title, topic, description, status, points, task_type, deadline, earned_points, completed, textbook, class_id')
       .eq('user_id', userId)
@@ -14,7 +24,7 @@ export const taskService = {
       .limit(100);
 
     if (error) throw new Error(error.message);
-    
+
     return (data || []).map(task => ({
       _id: task.id,
       title: task.title || '',
@@ -31,10 +41,19 @@ export const taskService = {
     }));
   },
 
-  async getTasksByClassId(classId: string): Promise<TasksData[]> {
-    const userId = await getCachedUserId();
+  async getTasksByClassId(classId: string, client?: SupabaseClient): Promise<TasksData[]> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { data, error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return [];
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { data, error } = await supabaseClient
       .from('tasks')
       .select('id, title, topic, description, status, points, task_type, deadline, earned_points, completed, textbook, class_id')
       .eq('user_id', userId)
@@ -42,7 +61,7 @@ export const taskService = {
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
-    
+
     return (data || []).map(task => ({
       _id: task.id,
       title: task.title || '',
@@ -66,10 +85,19 @@ export const taskService = {
     status?: "pending" | "completed" | "overdue";
     points?: number;
     textbook?: string;
-  }): Promise<TasksData> {
-    const userId = await getCachedUserId();
+  }, client?: SupabaseClient): Promise<TasksData> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { data, error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { data, error } = await supabaseClient
       .from('tasks')
       .insert({
         title: taskData.title,
@@ -103,8 +131,17 @@ export const taskService = {
     };
   },
 
-  async updateTask(taskId: string, updates: Partial<TasksData>): Promise<TasksData> {
-    const userId = await getCachedUserId();
+  async updateTask(taskId: string, updates: Partial<TasksData>, client?: SupabaseClient): Promise<TasksData> {
+    let userId: string;
+    const supabaseClient = client || supabase;
+
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
 
     const updateData: any = {};
     if (updates.title !== undefined) updateData.title = updates.title;
@@ -115,7 +152,7 @@ export const taskService = {
     if (updates.textbook !== undefined) updateData.textbook = updates.textbook;
     if (updates.completed !== undefined) updateData.completed = updates.completed;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('tasks')
       .update(updateData)
       .eq('id', taskId)
@@ -141,10 +178,19 @@ export const taskService = {
     };
   },
 
-  async deleteTask(taskId: string): Promise<void> {
-    const userId = await getCachedUserId();
+  async deleteTask(taskId: string, client?: SupabaseClient): Promise<void> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { error } = await supabaseClient
       .from('tasks')
       .delete()
       .eq('id', taskId)

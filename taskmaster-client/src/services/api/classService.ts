@@ -1,12 +1,22 @@
 import { supabase } from "../../lib/supabase";
 import { getCachedUserId } from "./authCache";
 import type { ClassData } from "../types";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export const classService = {
-  async getAllClasses(): Promise<ClassData[]> {
-    const userId = await getCachedUserId();
+  async getAllClasses(client?: SupabaseClient): Promise<ClassData[]> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { data, error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return [];
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { data, error } = await supabaseClient
       .from('classes')
       .select('id, name, professor, timing, exam_dates, topics, grading_policy, contact_info, textbooks, location, description, is_personal')
       .eq('user_id', userId)
@@ -31,9 +41,10 @@ export const classService = {
     }));
   },
 
-  async getClassesByUserId(userId: string): Promise<ClassData[]> {
+  async getClassesByUserId(userId: string, client?: SupabaseClient): Promise<ClassData[]> {
+    const supabaseClient = client || supabase;
     // Use provided userId instead of cached one (for viewing other users' classes)
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('classes')
       .select('id, name, professor, timing, exam_dates, topics, grading_policy, contact_info, textbooks, location, description, is_personal')
       .eq('user_id', userId)
@@ -57,10 +68,19 @@ export const classService = {
     }));
   },
 
-  async getPersonalClassId(): Promise<{ personalClassId: string }> {
-    const userId = await getCachedUserId();
+  async getPersonalClassId(client?: SupabaseClient): Promise<{ personalClassId: string }> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { data, error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { data, error } = await supabaseClient
       .from('classes')
       .select('id')
       .eq('user_id', userId)
@@ -82,10 +102,19 @@ export const classService = {
     textbooks?: string[];
     gradingPolicy?: string;
     contactInfo?: string;
-  }): Promise<ClassData> {
-    const userId = await getCachedUserId();
+  }, client?: SupabaseClient): Promise<ClassData> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { data, error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { data, error } = await supabaseClient
       .from('classes')
       .insert({
         name: classData.name,
@@ -129,8 +158,17 @@ export const classService = {
     textbooks?: string[];
     gradingPolicy?: string;
     contactInfo?: string;
-  }): Promise<ClassData> {
-    const userId = await getCachedUserId();
+  }, client?: SupabaseClient): Promise<ClassData> {
+    let userId: string;
+    const supabaseClient = client || supabase;
+
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
 
     const updateData: any = {};
     if (classData.name !== undefined) updateData.name = classData.name;
@@ -142,7 +180,7 @@ export const classService = {
     if (classData.gradingPolicy !== undefined) updateData.grading_policy = classData.gradingPolicy;
     if (classData.contactInfo !== undefined) updateData.contact_info = classData.contactInfo;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('classes')
       .update(updateData)
       .eq('id', classId)
@@ -168,10 +206,19 @@ export const classService = {
     };
   },
 
-  async deleteClass(classId: string): Promise<void> {
-    const userId = await getCachedUserId();
+  async deleteClass(classId: string, client?: SupabaseClient): Promise<void> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { error } = await supabaseClient
       .from('classes')
       .delete()
       .eq('id', classId)

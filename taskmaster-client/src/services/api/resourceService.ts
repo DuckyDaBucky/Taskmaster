@@ -1,12 +1,22 @@
 import { supabase } from "../../lib/supabase";
 import { getCachedUserId } from "./authCache";
 import type { ResourceData } from "../types";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export const resourceService = {
-  async getAllResources(): Promise<ResourceData[]> {
-    const userId = await getCachedUserId();
+  async getAllResources(client?: SupabaseClient): Promise<ResourceData[]> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { data, error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return [];
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { data, error } = await supabaseClient
       .from('resources')
       .select('id, title, urls, websites, files, summary, description, class_id, processing_status')
       .eq('user_id', userId)
@@ -28,10 +38,19 @@ export const resourceService = {
     }));
   },
 
-  async getResourcesByClassId(classId: string): Promise<ResourceData[]> {
-    const userId = await getCachedUserId();
+  async getResourcesByClassId(classId: string, client?: SupabaseClient): Promise<ResourceData[]> {
+    let userId: string;
+    const supabaseClient = client || supabase;
 
-    const { data, error } = await supabase
+    if (client) {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return [];
+      userId = user.id;
+    } else {
+      userId = await getCachedUserId();
+    }
+
+    const { data, error } = await supabaseClient
       .from('resources')
       .select('id, title, urls, websites, files, summary, description, class_id, processing_status, classification')
       .eq('user_id', userId)
@@ -192,7 +211,7 @@ export const resourceService = {
         .from('resources')
         .update({ processing_status: 'failed' })
         .eq('id', resourceId);
-      
+
       console.error("[Document Analysis] Request failed:", e);
       // Don't throw - processing is background task, shouldn't fail upload
     }

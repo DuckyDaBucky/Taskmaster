@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import { StatsWidget } from "./StatsWidget";
 import { RecentActivityWidget } from "./RecentActivityWidget";
@@ -8,10 +10,14 @@ import { apiService } from "../../services/api";
 import { streakService } from "../../services/streakService";
 import type { TasksData } from "../../services/types";
 
-const DashboardPage: React.FC = () => {
+interface DashboardPageProps {
+  initialTasks?: TasksData[];
+}
+
+const DashboardPage: React.FC<DashboardPageProps> = ({ initialTasks }) => {
   const { user, refreshUser } = useUser();
-  const [tasks, setTasks] = useState<TasksData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [tasks, setTasks] = useState<TasksData[]>(initialTasks || []);
+  const [isLoading, setIsLoading] = useState(!initialTasks);
 
   useEffect(() => {
     const fetchAllTasks = async () => {
