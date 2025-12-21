@@ -39,27 +39,44 @@ interface UserContextProps {
 
 const UserContext = createContext<UserContextProps | undefined>(undefined);
 
+const USER_TIMEOUT_MS = 10000; // 10 second timeout
+
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
 
   const loadUser = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const userData = await authService.getUserMe();
+      // Create timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('User load timeout')), USER_TIMEOUT_MS);
+      });
+
+      // Race between user load and timeout
+      const loadPromise = (async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const userData = await authService.getUserMe();
+          return userData;
+        }
+        return null;
+      })();
+
+      const userData = await Promise.race([loadPromise, timeoutPromise]);
+      
+      if (userData) {
         setUser(userData);
         
         // Apply user's saved theme preference
-        if (userData.theme) {
+        if (userData.theme && typeof window !== 'undefined') {
           localStorage.setItem('appTheme', userData.theme);
           document.documentElement.setAttribute('data-theme', userData.theme);
         }
       } else {
         setUser(null);
       }
-    } catch (error) {
-      console.error("Failed to load user:", error);
+    } catch (error: any) {
+      console.error("Failed to load user:", error.message);
       setUser(null);
     } finally {
       setIsLoadingUser(false);
@@ -87,7 +104,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    localStorage.clear();
+    if (typeof window !== 'undefined') {
+      localStorage.clear();
+    }
   };
 
   const refreshUser = async () => {

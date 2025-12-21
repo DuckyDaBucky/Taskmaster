@@ -68,18 +68,28 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
     }
   };
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
     setIsSubmitting(true);
+    setError(null);
     try {
-      let classId: string | undefined;
+      let classId: string | null = null;
+      
       if (isPersonal) {
-        const result = await apiService.getPersonalClassId();
-        classId = result.personalClassId;
-      } else {
-        classId = formData.classId || undefined;
+        // Try to get personal class ID, but don't fail if it doesn't exist
+        try {
+          const result = await apiService.getPersonalClassId();
+          classId = result.personalClassId;
+        } catch {
+          // Personal class doesn't exist, that's okay - create with null classId
+          console.log("No personal class found, creating task without class");
+        }
+      } else if (formData.classId) {
+        classId = formData.classId;
       }
 
       const taskData = {
@@ -89,19 +99,20 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
         status: formData.status,
         points: formData.points ? parseInt(formData.points) : undefined,
         textbook: formData.textbook || undefined,
-        class: classId,
+        class: classId || undefined,
       };
 
       if (editingTaskId) {
         await apiService.updateTask(editingTaskId, taskData);
       } else {
-        await apiService.createTask(classId || null, taskData);
+        await apiService.createTask(classId, taskData);
       }
       
       onTaskSaved();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save task:", error);
+      setError(error.message || "Failed to save task. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -125,6 +136,13 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Error Display */}
+          {error && (
+            <div className="px-3 py-2 bg-destructive/10 text-destructive text-sm rounded-lg">
+              {error}
+            </div>
+          )}
+          
           {/* Title - REQUIRED */}
           <div>
             <input
