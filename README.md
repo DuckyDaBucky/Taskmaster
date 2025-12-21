@@ -1,17 +1,17 @@
 # TaskMaster
 
-AI-powered academic productivity app for UTD students.
+AI-powered academic productivity app for students.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│         taskmaster-web-client       │
-│  ┌─────────────┐  ┌──────────────┐  │
-│  │ React App   │  │ Vercel API   │  │
-│  │ (Frontend)  │  │ (AI Routes)  │  │
-│  └──────┬──────┘  └──────┬───────┘  │
-└─────────┼────────────────┼──────────┘
+┌────────────────────────────────────┐
+│         taskmaster-client          │
+│  ┌─────────────┐  ┌──────────────┐ │
+│  │ Next.js App │  │ API Routes   │ │
+│  │ (Frontend)  │  │ (Serverless) │ │
+│  └──────┬──────┘  └──────┬───────┘ │
+└─────────┼────────────────┼─────────┘
           │                │
           ▼                ▼
      ┌─────────┐      ┌─────────┐
@@ -20,59 +20,60 @@ AI-powered academic productivity app for UTD students.
      └─────────┘      └─────────┘
 ```
 
-**No separate backend needed.** Supabase handles DB/auth, Vercel handles AI.
+**Serverless architecture.** Supabase handles database/auth, Vercel handles hosting/AI.
 
 ## Quick Start
 
 ```bash
-cd taskmaster-web-client
+cd taskmaster-client
 npm install
 npm run dev
 ```
 
 Create `.env.local`:
-```
-VITE_SUPABASE_URL=your_url
-VITE_SUPABASE_ANON_KEY=your_key
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key
+GEMINI_API_KEY=your_gemini_key
 ```
 
 ## Deployment (Vercel)
 
 1. Push to GitHub
 2. Connect repo to Vercel
-3. Set root directory: `taskmaster-web-client`
-4. Add env vars in Vercel dashboard:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `GEMINI_API_KEY`
-
-## Database Setup
-
-Run SQL scripts in Supabase SQL Editor (in order):
-1. `supabase-ALL-TABLES.sql`
-2. `supabase-PGVECTOR.sql`
-3. `supabase-COURSE-CATALOG.sql`
-4. `supabase-STORAGE-BUCKETS.sql`
-5. `supabase-INDEXES.sql`
-6. `supabase-FIX-RLS.sql`
+3. Set root directory: `taskmaster-client`
+4. Add environment variables in Vercel dashboard
 
 ## Project Structure
 
 ```
-taskmaster-web-client/
+taskmaster-client/
 ├── src/
-│   ├── components/     # UI components
-│   ├── pages/          # Route pages
-│   ├── services/api/   # All DB calls
-│   ├── context/        # React context
-│   └── lib/            # Supabase client
-├── api/                # Vercel serverless (AI)
-│   └── gemini/
-│       └── chat.ts
-└── supabase-*.sql      # DB setup scripts
+│   ├── app/            # Next.js pages + API routes
+│   │   ├── (protected)/ # Auth-guarded routes
+│   │   └── api/         # Serverless functions
+│   ├── components/      # UI components
+│   ├── services/api/    # Database operations
+│   ├── context/         # React contexts
+│   └── lib/             # Supabase client
+└── Documentation/       # Project docs
 ```
 
-## Future
+## Documentation
 
-- Mobile app (React Native) - can reuse `services/api/`
-- More AI features via `api/` routes
+See the [Documentation](./Documentation) folder:
+- `01-Getting-Started.md` - Setup and deployment
+- `02-Architecture.md` - Project structure and tech stack
+- `03-Features.md` - All features and AI capabilities
+- `04-Contributing.md` - Development workflow
+- `Roadmap.md` - Future features
+
+## Features
+
+- 📋 **Tasks** - Create, organize, track assignments
+- 📅 **Calendar** - Visual schedule with deadlines
+- 📚 **Classes** - Organize by course/subject
+- 🗂️ **Resources** - Upload study materials
+- 🃏 **Flashcards** - Study and review
+- 🤖 **AI Assistant** - Context-aware help
+- 🔥 **Streaks** - Gamified daily usage
