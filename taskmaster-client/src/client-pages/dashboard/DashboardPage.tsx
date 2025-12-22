@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import { streakService } from "../../services/streakService";
+import { taskEvents } from "../../lib/taskEvents";
 import type { TasksData } from "../../services/types";
 
 // Lazy load heavy widgets
 const StatsWidget = dynamic(() => import("./StatsWidget").then(mod => mod.StatsWidget), {
   loading: () => <div className="h-32 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
-  ssr: false // Client-side only for charts
+  ssr: false
 });
 const RecentActivityWidget = dynamic(() => import("./RecentActivityWidget").then(mod => mod.RecentActivityWidget), {
   loading: () => <div className="h-64 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
@@ -24,7 +25,6 @@ const ProgressChart = dynamic(() => import("./ProgressChart").then(mod => mod.Pr
   ssr: false
 });
 
-
 interface DashboardPageProps {
   initialTasks?: TasksData[];
 }
@@ -34,8 +34,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTasks }) => {
   const [tasks, setTasks] = useState<TasksData[]>(initialTasks || []);
   const [isLoading, setIsLoading] = useState(!initialTasks);
 
+  const fetchTasks = useCallback(async () => {
+    if (!user?._id) return;
+    
+    try {
+      const allTasks = await apiService.getAllTasks();
+      setTasks(allTasks);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  }, [user?._id]);
+
   useEffect(() => {
-    const fetchAllTasks = async () => {
+    const init = async () => {
       if (!user?._id) {
         setIsLoading(false);
         return;
@@ -47,29 +58,36 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTasks }) => {
         // Update streak on dashboard load
         const streakResult = await streakService.updateStreak();
         if (streakResult.isNewLogin && refreshUser) {
-          refreshUser(); // Refresh user context with new streak
+          refreshUser();
         }
         
-        // Fetch all tasks (includes personal tasks)
-        const allTasks = await apiService.getAllTasks();
-        setTasks(allTasks);
+        // Fetch tasks
+        await fetchTasks();
       } catch (error) {
-        console.error("Error fetching tasks:", error);
-        setTasks([]);
+        console.error("Error initializing dashboard:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchAllTasks();
-    
-    // Check for midnight every minute
-    const midnightInterval = setInterval(() => {
-      streakService.checkMidnightUpdate();
-    }, 60000); // Check every minute
+    init();
+  }, [user?._id, fetchTasks, refreshUser]);
 
-    return () => clearInterval(midnightInterval);
-  }, [user?._id]);
+  // Listen for task updates from other components
+  useEffect(() => {
+    const unsubscribe = taskEvents.subscribe(() => {
+      fetchTasks();
+    });
+    return () => { unsubscribe(); };
+  }, [fetchTasks]);
+
+  // Midnight check
+  useEffect(() => {
+    const interval = setInterval(() => {
+      streakService.checkMidnightUpdate();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const displayName = user?.firstName || user?.username || user?.email || "User";
 

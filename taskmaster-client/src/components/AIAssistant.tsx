@@ -53,16 +53,9 @@ const AIAssistant: React.FC = () => {
       if (isOpen && !contextLoaded) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          console.log('Loading AI context for user:', session?.user?.id);
           if (session?.user?.id) {
             const context = await aiContextService.getUserContext(session.user.id);
-            console.log('Context loaded:', {
-              tasks: context.tasks.length,
-              classes: context.classes.length,
-              stats: context.stats
-            });
             const prompt = await aiContextService.buildSystemPrompt(context);
-            console.log('System prompt built, length:', prompt.length);
             setSystemPrompt(prompt);
             setContextLoaded(true);
           } else {

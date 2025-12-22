@@ -85,8 +85,7 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
           const result = await apiService.getPersonalClassId();
           classId = result.personalClassId;
         } catch {
-          // Personal class doesn't exist, that's okay - create with null classId
-          console.log("No personal class found, creating task without class");
+          // Personal class doesn't exist - create task without class
         }
       } else if (formData.classId) {
         classId = formData.classId;

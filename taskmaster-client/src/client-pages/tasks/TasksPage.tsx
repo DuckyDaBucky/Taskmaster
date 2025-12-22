@@ -86,6 +86,10 @@ const TasksPage: React.FC = () => {
         t._id === taskId ? { ...t, completed } : t
       ));
       
+      // Notify other components
+      const { taskEvents } = await import('../../lib/taskEvents');
+      taskEvents.emit('task-updated', taskId);
+      
       // Update streak on task completion
       if (completed) {
         await streakService.updateStreak();

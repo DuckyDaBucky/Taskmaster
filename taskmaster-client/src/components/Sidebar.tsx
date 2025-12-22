@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
@@ -17,40 +18,50 @@ import {
 import { useUser } from "../context/UserContext";
 import { authService } from "../services/api";
 
+const menuItems = [
+  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+  { label: "Tasks", path: "/tasks", icon: CheckSquare },
+  { label: "Calendar", path: "/calendar", icon: Calendar },
+  { label: "Classes", path: "/classes", icon: BookOpen },
+  { label: "Resources", path: "/resources", icon: FileText },
+  { label: "Flashcards", path: "/flashcards", icon: Zap },
+  { label: "Friends", path: "/friends", icon: MessageSquare },
+];
+
 export const Sidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname() || "";
   const { user } = useUser();
 
-  const menuItems = [
-    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { label: "Tasks", path: "/tasks", icon: CheckSquare },
-    { label: "Calendar", path: "/calendar", icon: Calendar },
-    { label: "Classes", path: "/classes", icon: BookOpen },
-    { label: "Resources", path: "/resources", icon: FileText },
-    { label: "Flashcards", path: "/flashcards", icon: Zap },
-    { label: "Friends", path: "/friends", icon: MessageSquare },
-  ];
+  const logout = async () => {
+    try {
+      await authService.logout();
+      router.replace("/login");
+    } catch {
+      router.replace("/login");
+    }
+  };
 
   return (
     <aside className="h-screen w-64 bg-surface border-r border-border-color flex flex-col sticky top-0 left-0 shrink-0">
-      {/* SECTION A: BRANDING */}
+      {/* Branding */}
       <div className="p-6 border-b border-border-color">
         <h1 className="text-xl font-bold tracking-tight text-primary">
           Taskmaster
         </h1>
       </div>
 
-      {/* SECTION B: MAIN NAVIGATION */}
+      {/* Navigation - Using Link for prefetch */}
       <nav className="flex-1 overflow-y-auto py-4 px-4 space-y-2">
         {menuItems.map((item) => {
           const isActive = pathname === item.path;
           const Icon = item.icon;
           
           return (
-            <button
+            <Link
               key={item.path}
-              onClick={() => router.push(item.path)}
+              href={item.path}
+              prefetch={true}
               className={`
                 w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200
                 ${isActive 
@@ -61,14 +72,14 @@ export const Sidebar: React.FC = () => {
             >
               <Icon size={20} />
               <span>{item.label}</span>
-            </button>
+            </Link>
           );
         })}
       </nav>
 
-      {/* SECTION C: USER & SYSTEM */}
+      {/* User & System */}
       <div className="mt-auto border-t border-border-color p-4 space-y-2">
-        {/* Profile Row */}
+        {/* Profile */}
         <div className="flex items-center gap-3 px-2 py-2 mb-2">
           {(user as any)?.pfp ? (
             <div className="relative w-8 h-8 rounded-full overflow-hidden">
@@ -90,30 +101,17 @@ export const Sidebar: React.FC = () => {
           </span>
         </div>
 
-        {/* System Links */}
-        <button 
-          onClick={() => router.push("/settings")}
+        <Link 
+          href="/settings"
+          prefetch={true}
           className="w-full flex items-center gap-3 px-4 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
         >
           <Settings size={18} />
           <span>Settings</span>
-        </button>
+        </Link>
         
         <button 
-          onClick={async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log("Logout button clicked");
-            try {
-              // Use authService.logout() which handles everything
-              await authService.logout();
-              router.replace("/login");
-            } catch (error) {
-              console.error("Logout error:", error);
-              // Force redirect even if there's an error
-              router.replace("/login");
-            }
-          }}
+          onClick={logout}
           className="w-full flex items-center gap-3 px-4 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-background hover:text-destructive transition-colors"
         >
           <LogOut size={18} />
