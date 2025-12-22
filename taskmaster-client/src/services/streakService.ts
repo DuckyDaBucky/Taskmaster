@@ -35,16 +35,27 @@ export const streakService = {
         return { streak: 0, streakChange: 0, loginDates: [], isNewLogin: false };
       }
 
+      // Use local date for streak calculation to match user's wall clock
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      // Reset time to midnight for accurate day comparison
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayStr = today.toLocaleDateString('en-CA'); // YYYY-MM-DD local
+
       const loginDates: string[] = profile.login_dates || [];
       const currentStreak = profile.streak || 0;
-      const lastLoginDate = profile.last_login_date;
+      const lastLoginDateUTC = profile.last_login_date;
 
-      // Check if already logged in today
-      const lastLoginDay = lastLoginDate ? new Date(lastLoginDate).toISOString().split('T')[0] : null;
+      // Determine last login day in local time
+      let lastLoginDay = null;
+      if (lastLoginDateUTC) {
+        const lastLoginDate = new Date(lastLoginDateUTC);
+        // Create date object for midnight of that day in LOCAL time
+        const lastDay = new Date(lastLoginDate.getFullYear(), lastLoginDate.getMonth(), lastLoginDate.getDate());
+        lastLoginDay = lastDay.toLocaleDateString('en-CA');
+      }
+
       if (lastLoginDay === todayStr) {
-        // Already logged in today, no change
+        // Already logged in today (local time), no change
         return {
           streak: currentStreak,
           streakChange: 0,
@@ -58,10 +69,12 @@ export const streakService = {
       let streakChange = 0;
 
       if (lastLoginDay) {
-        const lastDate = new Date(lastLoginDay);
-        const today = new Date(todayStr);
+        const lastDate = new Date(lastLoginDay); // This will be local midnight
+        // Difference in days (treating both as UTC midnight for calculation safety)
+        // Since we constructed them from YYYY-MM-DD strings or zeroed times, this is safe
+        // Actually, let's just use the timestamps of the zeroed dates
         const diffTime = today.getTime() - lastDate.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
         if (diffDays === 1) {
           // Consecutive day - increase streak
@@ -72,12 +85,10 @@ export const streakService = {
           const previousStreak = currentStreak;
           newStreak = 1;
           streakChange = -(previousStreak);
-          
-          // Log streak lost activity
+
           if (previousStreak > 0) {
-            await this.logActivity('streak_achieved', {
+            await this.logActivity('streak_lost', {
               streak: newStreak,
-              streakChange: streakChange,
               previousStreak: previousStreak
             });
           }
@@ -106,7 +117,7 @@ export const streakService = {
       // Log activity if streak increased
       if (streakChange > 0) {
         await this.logActivity('login', { streak: newStreak, streakChange });
-        
+
         // Log milestone achievements
         if (newStreak === 7 || newStreak === 30 || newStreak === 100 || newStreak % 50 === 0) {
           await this.logActivity('streak_achieved', {
@@ -148,7 +159,7 @@ export const streakService = {
 
       const lastLogin = new Date(profile.last_login_date);
       const now = new Date();
-      
+
       // Check if date changed (midnight passed)
       const lastLoginDay = lastLogin.toISOString().split('T')[0];
       const currentDay = now.toISOString().split('T')[0];

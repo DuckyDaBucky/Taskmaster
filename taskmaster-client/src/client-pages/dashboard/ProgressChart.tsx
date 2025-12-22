@@ -49,38 +49,38 @@ export const ProgressChart: React.FC<ProgressChartProps> = ({ tasks, isLoading }
         {/* Donut Chart */}
         <div className="relative" style={{ width: '140px', height: '140px' }}>
           <svg width="140" height="140" className="transform -rotate-90">
-            {/* Completed (Green) */}
+            {/* Completed (Green/Success) */}
             <circle
               cx="70"
               cy="70"
               r={radius}
               fill="none"
-              stroke="rgb(34, 197, 94)"
+              stroke="var(--color-success, #10b981)"
               strokeWidth="20"
               strokeDasharray={circumference}
               strokeDashoffset={circumference - completedLength}
               strokeLinecap="round"
             />
-            {/* Pending (Orange) */}
+            {/* Pending (Primary/Waiting) */}
             <circle
               cx="70"
               cy="70"
               r={radius}
               fill="none"
-              stroke="rgb(249, 115, 22)"
+              stroke="var(--color-warning, #f59e0b)"
               strokeWidth="20"
               strokeDasharray={circumference}
               strokeDashoffset={circumference - completedLength - pendingLength}
               strokeLinecap="round"
             />
-            {/* Overdue (Red) */}
+            {/* Overdue (Destructive/Error) */}
             {overdueTasks > 0 && (
               <circle
                 cx="70"
                 cy="70"
                 r={radius}
                 fill="none"
-                stroke="rgb(239, 68, 68)"
+                stroke="var(--color-destructive, #ef4444)"
                 strokeWidth="20"
                 strokeDasharray={circumference}
                 strokeDashoffset={circumference - completedLength - pendingLength - overdueLength}
@@ -99,14 +99,14 @@ export const ProgressChart: React.FC<ProgressChartProps> = ({ tasks, isLoading }
         {/* Legend */}
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-4 h-4 bg-green-500 rounded"></div>
+            <div className="w-4 h-4 bg-emerald-500 rounded"></div>
             <div>
               <div className="text-sm font-medium text-foreground">{completedTasks}</div>
               <div className="text-xs text-muted-foreground">Completed</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-4 h-4 bg-orange-500 rounded"></div>
+            <div className="w-4 h-4 bg-amber-500 rounded"></div>
             <div>
               <div className="text-sm font-medium text-foreground">{pendingTasks}</div>
               <div className="text-xs text-muted-foreground">Pending</div>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { X, ChevronDown, ChevronUp, Clock } from "lucide-react";
+import { X, ChevronDown, ChevronUp } from "lucide-react";
 import { apiService } from "../../services/api";
 import type { ClassData } from "../../services/types";
-import { AnalogTimePicker } from "../ui/AnalogTimePicker";
+import { TaskDateTimeInput } from "./TaskDateTimeInput";
 
 // Simple interface for TasksPage usage
 interface SimpleTaskModalProps {
@@ -30,7 +30,6 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     loadClasses();
@@ -187,66 +186,10 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
           </div>
 
           {/* Due Date & Time */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Due Date</label>
-              <input
-                type="date"
-                value={formData.deadline ? formData.deadline.split("T")[0] : ""}
-                onChange={(e) => {
-                  const date = e.target.value;
-                  const time = formData.deadline ? formData.deadline.split("T")[1]?.slice(0, 5) : "12:00";
-                  if (date) {
-                    onFormChange({ deadline: `${date}T${time}` });
-                  } else {
-                    onFormChange({ deadline: "" });
-                  }
-                }}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            
-            <div className="relative">
-              <label className="block text-xs text-muted-foreground mb-1">Time</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  readOnly
-                  value={formData.deadline ? new Date(formData.deadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "--:--"}
-                  onClick={() => {
-                    if (!formData.deadline) {
-                      // If no date selected, default to today
-                      const today = new Date().toISOString().split("T")[0];
-                      onFormChange({ deadline: `${today}T12:00` });
-                    }
-                    setShowTimePicker(true);
-                  }}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
-                  <Clock size={16} />
-                </div>
-              </div>
-
-              {/* Analog Time Picker Popover */}
-              {showTimePicker && (
-                <div className="absolute top-full right-0 mt-2 z-50">
-                   <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setShowTimePicker(false)}
-                   />
-                   <AnalogTimePicker
-                    value={formData.deadline ? formData.deadline.split("T")[1]?.slice(0, 5) : "12:00"}
-                    onChange={(time) => {
-                      const date = formData.deadline ? formData.deadline.split("T")[0] : new Date().toISOString().split("T")[0];
-                      onFormChange({ deadline: `${date}T${time}` });
-                    }}
-                    onClose={() => setShowTimePicker(false)}
-                   />
-                </div>
-              )}
-            </div>
-          </div>
+          <TaskDateTimeInput
+            value={formData.deadline}
+            onChange={(deadline) => onFormChange({ deadline })}
+          />
 
           {/* Advanced Options Toggle */}
           <button

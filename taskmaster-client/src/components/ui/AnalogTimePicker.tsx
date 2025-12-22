@@ -64,7 +64,7 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
     : minutes * 6;
 
   return (
-    <div className="absolute top-full left-0 mt-2 z-50" ref={pickerRef}>
+    <div className="z-50" ref={pickerRef}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
