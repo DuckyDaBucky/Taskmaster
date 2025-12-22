@@ -106,21 +106,6 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
         {/* Clock Face */}
         <div className="p-6">
           <div className="relative w-56 h-56 mx-auto bg-card rounded-full border-2 border-border shadow-inner">
-            {/* Center Dot */}
-            <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-primary rounded-full -translate-x-1/2 -translate-y-1/2 z-10" />
-
-            {/* Hand */}
-            <motion.div
-              className="absolute top-1/2 left-1/2 h-24 w-0.5 bg-primary origin-bottom -translate-x-1/2"
-              style={{ bottom: "50%" }}
-              animate={{ rotate: rotation }}
-              transition={{ type: "spring", stiffness: 150, damping: 20 }}
-            >
-              <div className="absolute -top-1 left-1/2 w-8 h-8 bg-primary/20 rounded-full -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-                <div className="w-2 h-2 bg-primary rounded-full" />
-              </div>
-            </motion.div>
-
             {/* Numbers */}
             <AnimatePresence mode="wait">
               <motion.div
