@@ -1,142 +1,234 @@
 # Coding Standards
 
-## File Organization
+This document defines how we write code in TaskMaster. Follow these patterns for consistency.
 
-### Directory Structure
+---
+
+## The #1 Rule: Component-Driven Development
+
+We hide complexity inside reusable components. This makes code readable and consistent.
+
+### What This Means in Practice
+
+| Instead of... | Use... |
+|---------------|--------|
+| `<div className="flex flex-col gap-4">` | `<Stack gap={4}>` |
+| `<div className="flex flex-row justify-between">` | `<Stack direction="row" justify="between">` |
+| `<p className="text-sm text-gray-500">` | `<Text variant="small" color="muted">` |
+| `<h1 className="text-2xl font-bold">` | `<Text variant="h1">` |
+| `<input className="px-3 py-2 border...">` | `<Input label="Name" />` |
+| `<select className="...">` | `<Select options={[...]} />` |
+| `<button className="px-4 py-2 bg-primary...">` | `<Button>Click</Button>` |
+
+---
+
+## Core UI Components (Use These!)
+
+All located in `src/components/ui/`:
+
+### Layout: `<Stack>`
+```tsx
+import { Stack } from "@/components/ui/Layout";
+
+// Vertical stack with gap
+<Stack gap={4}>
+  <Text>Item 1</Text>
+  <Text>Item 2</Text>
+</Stack>
+
+// Horizontal row with space-between
+<Stack direction="row" justify="between" align="center">
+  <Text>Left</Text>
+  <Button>Right</Button>
+</Stack>
+```
+
+### Typography: `<Text>`
+```tsx
+import { Text } from "@/components/ui/Text";
+
+<Text variant="h1">Big Title</Text>
+<Text variant="h2">Section Title</Text>
+<Text variant="body">Normal text</Text>
+<Text variant="small" color="muted">Gray helper text</Text>
+```
+
+### Form Inputs
+```tsx
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Button } from "@/components/ui/Button";
+
+<Input label="Email" type="email" placeholder="you@example.com" />
+
+<Select 
+  label="Status" 
+  options={[
+    { value: "pending", label: "Pending" },
+    { value: "done", label: "Done" }
+  ]} 
+/>
+
+<Button variant="primary">Save</Button>
+<Button variant="outline">Cancel</Button>
+```
+
+---
+
+## File & Folder Structure
+
 ```
 src/
-├── app/              # Next.js pages and API routes
-├── client-pages/     # Client component page implementations
-├── components/       # Reusable UI components
-├── context/          # React contexts (UserContext, ThemeContext)
-├── services/         # Business logic and API calls
-│   └── api/          # Supabase service functions
-├── lib/              # Utilities and clients
-└── styles/           # CSS files
+├── app/              # Next.js routing (minimal logic here)
+├── client-pages/     # Page implementations
+│   ├── dashboard/    # Dashboard feature
+│   ├── tasks/        # Tasks feature
+│   └── ...
+├── components/       
+│   ├── ui/           # Core primitives (Stack, Text, Button, etc.)
+│   ├── tasks/        # Task-specific components
+│   └── ...
+├── services/         # Database operations
+│   └── api/          # Individual service files
+├── context/          # Global state
+└── lib/              # Utilities
 ```
+
+---
 
 ## Naming Conventions
 
 ### Files
-| Type | Format | Example |
+| What | Format | Example |
 |------|--------|---------|
-| Component | PascalCase | `TaskModal.tsx` |
-| Page | PascalCase | `DashboardPage.tsx` |
-| Service | camelCase | `taskService.ts` |
-| Hook | camelCase | `useDebounce.ts` |
-| Types | camelCase | `types.ts` |
-| CSS | kebab-case | `calendar.css` |
+| Components | PascalCase | `TaskModal.tsx` |
+| Pages | PascalCase + "Page" | `DashboardPage.tsx` |
+| Services | camelCase + "Service" | `taskService.ts` |
+| Hooks | camelCase + "use" prefix | `useDebounce.ts` |
 
 ### Code
-| Type | Format | Example |
+| What | Format | Example |
 |------|--------|---------|
-| Component | PascalCase | `const TaskModal = () => {}` |
-| Function | camelCase | `async function getAllTasks()` |
-| Variable | camelCase | `const isLoading = true` |
-| Constant | UPPER_SNAKE | `const API_TIMEOUT = 10000` |
-| Type/Interface | PascalCase | `interface TasksData {}` |
+| Components | PascalCase | `const TaskCard = () => {}` |
+| Functions | camelCase | `async function fetchTasks()` |
+| Variables | camelCase | `const isLoading = true` |
+| Constants | UPPER_SNAKE | `const MAX_RETRIES = 3` |
+| Types | PascalCase | `interface TaskData {}` |
+
+---
 
 ## Component Template
 
-```tsx
-"use client";
+Copy this when creating new components:
 
-import React, { useState, useEffect } from "react";
+```tsx
+import React from "react";
+import { Stack } from "@/components/ui/Layout";
+import { Text } from "@/components/ui/Text";
 
 interface MyComponentProps {
   title: string;
   onAction?: () => void;
 }
 
-export const MyComponent: React.FC<MyComponentProps> = ({
-  title,
-  onAction,
-}) => {
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    // Effect logic
-  }, []);
-
+export const MyComponent: React.FC<MyComponentProps> = ({ title, onAction }) => {
   return (
-    <div className="p-4">
-      <h1>{title}</h1>
-    </div>
+    <Stack gap={4}>
+      <Text variant="h2">{title}</Text>
+      {/* Your content here */}
+    </Stack>
   );
 };
 ```
 
+---
+
 ## Service Template
+
+Copy this when creating new services:
 
 ```typescript
 import { supabase } from "@/lib/supabase";
 import { getCachedUserId } from "./authCache";
 
 export const myService = {
-  async getItems(): Promise<Item[]> {
+  async getAll(): Promise<MyType[]> {
     const userId = await getCachedUserId();
     
     const { data, error } = await supabase
-      .from('items')
+      .from('my_table')
       .select('*')
       .eq('user_id', userId);
     
     if (error) throw new Error(error.message);
     return data || [];
   },
+
+  async create(item: Partial<MyType>): Promise<MyType> {
+    const userId = await getCachedUserId();
+    
+    const { data, error } = await supabase
+      .from('my_table')
+      .insert({ ...item, user_id: userId })
+      .select()
+      .single();
+    
+    if (error) throw new Error(error.message);
+    return data;
+  },
 };
 ```
 
-## Best Practices
+---
 
-### 1. Use Services for Data
-```typescript
-// ✓ Good
-const tasks = await taskService.getAllTasks();
+## Common Patterns
 
-// ✗ Avoid
-const { data } = await supabase.from('tasks').select('*');
-```
-
-### 2. Handle Loading States
+### Loading States
 ```tsx
+const [isLoading, setIsLoading] = useState(true);
+
 if (isLoading) {
-  return <LoadingSpinner />;
+  return <Text color="muted">Loading...</Text>;
 }
 ```
 
-### 3. Handle Errors
-```typescript
+### Error Handling
+```tsx
 try {
   await apiService.createTask(data);
 } catch (error) {
-  setError(error.message);
+  const message = error instanceof Error ? error.message : "Failed";
+  setError(message);
 }
 ```
 
-### 4. Use TypeScript Properly
-```typescript
-// Define types for props
-interface Props {
-  title: string;
-  count?: number;
-}
+### Cross-Component Updates
+When one component changes data that another component displays:
 
-// Use types for state
-const [items, setItems] = useState<Item[]>([]);
+```tsx
+import { taskEvents } from "@/lib/taskEvents";
+
+// After creating/updating/deleting a task
+taskEvents.emit('task-updated');
 ```
 
-### 5. Emit Events for Cross-Component Updates
-```typescript
-import { taskEvents } from '@/lib/taskEvents';
+---
 
-// After modifying a task
-taskEvents.emit('task-updated', taskId);
-```
+## CSS Rules
 
-## CSS Guidelines
+1. **Never write raw Tailwind in pages** - Use our UI components
+2. **Tailwind is OK inside `components/ui/`** - That's where we hide it
+3. **Use theme colors** - `text-foreground`, `bg-card`, `text-primary`
+4. **No hardcoded colors** - Avoid `text-gray-500`, use `text-muted-foreground`
 
-- Use Tailwind utility classes
-- Theme variables: `var(--primary)`, `var(--bg-surface)`, etc.
-- Component-specific CSS in `/styles/` folder
-- Use semantic class names from theme system
+---
+
+## Quick Reference: Do's and Don'ts
+
+| Do | Don't |
+|-----|-------|
+| Use `<Stack>` and `<Text>` | Write raw `<div>` and `<p>` |
+| Use `apiService.method()` | Call `supabase.from()` directly |
+| Type your props with interfaces | Use `any` type |
+| Handle loading and error states | Assume data is always there |
+| Use theme colors (`text-foreground`) | Hardcode colors (`text-gray-800`) |

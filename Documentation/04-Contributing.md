@@ -1,108 +1,172 @@
 # Contributing
 
-## Setup
-1. Read `01-Getting-Started.md` for environment setup
-2. Read `02-Architecture.md` for project structure
-3. Run `npm run dev` and explore the app
+Ready to contribute? Here's everything you need to know.
 
-## Development Workflow
+---
 
-### 1. Create a Branch
+## Before You Start
+
+1. Read [01-Getting-Started.md](./01-Getting-Started.md) - Get the app running
+2. Read [06-Coding-Standards.md](./06-Coding-Standards.md) - Learn our patterns
+3. Explore the app at `localhost:3000` to understand what it does
+
+---
+
+## Your First Contribution (Step by Step)
+
+### Step 1: Create a Branch
 ```bash
 git checkout -b feature/your-feature-name
 ```
 
-### 2. Make Changes
-Edit files in `src/`. The dev server hot-reloads.
+Use prefixes: `feature/`, `fix/`, `docs/`
 
-### 3. Build Check
+### Step 2: Make Your Changes
+Edit files in `src/`. The dev server auto-reloads.
+
+### Step 3: Test Your Build
 ```bash
 npm run build
 ```
-Fix any TypeScript or build errors.
 
-### 4. Push and PR
+**This must pass with no errors.** Fix any TypeScript or build issues.
+
+### Step 4: Submit
 ```bash
 git add .
-git commit -m "feat: add your feature"
+git commit -m "feat: describe your change"
 git push origin feature/your-feature-name
 ```
+
 Open a Pull Request on GitHub.
 
 ---
 
-## Common Tasks
+## PR Checklist (Read This!)
 
-### Adding a New Page
-1. Create folder: `src/app/(protected)/your-page/`
-2. Add `page.tsx` with a React component
-3. For client logic, create component in `src/client-pages/`
+Before submitting, check these boxes:
 
-### Adding an API Route
-1. Create folder: `src/app/api/your-route/`
-2. Add `route.ts`:
+- [ ] **Did I use `<Stack>` and `<Text>`?** Not raw `<div>` and `<p>`
+- [ ] **Did I use `apiService`?** Not direct Supabase calls
+- [ ] **Did I add loading states?** Users shouldn't see blank screens
+- [ ] **Did I handle errors?** Wrap API calls in try/catch
+- [ ] **Does `npm run build` pass?** No TypeScript errors
+
+---
+
+## How To: Common Tasks
+
+### Add a New Page
+
+1. **Create the route**: `src/app/(protected)/your-page/page.tsx`
+   ```tsx
+   import YourPage from "@/client-pages/your-page/YourPage";
+   export default function Page() {
+     return <YourPage />;
+   }
+   ```
+
+2. **Create the implementation**: `src/client-pages/your-page/YourPage.tsx`
+   ```tsx
+   "use client";
+   import { Stack } from "@/components/ui/Layout";
+   import { Text } from "@/components/ui/Text";
+   
+   export default function YourPage() {
+     return (
+       <Stack gap={6}>
+         <Text variant="h1">Your Page Title</Text>
+         {/* Your content */}
+       </Stack>
+     );
+   }
+   ```
+
+### Add an API Route
+
+Create `src/app/api/your-route/route.ts`:
+
 ```typescript
-export async function POST(request: Request) {
-  const body = await request.json();
-  // Your logic
-  return Response.json({ success: true });
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    // Your logic here
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+  }
 }
 ```
 
-### Adding a Service Function
-1. Open `src/services/api/yourService.ts`
-2. Add function to the exported object
-3. Use `supabase.from('table')` for database calls
+### Add a Service Function
 
-### Modifying the Database
-1. Write SQL migration in `Documentation/migrations/`
-2. Run in Supabase SQL Editor
-3. Update TypeScript types if needed
+Open the relevant file in `src/services/api/` and add:
 
----
-
-## Code Style
-
-### Naming
-- **Files**: PascalCase for components (`TaskModal.tsx`), camelCase for services (`taskService.ts`)
-- **Functions**: camelCase (`getTaskById`)
-- **Types**: PascalCase (`TasksData`)
-
-### Imports
 ```typescript
-// Use absolute imports
-import { taskService } from '@/services/api';
-import { useUser } from '@/context/UserContext';
+async yourNewFunction(param: string): Promise<YourType> {
+  const userId = await getCachedUserId();
+  
+  const { data, error } = await supabase
+    .from('your_table')
+    .select('*')
+    .eq('user_id', userId);
+  
+  if (error) throw new Error(error.message);
+  return data || [];
+}
 ```
 
-### Components
-- Add `'use client'` for client components
-- Keep components small and focused
-- Extract reusable UI to `src/components/`
+---
+
+## Debugging Guide
+
+| Problem | What to Check |
+|---------|---------------|
+| Page blank/broken | Browser Console (F12) for errors |
+| API returning errors | Network tab in DevTools |
+| Data not showing | Supabase Table Editor - is the data there? |
+| Auth not working | Clear cookies, check `.env.local` |
+| Build failing | Read the error message carefully |
+
+### Common Errors
+
+**"Cannot find module..."**
+```bash
+npm install
+```
+
+**"supabase is not defined"**
+Check your `.env.local` has the correct variables.
+
+**TypeScript errors about `any`**
+Replace `any` with a proper type. See `src/services/types.ts` for existing types.
 
 ---
 
-## Debugging
+## Quick Reference
 
-| Issue | Solution |
-|-------|----------|
-| Page not loading | Check browser console (F12) |
-| API errors | Check Network tab for response |
-| Data issues | Check Supabase Table Editor |
-| Auth problems | Clear cookies, check session |
-
----
-
-## Design System
-
-### Theme
-Defined in `src/constants/theme.ts` and `globals.css`. Uses CSS variables for dark/light mode.
+### File Locations
+| What | Where |
+|------|-------|
+| Page routes | `src/app/(protected)/` |
+| Page logic | `src/client-pages/` |
+| UI components | `src/components/ui/` |
+| Feature components | `src/components/[feature]/` |
+| Database calls | `src/services/api/` |
+| Types | `src/services/types.ts` |
 
 ### Icons
-Use `lucide-react`:
-```typescript
-import { ChevronRight } from 'lucide-react';
+We use [Lucide React](https://lucide.dev/icons/):
+```tsx
+import { Plus, Trash2, Check } from 'lucide-react';
 ```
 
-### Responsive
-Mobile-first with Tailwind breakpoints (`md:`, `lg:`).
+### Theme Colors
+Use these Tailwind classes (they auto-switch for dark mode):
+- `text-foreground` - Main text
+- `text-muted-foreground` - Gray text
+- `bg-card` - Card backgrounds
+- `bg-primary` - Accent/button color
+- `text-destructive` - Error red
