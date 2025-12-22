@@ -54,13 +54,23 @@
   opacity: 0.6;
 }
 
-/* Today's date */
+/* Today's date - highlighted with border and background */
 .rbc-today {
-  background-color: rgba(59, 130, 246, 0.1) !important;
+  background-color: rgba(59, 130, 246, 0.15) !important;
 }
 
-.rbc-today .rbc-day-bg {
-  background-color: rgba(59, 130, 246, 0.1) !important;
+.rbc-day-bg.rbc-today {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  border: 2px solid var(--primary) !important;
+  border-radius: 0.25rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* Today's date number */
+.rbc-date-cell.rbc-now {
+  font-weight: 700;
+  color: var(--primary);
 }
 
 /* Header styling */
@@ -72,7 +82,7 @@
   font-weight: 600;
 }
 
-.rbc-header + .rbc-header {
+.rbc-header+.rbc-header {
   border-left: 1px solid var(--border);
 }
 
@@ -171,7 +181,7 @@
 }
 
 /* Remove any default margins/padding that might cause awkward spacing */
-.rbc-toolbar > * {
+.rbc-toolbar>* {
   margin: 0;
   padding: 0;
 }
@@ -218,7 +228,7 @@
 }
 
 /* Remove any default padding from calendar wrapper */
-.rbc-calendar > div {
+.rbc-calendar>div {
   padding: 0;
 }
 
@@ -229,12 +239,12 @@
     align-items: flex-start;
     gap: 0.75rem;
   }
-  
+
   .rbc-toolbar-label {
     width: 100%;
     text-align: center;
   }
-  
+
   .rbc-btn-group {
     width: 100%;
     justify-content: center;
@@ -253,16 +263,16 @@
   opacity: 0.5;
 }
 
-.rbc-date-cell > a {
+.rbc-date-cell>a {
   color: var(--text-primary);
   text-decoration: none;
 }
 
-.rbc-date-cell > a:hover {
+.rbc-date-cell>a:hover {
   color: var(--primary);
 }
 
-.rbc-date-cell.rbc-off-range > a {
+.rbc-date-cell.rbc-off-range>a {
   color: var(--text-secondary);
   opacity: 0.5;
 }
@@ -275,6 +285,12 @@
   padding: 0.125rem 0.25rem;
   font-size: 0.75rem;
   border: none;
+  /* Prevent text overflow - single line */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 1.5rem;
+  line-height: 1.25rem;
 }
 
 .rbc-event:focus {
@@ -284,10 +300,16 @@
 
 .rbc-event-label {
   color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rbc-event-content {
   color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Event styles for different statuses */
@@ -366,7 +388,7 @@
 }
 
 /* Month view - specific fixes */
-.rbc-month-view .rbc-day-bg + .rbc-day-bg {
+.rbc-month-view .rbc-day-bg+.rbc-day-bg {
   border-left: 1px solid var(--border);
 }
 
@@ -391,4 +413,3 @@
 .rbc-time-view .rbc-day-slot {
   border-color: var(--border);
 }
-
