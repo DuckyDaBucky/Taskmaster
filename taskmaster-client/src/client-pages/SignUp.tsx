@@ -27,39 +27,55 @@ function Signup() {
 
     try {
       await authService.signup(formData);
-      
+
       // Check if we have a session (no email confirmation)
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session) {
-        router.replace("/dashboard");
+        router.replace("/onboarding");
       } else {
         setError("Check your email to confirm your account, then log in.");
       }
-    } catch (err: any) {
-      setError(err.message || "Signup failed");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Signup failed");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [field]: e.target.value });
-  };
+  const handleChange =
+    (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData({ ...formData, [field]: e.target.value });
+    };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-y-auto" style={{ backgroundColor: theme.colors.background }}>
+    <div
+      className="relative min-h-screen flex items-center justify-center overflow-y-auto"
+      style={{ backgroundColor: theme.colors.background }}
+    >
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#6B6BFF] via-[#8B7FFF] to-[#A88FFF] opacity-90" />
-      
+
       {/* Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-lg mx-4 my-8 z-10 p-8 rounded-xl"
-        style={{ backgroundColor: theme.colors.surface, boxShadow: theme.shadows.modal }}
+        style={{
+          backgroundColor: theme.colors.surface,
+          boxShadow: theme.shadows.modal,
+        }}
       >
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: theme.colors.accentPrimary }}>
+          <h1
+            className="text-3xl font-bold mb-2"
+            style={{ color: theme.colors.accentPrimary }}
+          >
             Taskmaster
           </h1>
           <p className="text-sm" style={{ color: theme.colors.textSecondary }}>
@@ -76,7 +92,10 @@ function Signup() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: theme.colors.textPrimary }}>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: theme.colors.textPrimary }}
+              >
                 Username
               </label>
               <input
@@ -95,7 +114,10 @@ function Signup() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: theme.colors.textPrimary }}>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: theme.colors.textPrimary }}
+              >
                 Email
               </label>
               <input
@@ -116,7 +138,10 @@ function Signup() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: theme.colors.textPrimary }}>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: theme.colors.textPrimary }}
+              >
                 First Name
               </label>
               <input
@@ -134,7 +159,10 @@ function Signup() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: theme.colors.textPrimary }}>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: theme.colors.textPrimary }}
+              >
                 Last Name
               </label>
               <input
@@ -154,7 +182,10 @@ function Signup() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: theme.colors.textPrimary }}>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: theme.colors.textPrimary }}
+            >
               Password
             </label>
             <input
@@ -182,9 +213,16 @@ function Signup() {
             {isLoading ? "Creating account..." : "Create Account"}
           </button>
 
-          <p className="text-center text-sm" style={{ color: theme.colors.textSecondary }}>
+          <p
+            className="text-center text-sm"
+            style={{ color: theme.colors.textSecondary }}
+          >
             Already have an account?{" "}
-            <Link href="/login" className="font-semibold" style={{ color: theme.colors.accentPrimary }}>
+            <Link
+              href="/login"
+              className="font-semibold"
+              style={{ color: theme.colors.accentPrimary }}
+            >
               Log in
             </Link>
           </p>
