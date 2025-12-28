@@ -15,13 +15,20 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Redirect if already logged in
+  // Redirect if already logged in - use getUser() for server validation
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        router.replace("/dashboard");
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!error && user) {
+          router.replace("/dashboard");
+        }
+      } catch {
+        // Not authenticated, stay on login page
+      } finally {
+        setIsCheckingAuth(false);
       }
     };
     checkAuth();
@@ -34,15 +41,23 @@ function Login() {
 
     try {
       await authService.login(email, password, true);
-      // Track login streak
-      await streakService.updateStreak();
+      // Track login streak (don't await - let it happen in background)
+      streakService.updateStreak().catch(console.error);
       router.replace("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed");
-    } finally {
       setIsLoading(false);
     }
   };
+
+  // Show loading while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: theme.colors.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ backgroundColor: theme.colors.background }}>

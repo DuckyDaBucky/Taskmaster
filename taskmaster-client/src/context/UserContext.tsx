@@ -1,8 +1,9 @@
 "use client";
 
-import React, { createContext, useState, useContext, useEffect, ReactNode } from "react";
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef, ReactNode } from "react";
 import { supabase } from "../lib/supabase";
 import { authService } from "../services/api/authService";
+import { clearAuthCache, setAuthCache } from "../services/api/authCache";
 
 interface UserData {
   _id: string;
@@ -33,85 +34,97 @@ interface UserContextProps {
   user: UserData | null;
   isLoadingUser: boolean;
   setUserState: (data: Partial<UserData>) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextProps | undefined>(undefined);
 
-const USER_TIMEOUT_MS = 10000; // 10 second timeout
-
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const mountedRef = useRef(true);
+  const loadingRef = useRef(false);
 
-  const loadUser = async () => {
+  const loadUser = useCallback(async (): Promise<void> => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+
     try {
-      // Create timeout promise
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('User load timeout')), USER_TIMEOUT_MS);
-      });
-
-      // Race between user load and timeout
-      const loadPromise = (async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          const userData = await authService.getUserMe();
-          return userData;
-        }
-        return null;
-      })();
-
-      const userData = await Promise.race([loadPromise, timeoutPromise]);
+      const { data: { user: authUser }, error } = await supabase.auth.getUser();
       
-      if (userData) {
+      if (!mountedRef.current) return;
+      
+      if (error || !authUser) {
+        clearAuthCache();
+        setUser(null);
+        return;
+      }
+
+      setAuthCache(authUser.id);
+      const userData = await authService.getUserMe();
+      
+      if (!mountedRef.current) return;
+
+      if (userData && userData.username !== 'user') {
         setUser(userData);
-        
-        // Apply user's saved theme preference
         if (userData.theme && typeof window !== 'undefined') {
           localStorage.setItem('appTheme', userData.theme);
           document.documentElement.setAttribute('data-theme', userData.theme);
         }
-      } else {
-        setUser(null);
       }
-    } catch (error: any) {
-      console.error("Failed to load user:", error.message);
-      setUser(null);
+    } catch (error) {
+      console.error('[UserContext] Error loading user:', error);
+      if (!user) setUser(null);
     } finally {
-      setIsLoadingUser(false);
+      loadingRef.current = false;
+      if (mountedRef.current) setIsLoadingUser(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
+    mountedRef.current = true;
     loadUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        await loadUser();
-      } else if (event === 'SIGNED_OUT') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        clearAuthCache();
         setUser(null);
+        setIsLoadingUser(false);
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        setAuthCache(session.user.id);
+        loadUser();
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        setAuthCache(session.user.id);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mountedRef.current = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const setUserState = (data: Partial<UserData>) => {
-    setUser(prev => prev ? { ...prev, ...data } : null);
-  };
+  const setUserState = useCallback((data: Partial<UserData>) => {
+    setUser(prev => {
+      if (!prev) return null;
+      if (data.username === 'user' || data.displayName === 'user') return prev;
+      return { ...prev, ...data };
+    });
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
+    clearAuthCache();
     await supabase.auth.signOut();
     setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.clear();
-    }
-  };
+    if (typeof window !== 'undefined') localStorage.clear();
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
+    loadingRef.current = false; // Allow refresh
+    setIsLoadingUser(true);
     await loadUser();
-  };
+  }, [loadUser]);
 
   return (
     <UserContext.Provider value={{ user, isLoadingUser, setUserState, logout, refreshUser }}>
@@ -122,8 +135,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export const useUser = (): UserContextProps => {
   const context = useContext(UserContext);
-  if (!context) {
-    throw new Error("useUser must be used within a UserProvider");
-  }
+  if (!context) throw new Error("useUser must be used within a UserProvider");
   return context;
 };

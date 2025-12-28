@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authService } from "../services/api";
@@ -19,6 +19,24 @@ function Signup() {
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Redirect if already logged in - use getUser() for server validation
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!error && user) {
+          router.replace("/dashboard");
+        }
+      } catch {
+        // Not authenticated, stay on signup page
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,14 +46,13 @@ function Signup() {
     try {
       await authService.signup(formData);
 
-      // Check if we have a session (no email confirmation)
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) {
+      // Check if we have a valid user (no email confirmation needed)
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (!authError && user) {
         router.replace("/onboarding");
       } else {
         setError("Check your email to confirm your account, then log in.");
+        setIsLoading(false);
       }
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -43,10 +60,18 @@ function Signup() {
       } else {
         setError("Signup failed");
       }
-    } finally {
       setIsLoading(false);
     }
   };
+
+  // Show loading while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: theme.colors.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   const handleChange =
     (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {

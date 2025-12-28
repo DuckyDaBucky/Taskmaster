@@ -47,19 +47,26 @@ const AIAssistant: React.FC = () => {
     }
   }, [isOpen, isMinimized]);
 
-  // Load user context when assistant opens
+  // Load user context when assistant opens - use getUser() for server validation
   useEffect(() => {
     const loadContext = async () => {
       if (isOpen && !contextLoaded) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id) {
-            const context = await aiContextService.getUserContext(session.user.id);
+          const { data: { user }, error } = await supabase.auth.getUser();
+          if (!error && user?.id) {
+            const context = await aiContextService.getUserContext(user.id);
             const prompt = await aiContextService.buildSystemPrompt(context);
             setSystemPrompt(prompt);
             setContextLoaded(true);
           } else {
-            console.warn('No active session for AI context');
+            console.warn('No authenticated user for AI context');
+            // Still set a fallback prompt
+            setSystemPrompt(
+              `You are TaskMaster AI, an intelligent study assistant for the TaskMaster platform at UTD. 
+              Help students with their tasks, classes, calendar, flashcards, and study resources. 
+              Be friendly, concise, and action-oriented.`
+            );
+            setContextLoaded(true);
           }
         } catch (error) {
           console.error('Failed to load AI context:', error);
@@ -76,13 +83,13 @@ const AIAssistant: React.FC = () => {
     loadContext();
   }, [isOpen, contextLoaded]);
 
-  // Function to refresh context
+  // Function to refresh context - use getUser() for server validation
   const refreshContext = async () => {
     setContextLoaded(false);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        const context = await aiContextService.getUserContext(session.user.id);
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (!error && user?.id) {
+        const context = await aiContextService.getUserContext(user.id);
         const prompt = await aiContextService.buildSystemPrompt(context);
         setSystemPrompt(prompt);
         setContextLoaded(true);
@@ -111,13 +118,13 @@ const AIAssistant: React.FC = () => {
     let userContent = input.trim();
     const fileToUpload = attachedFile;
     
-    // If file is attached, upload it first
+    // If file is attached, upload it first - use getUser() for server validation
     if (fileToUpload) {
       setIsUploading(true);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.id) {
-          const resource = await apiService.smartUploadResource(fileToUpload);
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!error && user?.id) {
+          await apiService.smartUploadResource(fileToUpload);
           userContent += `\n\n[Attached: ${fileToUpload.name}]`;
           
           // Add confirmation message
@@ -126,6 +133,8 @@ const AIAssistant: React.FC = () => {
             role: 'assistant',
             content: `File "${fileToUpload.name}" uploaded successfully! I'll analyze it and help you with any questions about it.`,
           }]);
+        } else {
+          throw new Error('Not authenticated');
         }
       } catch (error: any) {
         setMessages(prev => [...prev, {
@@ -200,19 +209,16 @@ const AIAssistant: React.FC = () => {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-12 h-12 hover:scale-110 transition-transform bg-transparent border-0"
+        className="fixed bottom-6 right-6 z-50 w-12 h-12 p-0 hover:scale-110 transition-transform !bg-transparent border-none outline-none cursor-pointer"
         title="Open TaskMaster AI"
-        style={{ background: 'transparent', border: 'none' }}
       >
-        <div className="relative w-full h-full"> 
-          <Image 
-            src="/favicon.png" 
-            alt="TaskMaster" 
-            fill
-            className="drop-shadow-lg object-contain"
-            sizes="48px"
-          />
-        </div>
+        <Image 
+          src="/favicon.png" 
+          alt="TaskMaster" 
+          width={48}
+          height={48}
+          className="drop-shadow-lg"
+        />
       </button>
     );
   }
@@ -222,19 +228,16 @@ const AIAssistant: React.FC = () => {
     return (
       <button
         onClick={() => setIsMinimized(false)}
-        className="fixed bottom-6 right-6 z-50 w-12 h-12 hover:scale-110 transition-transform bg-transparent"
+        className="fixed bottom-6 right-6 z-50 w-12 h-12 p-0 hover:scale-110 transition-transform !bg-transparent border-none outline-none cursor-pointer"
         title="Open TaskMaster AI"
-        style={{ background: 'transparent', border: 'none' }}
       >
-        <div className="relative w-full h-full"> 
-          <Image 
-            src="/favicon.png" 
-            alt="TaskMaster" 
-            fill
-            className="drop-shadow-lg object-contain"
-            sizes="48px"
-          />
-        </div>
+        <Image 
+          src="/LogoMaster.png" 
+          alt="TaskMaster" 
+          width={48}
+          height={48}
+          className="drop-shadow-lg"
+        />
       </button>
     );
   }
