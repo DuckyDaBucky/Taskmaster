@@ -1,4 +1,5 @@
 import React from "react";
+import { CheckCircle2, Circle, Flame } from "lucide-react";
 import type { TasksData } from "../../services/types";
 
 interface ActivityChartProps {
@@ -7,87 +8,100 @@ interface ActivityChartProps {
 }
 
 export const ActivityChart: React.FC<ActivityChartProps> = ({ tasks, isLoading }) => {
-  // Group tasks by date (last 7 days)
-  const getLast7Days = () => {
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      days.push(date.toISOString().split('T')[0]);
-    }
-    return days;
-  };
-
-  const last7Days = getLast7Days();
-  
-  // Count tasks created/completed per day
-  const dailyActivity = last7Days.map(date => {
-    const tasksOnDate = tasks.filter(task => {
-      if (!task.deadline) return false;
-      const taskDate = new Date(task.deadline).toISOString().split('T')[0];
-      return taskDate === date;
-    });
-    
-    return {
-      date,
-      created: tasksOnDate.length,
-      completed: tasksOnDate.filter(t => t.status === 'completed').length,
-    };
-  });
-
-  const maxValue = Math.max(...dailyActivity.map(d => Math.max(d.created, d.completed)), 1);
+  const completedTasks = tasks.filter(t => t.completed || t.status === 'completed');
+  const pendingTasks = tasks.filter(t => !t.completed && t.status !== 'completed');
+  const totalTasks = tasks.length;
 
   if (isLoading) {
     return (
-      <div className="bg-card border border-border rounded-md p-6 h-64 flex items-center justify-center">
-        <div className="text-muted-foreground">Loading chart...</div>
+      <div className="bg-card border border-border rounded-lg p-6 h-48 flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-card border border-border rounded-md p-6">
-      <h3 className="text-lg font-semibold text-foreground mb-4">Task Activity (Last 7 Days)</h3>
-      <div className="flex items-end justify-between h-48 gap-2">
-        {dailyActivity.map((day, idx) => {
-          const dateObj = new Date(day.date);
-          const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-          
-          return (
-            <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-              <div className="flex gap-1 items-end h-full w-full">
+    <div className="bg-card border border-border rounded-lg p-6">
+      <h3 className="text-lg font-semibold text-foreground mb-6">Your Progress</h3>
+      
+      {/* Task completion visual */}
+      <div className="space-y-4">
+        {/* Completed tasks row */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 min-w-[100px]">
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+            <span className="text-sm font-medium text-foreground">Done</span>
+          </div>
+          <div className="flex-1 flex items-center gap-1.5 flex-wrap">
+            {completedTasks.length > 0 ? (
+              completedTasks.slice(0, 12).map((task) => (
                 <div
-                  className="flex-1 bg-primary/60 rounded-t transition-all"
-                  style={{
-                    height: `${(day.created / maxValue) * 100}%`,
-                    minHeight: day.created > 0 ? '4px' : '0',
-                  }}
-                  title={`${day.created} tasks`}
-                />
-                <div
-                  className="flex-1 bg-green-500/60 rounded-t transition-all"
-                  style={{
-                    height: `${(day.completed / maxValue) * 100}%`,
-                    minHeight: day.completed > 0 ? '4px' : '0',
-                  }}
-                  title={`${day.completed} completed`}
-                />
+                  key={task._id}
+                  className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center"
+                  title={task.title}
+                >
+                  <span className="text-[10px] font-bold text-white">✓</span>
+                </div>
+              ))
+            ) : (
+              <span className="text-sm text-muted-foreground italic">No tasks completed yet</span>
+            )}
+            {completedTasks.length > 12 && (
+              <div className="w-6 h-6 bg-emerald-500/20 rounded-full flex items-center justify-center border border-emerald-500/30">
+                <span className="text-[10px] font-bold text-emerald-500">+{completedTasks.length - 12}</span>
               </div>
-              <span className="text-xs text-muted-foreground mt-1">{dayName}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex gap-4 mt-4 justify-center">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-primary/60 rounded"></div>
-          <span className="text-xs text-muted-foreground">Tasks</span>
+            )}
+          </div>
+          <span className="text-2xl font-bold text-emerald-500 min-w-[40px] text-right">{completedTasks.length}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500/60 rounded"></div>
-          <span className="text-xs text-muted-foreground">Completed</span>
+
+        {/* Pending tasks row */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 min-w-[100px]">
+            <Circle className="w-5 h-5 text-amber-500" />
+            <span className="text-sm font-medium text-foreground">To Do</span>
+          </div>
+          <div className="flex-1 flex items-center gap-1.5 flex-wrap">
+            {pendingTasks.length > 0 ? (
+              pendingTasks.slice(0, 12).map((task) => (
+                <div
+                  key={task._id}
+                  className="w-6 h-6 bg-amber-500/20 rounded-full flex items-center justify-center border border-amber-500/40"
+                  title={task.title}
+                >
+                  <span className="text-[10px] text-amber-500">○</span>
+                </div>
+              ))
+            ) : (
+              <span className="text-sm text-emerald-500 font-medium flex items-center gap-1">
+                <Flame className="w-4 h-4" /> All done!
+              </span>
+            )}
+            {pendingTasks.length > 12 && (
+              <div className="w-6 h-6 bg-amber-500/20 rounded-full flex items-center justify-center border border-amber-500/30">
+                <span className="text-[10px] font-bold text-amber-500">+{pendingTasks.length - 12}</span>
+              </div>
+            )}
+          </div>
+          <span className="text-2xl font-bold text-amber-500 min-w-[40px] text-right">{pendingTasks.length}</span>
         </div>
       </div>
+
+      {/* Progress bar */}
+      {totalTasks > 0 && (
+        <div className="mt-6">
+          <div className="flex justify-between text-xs text-muted-foreground mb-2">
+            <span>Progress</span>
+            <span>{Math.round((completedTasks.length / totalTasks) * 100)}% complete</span>
+          </div>
+          <div className="h-2 bg-border rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${(completedTasks.length / totalTasks) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

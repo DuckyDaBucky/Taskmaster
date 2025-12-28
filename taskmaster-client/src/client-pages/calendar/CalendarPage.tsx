@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Calendar as BigCalendar, dateFnsLocalizer, Components } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
@@ -51,101 +51,130 @@ const CalendarPage: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!user?._id) {
-        setIsLoading(false);
-        return;
-      }
+  const fetchData = useCallback(async () => {
+    if (!user?._id) {
+      setIsLoading(false);
+      return;
+    }
 
-      try {
-        setIsLoading(true);
-        
-        // Fetch login dates for streak indicators
-        const loginData = await authService.getLoginDates();
-        setLoginDates(loginData.loginDates || []);
-        
-        // Fetch classes
-        const userClasses = await apiService.getClassesByUserId(user._id);
+    try {
+      setIsLoading(true);
+      
+      // Fetch login dates for streak indicators
+      const loginData = await authService.getLoginDates();
+      setLoginDates(loginData.loginDates || []);
+      
+      // Fetch classes
+      const userClasses = await apiService.getClassesByUserId(user._id);
 
-        // Fetch events
-        const userEvents = await apiService.getEvents();
-        const formattedEvents: CalendarEvent[] = userEvents.map((event: any) => ({
-          id: event._id || event.id,
-          title: event.title,
-          start: new Date(event.start),
-          end: new Date(event.end),
-          description: event.notes?.[0] || "",
-          location: event.location || "",
-          isTask: false,
-        }));
+      // Fetch events
+      const userEvents = await apiService.getEvents();
+      const formattedEvents: CalendarEvent[] = userEvents.map((event: any) => ({
+        id: event._id || event.id,
+        title: event.title,
+        start: new Date(event.start),
+        end: new Date(event.end),
+        description: event.notes?.[0] || "",
+        location: event.location || "",
+        isTask: false,
+      }));
 
-        // Fetch all tasks (includes personal tasks)
-        const allTasks = await apiService.getAllTasks();
+      // Fetch all tasks (includes personal tasks)
+      const allTasks = await apiService.getAllTasks();
 
-        // Generate color map for classes
-        const classColors = new Map<string, string>();
-        const colors = [
-          "#3b82f6", // blue
-          "#10b981", // green
-          "#f59e0b", // orange
-          "#ef4444", // red
-          "#8b5cf6", // purple
-          "#ec4899", // pink
-          "#06b6d4", // cyan
-          "#84cc16", // lime
-        ];
-        userClasses.forEach((cls, idx) => {
-          classColors.set(cls._id, colors[idx % colors.length]);
+      // Generate color map for classes
+      const classColors = new Map<string, string>();
+      const colors = [
+        "#3b82f6", // blue
+        "#10b981", // green
+        "#f59e0b", // orange
+        "#ef4444", // red
+        "#8b5cf6", // purple
+        "#ec4899", // pink
+        "#06b6d4", // cyan
+        "#84cc16", // lime
+      ];
+      userClasses.forEach((cls, idx) => {
+        classColors.set(cls._id, colors[idx % colors.length]);
+      });
+
+      // Convert tasks to calendar events (using deadline as the date)
+      const taskEvents: CalendarEvent[] = allTasks
+        .filter((task: TasksData) => task.deadline) // Only include tasks with deadlines
+        .map((task: TasksData) => {
+          // Parse deadline string properly - handle both with and without timezone
+          let deadlineStr = task.deadline!;
+          
+          // If it's an ISO string with timezone (ends with Z or +/-), parse directly
+          // Otherwise, treat as local time by parsing components manually
+          let deadlineDate: Date;
+          if (deadlineStr.includes('T') && !deadlineStr.includes('Z') && !deadlineStr.match(/[+-]\d{2}:\d{2}$/)) {
+            // Format: "YYYY-MM-DDTHH:mm" - parse as local time
+            const [datePart, timePart] = deadlineStr.split('T');
+            const [year, month, day] = datePart.split('-').map(Number);
+            const [hours, minutes] = (timePart || '00:00').split(':').map(Number);
+            deadlineDate = new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+          } else {
+            // Has timezone info or is date-only, use standard Date parsing
+            deadlineDate = new Date(deadlineStr);
+          }
+          
+          const className = task.class 
+            ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
+            : "Personal";
+          const taskClassId = task.class || "personal";
+          const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
+          
+          // Set end time to 1 hour after start (or end of day if no specific time)
+          const endDate = new Date(deadlineDate);
+          if (task.deadline!.includes("T") && task.deadline!.match(/\d{2}:\d{2}/)) {
+            // Has time component, add 1 hour
+            endDate.setHours(endDate.getHours() + 1);
+          } else {
+            // No time component, set to end of day
+            endDate.setHours(23, 59, 59);
+          }
+
+          return {
+            id: `task-${task._id}`,
+            title: task.title,
+            start: deadlineDate,
+            end: endDate,
+            description: task.topic || `Class: ${className}`,
+            location: className,
+            isTask: true,
+            status: task.status,
+            classId: taskClassId,
+            color: color,
+          };
         });
 
-        // Convert tasks to calendar events (using deadline as the date)
-        const taskEvents: CalendarEvent[] = allTasks
-          .filter((task: TasksData) => task.deadline) // Only include tasks with deadlines
-          .map((task: TasksData) => {
-            const deadlineDate = new Date(task.deadline!);
-            const className = task.class 
-              ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
-              : "Personal";
-            const taskClassId = task.class || "personal";
-            const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
-            
-            // Set end time to 1 hour after start (or end of day if no specific time)
-            const endDate = new Date(deadlineDate);
-            if (task.deadline!.includes("T")) {
-              // Has time component, add 1 hour
-              endDate.setHours(endDate.getHours() + 1);
-            } else {
-              // No time component, set to end of day
-              endDate.setHours(23, 59, 59);
-            }
+      // Combine events and tasks
+      setEvents([...formattedEvents, ...taskEvents]);
+    } catch (error) {
+      console.error("Error fetching calendar data:", error);
+      setError("Failed to load calendar");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?._id]);
 
-            return {
-              id: `task-${task._id}`,
-              title: task.title,
-              start: deadlineDate,
-              end: endDate,
-              description: task.topic || `Class: ${className}`,
-              location: className,
-              isTask: true,
-              status: task.status,
-              classId: taskClassId,
-              color: color,
-            };
-          });
+  // Fetch on mount and when user changes
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-        // Combine events and tasks
-        setEvents([...formattedEvents, ...taskEvents]);
-      } catch (error) {
-        console.error("Error fetching calendar data:", error);
-        setError("Failed to load calendar");
-      } finally {
-        setIsLoading(false);
+  // Refresh when page becomes visible (e.g., after navigating back from tasks page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData();
       }
     };
 
-    fetchData();
-  }, [user?._id]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchData]);
 
   const handleSaveEvent = async (event: CalendarEvent) => {
     try {

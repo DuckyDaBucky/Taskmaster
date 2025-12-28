@@ -21,11 +21,18 @@ export const TaskList: React.FC<TaskListProps> = ({
 }) => {
   const [completingTaskId, setCompletingTaskId] = React.useState<string | null>(null);
 
-  const filteredTasks = tasks.filter((task) => {
-    if (filter === "all") return true;
-    if (filter === "completed") return task.completed;
-    return !task.completed;
-  });
+  const filteredTasks = tasks
+    .filter((task) => {
+      if (filter === "all") return true;
+      if (filter === "completed") return task.completed;
+      return !task.completed;
+    })
+    .sort((a, b) => {
+      // Pending tasks first, completed tasks last
+      if (a.completed && !b.completed) return 1;
+      if (!a.completed && b.completed) return -1;
+      return 0;
+    });
 
   const handleToggle = async (task: TasksData) => {
     if (!onToggleComplete) return;

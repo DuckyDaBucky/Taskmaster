@@ -1,11 +1,6 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
-  // Silence the multiple lockfile warning
-  turbopack: {
-    root: path.resolve(__dirname),
-  },
   // Allow images from Supabase storage
   images: {
     remotePatterns: [
@@ -15,6 +10,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Speed up dev builds
+  reactStrictMode: false,
+  poweredByHeader: false,
 };
 
 export default nextConfig;
