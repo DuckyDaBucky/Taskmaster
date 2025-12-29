@@ -1,11 +1,19 @@
 "use client";
 
-import React, { createContext, useState, useContext, useEffect, useCallback, useRef, ReactNode } from "react";
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useCallback,
+  useRef,
+  ReactNode,
+} from "react";
 import { supabase } from "../lib/supabase";
 import { authService } from "../services/api/authService";
 import { clearAuthCache, setAuthCache } from "../services/api/authCache";
 
-interface UserData {
+export interface UserData {
   _id: string;
   firstName?: string;
   lastName?: string;
@@ -28,6 +36,11 @@ interface UserData {
   points?: number;
   streak?: number;
   level?: number;
+  net_id?: string;
+  major?: string;
+  current_year?: string;
+  expected_graduation?: string;
+  pfp?: string; 
 }
 
 interface UserContextProps {
@@ -40,7 +53,9 @@ interface UserContextProps {
 
 const UserContext = createContext<UserContextProps | undefined>(undefined);
 
-export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const UserProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const mountedRef = useRef(true);
@@ -51,10 +66,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loadingRef.current = true;
 
     try {
-      const { data: { user: authUser }, error } = await supabase.auth.getUser();
-      
+      const {
+        data: { user: authUser },
+        error,
+      } = await supabase.auth.getUser();
+
       if (!mountedRef.current) return;
-      
+
       if (error || !authUser) {
         clearAuthCache();
         setUser(null);
@@ -63,18 +81,18 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       setAuthCache(authUser.id);
       const userData = await authService.getUserMe();
-      
+
       if (!mountedRef.current) return;
 
-      if (userData && userData.username !== 'user') {
+      if (userData && userData.username !== "user") {
         setUser(userData);
-        if (userData.theme && typeof window !== 'undefined') {
-          localStorage.setItem('appTheme', userData.theme);
-          document.documentElement.setAttribute('data-theme', userData.theme);
+        if (userData.theme && typeof window !== "undefined") {
+          localStorage.setItem("appTheme", userData.theme);
+          document.documentElement.setAttribute("data-theme", userData.theme);
         }
       }
     } catch (error) {
-      console.error('[UserContext] Error loading user:', error);
+      console.error("[UserContext] Error loading user:", error);
       if (!user) setUser(null);
     } finally {
       loadingRef.current = false;
@@ -86,15 +104,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     mountedRef.current = true;
     loadUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
         clearAuthCache();
         setUser(null);
         setIsLoadingUser(false);
-      } else if (event === 'SIGNED_IN' && session?.user) {
+      } else if (event === "SIGNED_IN" && session?.user) {
         setAuthCache(session.user.id);
         loadUser();
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+      } else if (event === "TOKEN_REFRESHED" && session?.user) {
         setAuthCache(session.user.id);
       }
     });
@@ -106,9 +126,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const setUserState = useCallback((data: Partial<UserData>) => {
-    setUser(prev => {
+    setUser((prev) => {
       if (!prev) return null;
-      if (data.username === 'user' || data.displayName === 'user') return prev;
+      if (data.username === "user" || data.displayName === "user") return prev;
       return { ...prev, ...data };
     });
   }, []);
@@ -117,7 +137,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     clearAuthCache();
     await supabase.auth.signOut();
     setUser(null);
-    if (typeof window !== 'undefined') localStorage.clear();
+    if (typeof window !== "undefined") localStorage.clear();
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -127,7 +147,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [loadUser]);
 
   return (
-    <UserContext.Provider value={{ user, isLoadingUser, setUserState, logout, refreshUser }}>
+    <UserContext.Provider
+      value={{ user, isLoadingUser, setUserState, logout, refreshUser }}
+    >
       {children}
     </UserContext.Provider>
   );
