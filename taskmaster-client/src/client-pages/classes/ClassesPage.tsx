@@ -28,7 +28,10 @@ const ClassesPage: React.FC = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(null);
       }
     };
@@ -66,6 +69,7 @@ const ClassesPage: React.FC = () => {
   }, [user?._id]);
 
   const handleOpenEditModal = (classItem: ClassData) => {
+    console.log("OPEN EDIT MODAL for:", classItem._id, classItem.name);
     setEditingClassId(classItem._id);
     setFormData({
       name: classItem.name || "",
@@ -115,10 +119,16 @@ const ClassesPage: React.FC = () => {
         timing: formData.timing.trim() || undefined,
         location: formData.location.trim() || undefined,
         topics: formData.topics.trim()
-          ? formData.topics.split(",").map((t) => t.trim()).filter(Boolean)
+          ? formData.topics
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
           : undefined,
         textbooks: formData.textbooks.trim()
-          ? formData.textbooks.split(",").map((t) => t.trim()).filter(Boolean)
+          ? formData.textbooks
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
           : undefined,
         gradingPolicy: formData.gradingPolicy.trim() || undefined,
         contactInfo: formData.contactInfo.trim() || undefined,
@@ -150,14 +160,21 @@ const ClassesPage: React.FC = () => {
       setError(null);
     } catch (error: any) {
       console.error("Error saving class:", error);
-      setError(error.response?.data?.message || `Failed to ${editingClassId ? 'update' : 'create'} class`);
+      setError(
+        error.response?.data?.message ||
+          `Failed to ${editingClassId ? "update" : "create"} class`
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteClass = async (classId: string) => {
-    if (!confirm("Are you sure you want to delete this class? This action cannot be undone.")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this class? This action cannot be undone."
+      )
+    ) {
       return;
     }
 
@@ -192,7 +209,9 @@ const ClassesPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Classes</h1>
         </div>
-        <div className="text-center text-muted-foreground">Loading classes...</div>
+        <div className="text-center text-muted-foreground">
+          Loading classes...
+        </div>
       </div>
     );
   }
@@ -225,20 +244,42 @@ const ClassesPage: React.FC = () => {
           {classes.map((course, index) => (
             <div
               key={course._id}
-              className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all"
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                console.log("TILE CLICKED:", course._id);
+                handleOpenEditModal(course);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleOpenEditModal(course);
+                }
+              }}
+              aria-label={`Edit class ${course.name}`}
+              className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               <div className={`h-2 ${getColorClass(index)}`} />
               <div className="p-5">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    {course.name.split(" ").map((w) => w[0]).join("").substring(0, 6)}
+                    {course.name
+                      .split(" ")
+                      .map((w) => w[0])
+                      .join("")
+                      .substring(0, 6)}
                   </span>
-                  <div className="relative" ref={showDropdown === course._id ? dropdownRef : null}>
+                  <div
+                    className="relative"
+                    ref={showDropdown === course._id ? dropdownRef : null}
+                  >
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowDropdown(showDropdown === course._id ? null : course._id);
+                        setShowDropdown(
+                          showDropdown === course._id ? null : course._id
+                        );
                       }}
                       className="text-muted-foreground hover:text-foreground transition-colors p-1"
                     >
@@ -272,7 +313,9 @@ const ClassesPage: React.FC = () => {
                     )}
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-1">{course.name}</h3>
+                <h3 className="text-lg font-bold text-foreground mb-1">
+                  {course.name}
+                </h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   {course.professor || "No professor listed"}
                 </p>
@@ -285,7 +328,8 @@ const ClassesPage: React.FC = () => {
                   )}
                   {course.location && (
                     <div className="text-xs text-muted-foreground">
-                      <span className="font-medium">Location:</span> {course.location}
+                      <span className="font-medium">Location:</span>{" "}
+                      {course.location}
                     </div>
                   )}
                 </div>
