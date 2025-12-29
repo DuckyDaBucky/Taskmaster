@@ -17,8 +17,12 @@ function makeChangeEvent(
   onChange?.(event);
 }
 
-export default function DayPickerCaptionDropdown(props: DropdownProps) {
-  const { value, options, onChange, name, disabled } = props;
+export default function DayPickerCaptionDropdown(
+  props: DropdownProps & { variant?: "onboarding" | "settings" }
+) {
+  const { value, options, onChange, name, disabled, variant } = props;
+
+  const isSettings = props.variant === "settings";
 
   const opts = useMemo(() => {
     return (options ?? []).map((o: DropdownOption) => ({
@@ -52,25 +56,34 @@ export default function DayPickerCaptionDropdown(props: DropdownProps) {
 
   return (
     <div ref={rootRef} className="relative">
-      {/* The trigger can stay simple; the menu is what you care about */}
       <button
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={[
-          "h-11 min-w-[160px] rounded-2xl px-4 text-sm font-medium outline-none transition",
-          "bg-white/10 border border-white/15 text-white/90",
-          "hover:bg-white/15 focus:border-white/30 focus:bg-white/15",
+          "h-11 min-w-[150px] rounded-2xl px-4 text-sm font-medium outline-none transition",
           "flex items-center justify-between gap-3",
+          isSettings
+            ? "bg-background border border-border text-foreground hover:bg-secondary focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            : "bg-white/10 border border-white/15 text-white/90 hover:bg-white/15 focus:border-white/30 focus:bg-white/15",
           disabled ? "opacity-60 cursor-not-allowed" : "",
         ].join(" ")}
       >
         <span className="truncate">{selectedLabel}</span>
-        <span className="text-white/60">▾</span>
+        <span
+          className={isSettings ? "text-muted-foreground" : "text-white/60"}
+        ></span>
       </button>
 
       {open && !disabled && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-full overflow-hidden rounded-2xl border border-white/15 bg-[#1a1933]/90 backdrop-blur-xl shadow-2xl">
+        <div
+          className={[
+            "absolute left-0 top-[calc(100%+8px)] z-50 w-full overflow-hidden rounded-2xl shadow-2xl",
+            isSettings
+              ? "border border-border bg-card"
+              : "border border-white/15 bg-[#1a1933]/90 backdrop-blur-xl",
+          ].join(" ")}
+        >
           <div className="max-h-64 overflow-y-auto p-2">
             {opts.map((o) => {
               const active = o.value === String(value ?? "");
@@ -85,7 +98,11 @@ export default function DayPickerCaptionDropdown(props: DropdownProps) {
                   className={[
                     "w-full text-left px-4 py-3 rounded-xl text-sm transition",
                     active
-                      ? "bg-white/15 text-white"
+                      ? isSettings
+                        ? "bg-secondary text-foreground"
+                        : "bg-white/15 text-white"
+                      : isSettings
+                      ? "text-foreground hover:bg-secondary"
                       : "text-white/80 hover:bg-white/10 hover:text-white",
                   ].join(" ")}
                 >

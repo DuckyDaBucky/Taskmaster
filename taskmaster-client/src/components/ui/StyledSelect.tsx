@@ -14,6 +14,7 @@ type StyledSelectProps = {
   placeholder?: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  variant?: "onboarding" | "settings";
 };
 
 export default function StyledSelect({
@@ -22,11 +23,43 @@ export default function StyledSelect({
   placeholder = "Select one…",
   onChange,
   disabled,
+  variant = "onboarding",
 }: StyledSelectProps) {
   const [open, setOpen] = useState(false);
 
-  const selectedLabel =
-    options.find((o) => o.value === value)?.label ?? "";
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? "";
+
+  const isSettings = variant === "settings";
+
+  const triggerClass = isSettings
+    ? [
+        "bg-background border border-border text-foreground",
+        "focus:ring-2 focus:ring-primary/40 focus:border-primary",
+        disabled ? "opacity-60 cursor-not-allowed" : "hover:bg-secondary",
+      ].join(" ")
+    : [
+        "bg-white/10 border border-white/20 text-white",
+        "focus:border-white/40 focus:bg-white/15",
+        disabled ? "opacity-60 cursor-not-allowed" : "hover:bg-white/15",
+      ].join(" ");
+
+  const placeholderClass = isSettings
+    ? "text-muted-foreground"
+    : "text-white/60";
+  const valueTextClass = isSettings ? "text-foreground" : "text-white";
+  const chevronClass = isSettings ? "text-muted-foreground" : "text-white/70";
+
+  const menuClass = isSettings
+    ? "border border-border bg-card text-foreground shadow-lg"
+    : "border border-white/15 bg-black/60 backdrop-blur-xl shadow-2xl";
+
+  const optionBaseClass = "w-full px-4 py-2.5 text-left text-sm transition";
+  const optionActiveClass = isSettings
+    ? "bg-primary/10 text-foreground"
+    : "bg-white/15 text-white";
+  const optionIdleClass = isSettings
+    ? "text-foreground hover:bg-primary/10"
+    : "text-white/80 hover:bg-white/10 hover:text-white";
 
   return (
     <div className="relative">
@@ -36,19 +69,18 @@ export default function StyledSelect({
         onClick={() => setOpen((o) => !o)}
         className={[
           "w-full rounded-2xl px-4 py-3 text-left transition outline-none",
-          "bg-white/10 border border-white/20 text-white",
-          "focus:border-white/40 focus:bg-white/15",
-          disabled ? "opacity-60 cursor-not-allowed" : "hover:bg-white/15",
+          triggerClass,
         ].join(" ")}
       >
         <div className="flex items-center justify-between gap-3">
-          <span className={value ? "text-white" : "text-white/60"}>
+          <span className={value ? valueTextClass : placeholderClass}>
             {value ? selectedLabel : placeholder}
           </span>
 
           <svg
             className={[
-              "h-5 w-5 text-white/70 transition-transform",
+              "h-5 w-5 transition-transform",
+              chevronClass,
               open ? "rotate-180" : "rotate-0",
             ].join(" ")}
             viewBox="0 0 20 20"
@@ -78,7 +110,10 @@ export default function StyledSelect({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.98 }}
               transition={{ duration: 0.18 }}
-              className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-white/15 bg-black/60 backdrop-blur-xl shadow-2xl"
+              className={[
+                "absolute left-0 z-20 mt-2 w-full overflow-hidden rounded-2xl",
+                menuClass,
+              ].join(" ")}
             >
               <div className="max-h-64 overflow-auto py-2">
                 {options.map((opt) => {
@@ -92,10 +127,8 @@ export default function StyledSelect({
                         setOpen(false);
                       }}
                       className={[
-                        "w-full px-4 py-2.5 text-left text-sm transition",
-                        active
-                          ? "bg-white/15 text-white"
-                          : "text-white/80 hover:bg-white/10 hover:text-white",
+                        optionBaseClass,
+                        active ? optionActiveClass : optionIdleClass,
                       ].join(" ")}
                     >
                       {opt.label}

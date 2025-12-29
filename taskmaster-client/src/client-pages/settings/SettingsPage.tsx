@@ -11,6 +11,22 @@ import OnboardingSection from "./components/OnboardingSection";
 import NotificationsSection from "./components/NotificationsSection";
 import DangerZoneSection from "./components/DangerZoneSection";
 
+
+type YearOption =
+  | "Freshman"
+  | "Sophomore"
+  | "Junior"
+  | "Senior"
+  | "Graduate"
+  | "Other";
+
+type OnboardingForm = {
+  net_id: string;
+  major: string;
+  current_year: YearOption | "";
+  expected_graduation: string;
+};
+
 const SettingsPage: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const { user, setUserState, logout } = useUser();
@@ -40,7 +56,7 @@ const SettingsPage: React.FC = () => {
   const getErrorMessage = (err: unknown) =>
     err instanceof Error ? err.message : "Something went wrong";
 
-  const [onboardingForm, setOnboardingForm] = useState({
+  const [onboardingForm, setOnboardingForm] = useState<OnboardingForm>({
     net_id: "",
     major: "",
     current_year: "",
@@ -87,7 +103,7 @@ const SettingsPage: React.FC = () => {
       setOnboardingForm({
         net_id: user.net_id || "",
         major: user.major || "",
-        current_year: user.current_year || "",
+        current_year: (user.current_year as YearOption) || "",
         expected_graduation: user.expected_graduation || "",
       });
     } else {
@@ -117,7 +133,7 @@ const SettingsPage: React.FC = () => {
     const next = {
       net_id: data?.net_id ?? "",
       major: data?.major ?? "",
-      current_year: data?.current_year ?? "",
+      current_year: (data?.current_year as YearOption) || "",
       expected_graduation: data?.expected_graduation ?? "",
     };
 
