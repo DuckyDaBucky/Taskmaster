@@ -4,16 +4,15 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  CheckSquare, 
-  Calendar, 
-  BookOpen, 
-  FileText, 
-  Zap, 
-  MessageSquare, 
-  Settings, 
-  LogOut 
+import {
+  LayoutDashboard,
+  CheckSquare,
+  Calendar,
+  BookOpen,
+  FileText,
+  Zap,
+  MessageSquare,
+  LogOut,
 } from "lucide-react";
 import { useUser } from "../context/UserContext";
 import { authService } from "../services/api";
@@ -56,7 +55,7 @@ export const Sidebar: React.FC = () => {
         {menuItems.map((item) => {
           const isActive = pathname === item.path;
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.path}
@@ -64,9 +63,10 @@ export const Sidebar: React.FC = () => {
               prefetch={true}
               className={`
                 w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200
-                ${isActive 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:bg-background hover:text-foreground"
+                ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-background hover:text-foreground"
                 }
               `}
             >
@@ -80,12 +80,18 @@ export const Sidebar: React.FC = () => {
       {/* User & System */}
       <div className="mt-auto border-t border-border-color p-4 space-y-2">
         {/* Profile */}
-        <div className="flex items-center gap-3 px-2 py-2 mb-2">
-          {(user as any)?.pfp ? (
+        <Link
+          href="/settings"
+          prefetch={true}
+          className="flex items-center gap-3 px-2 py-2 mb-2 rounded-md hover:bg-background transition-colors cursor-pointer"
+        >
+          {user?.pfp ? (
             <div className="relative w-8 h-8 rounded-full overflow-hidden">
-               <Image 
-                src={(user as any).pfp} 
-                alt={user?.firstName || user?.displayName || user?.email || "User"} 
+              <Image
+                src={user.pfp}
+                alt={
+                  user?.firstName || user?.displayName || user?.email || "User"
+                }
                 fill
                 className="object-cover"
                 sizes="32px"
@@ -93,24 +99,23 @@ export const Sidebar: React.FC = () => {
             </div>
           ) : (
             <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xs">
-              {(user?.firstName?.[0] || user?.displayName?.[0] || user?.email?.[0] || "?").toUpperCase()}
+              {(
+                user?.firstName?.[0] ||
+                user?.displayName?.[0] ||
+                user?.email?.[0] ||
+                "?"
+              ).toUpperCase()}
             </div>
           )}
           <span className="text-sm text-foreground font-medium truncate max-w-[140px]">
-            {user?.firstName || user?.displayName || user?.email?.split('@')[0] || "Loading..."}
+            {user?.firstName ||
+              user?.displayName ||
+              user?.email?.split("@")[0] ||
+              "Loading..."}
           </span>
-        </div>
-
-        <Link 
-          href="/settings"
-          prefetch={true}
-          className="w-full flex items-center gap-3 px-4 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
-        >
-          <Settings size={18} />
-          <span>Settings</span>
         </Link>
-        
-        <button 
+
+        <button
           onClick={logout}
           className="w-full flex items-center gap-3 px-4 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-background hover:text-destructive transition-colors"
         >
