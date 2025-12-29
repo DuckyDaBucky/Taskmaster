@@ -110,9 +110,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTasks }) => {
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">Welcome back, {displayName}!</p>
         </div>
-        <button className="px-4 py-2 bg-primary hover:opacity-90 text-white rounded-md text-sm font-medium transition-colors">
-          + New Task
-        </button>
       </div>
 
       <StatsWidget tasks={tasks} isLoading={isLoading} user={user} />
