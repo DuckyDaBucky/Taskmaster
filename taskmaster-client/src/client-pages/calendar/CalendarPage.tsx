@@ -3,6 +3,7 @@ import { Calendar as BigCalendar, dateFnsLocalizer, Components } from "react-big
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import AddEventModal from "../../components/AddEventModal";
+import { TaskModal } from "../../components/tasks/TaskModal";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import { authService } from "../../services/api/authService";
@@ -19,6 +20,27 @@ const localizer = dateFnsLocalizer({
   getDay,
   locales,
 });
+
+const hasTimezoneInfo = (deadlineStr: string) => /Z$|[+-]\d{2}:\d{2}$/.test(deadlineStr);
+const hasExplicitTime = (deadlineStr: string) => deadlineStr.includes("T") && /\d{2}:\d{2}/.test(deadlineStr);
+
+const parseTaskDeadline = (deadlineStr: string) => {
+  if (deadlineStr.includes("T") && !hasTimezoneInfo(deadlineStr)) {
+    // Treat "YYYY-MM-DDTHH:mm" as local time instead of UTC.
+    const [datePart, timePart = "00:00"] = deadlineStr.split("T");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hours, minutes] = timePart.split(":").map(Number);
+    return new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+  }
+
+  if (!deadlineStr.includes("T")) {
+    // Treat date-only strings as local midnight.
+    const [year, month, day] = deadlineStr.split("-").map(Number);
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
+  }
+
+  return new Date(deadlineStr);
+};
 
 interface CalendarEvent {
   id: string;
@@ -40,6 +62,8 @@ const CalendarPage: React.FC = () => {
   const [loginDates, setLoginDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [eventData, setEventData] = useState<CalendarEvent>({
     id: "",
@@ -102,22 +126,8 @@ const CalendarPage: React.FC = () => {
       const taskEvents: CalendarEvent[] = allTasks
         .filter((task: TasksData) => task.deadline) // Only include tasks with deadlines
         .map((task: TasksData) => {
-          // Parse deadline string properly - handle both with and without timezone
-          let deadlineStr = task.deadline!;
-          
-          // If it's an ISO string with timezone (ends with Z or +/-), parse directly
-          // Otherwise, treat as local time by parsing components manually
-          let deadlineDate: Date;
-          if (deadlineStr.includes('T') && !deadlineStr.includes('Z') && !deadlineStr.match(/[+-]\d{2}:\d{2}$/)) {
-            // Format: "YYYY-MM-DDTHH:mm" - parse as local time
-            const [datePart, timePart] = deadlineStr.split('T');
-            const [year, month, day] = datePart.split('-').map(Number);
-            const [hours, minutes] = (timePart || '00:00').split(':').map(Number);
-            deadlineDate = new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
-          } else {
-            // Has timezone info or is date-only, use standard Date parsing
-            deadlineDate = new Date(deadlineStr);
-          }
+          const deadlineStr = task.deadline!;
+          const deadlineDate = parseTaskDeadline(deadlineStr);
           
           const className = task.class 
             ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
@@ -127,7 +137,7 @@ const CalendarPage: React.FC = () => {
           
           // Set end time to 1 hour after start (or end of day if no specific time)
           const endDate = new Date(deadlineDate);
-          if (task.deadline!.includes("T") && task.deadline!.match(/\d{2}:\d{2}/)) {
+          if (hasExplicitTime(deadlineStr)) {
             // Has time component, add 1 hour
             endDate.setHours(endDate.getHours() + 1);
           } else {
@@ -146,6 +156,7 @@ const CalendarPage: React.FC = () => {
             status: task.status,
             classId: taskClassId,
             color: color,
+            taskId: task._id,
           };
         });
 
@@ -298,7 +309,8 @@ const CalendarPage: React.FC = () => {
       const taskEvents: CalendarEvent[] = allTasks
         .filter((task: TasksData) => task.deadline)
         .map((task: TasksData) => {
-          const deadlineDate = new Date(task.deadline!);
+          const deadlineStr = task.deadline!;
+          const deadlineDate = parseTaskDeadline(deadlineStr);
           const className = task.class 
             ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
             : "Personal";
@@ -306,7 +318,7 @@ const CalendarPage: React.FC = () => {
           const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
           
           const endDate = new Date(deadlineDate);
-          if (task.deadline!.includes("T")) {
+          if (hasExplicitTime(deadlineStr)) {
             endDate.setHours(endDate.getHours() + 1);
           } else {
             endDate.setHours(23, 59, 59);
@@ -334,26 +346,10 @@ const CalendarPage: React.FC = () => {
     }
   };
 
-  const handleSelectEvent = async (event: CalendarEvent) => {
+  const handleSelectEvent = (event: CalendarEvent) => {
     if (event.isTask && event.taskId) {
-      // For tasks, allow editing deadline only
-      const newDeadline = prompt(
-        `Edit deadline for "${event.title}"\nCurrent: ${event.start.toLocaleString()}\nEnter new deadline (YYYY-MM-DDTHH:mm):`,
-        event.start.toISOString().slice(0, 16)
-      );
-      
-      if (newDeadline) {
-        try {
-          const deadlineDate = new Date(newDeadline);
-          await apiService.updateTask(event.taskId, {
-            deadline: deadlineDate.toISOString(),
-          });
-          await refreshCalendarData();
-        } catch (error: any) {
-          console.error("Error updating task deadline:", error);
-          setError(error.response?.data?.message || "Failed to update task deadline");
-        }
-      }
+      setEditingTaskId(event.taskId);
+      setShowTaskModal(true);
       return;
     }
     
@@ -470,6 +466,16 @@ const CalendarPage: React.FC = () => {
         onSave={handleSaveEvent}
         onDelete={handleDeleteEvent}
       />
+      {showTaskModal && (
+        <TaskModal
+          editingTaskId={editingTaskId}
+          onClose={() => {
+            setShowTaskModal(false);
+            setEditingTaskId(null);
+          }}
+          onTaskSaved={refreshCalendarData}
+        />
+      )}
     </div>
   );
 };
