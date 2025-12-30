@@ -7,6 +7,7 @@ import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import { authService } from "../../services/api/authService";
 import type { TasksData } from "../../services/types";
+import { googleService } from "../../services/api/googleService";
 
 const locales = {
   "en-US": enUS,
@@ -27,12 +28,16 @@ interface CalendarEvent {
   end: Date;
   description?: string;
   location?: string;
-  isTask?: boolean; // Flag to distinguish tasks from events
+  isTask?: boolean;
   status?: "pending" | "completed" | "overdue";
-  classId?: string; // For color coding
-  color?: string; // Color for the event
-  taskId?: string; // Original task ID for editing
+  classId?: string;
+  color?: string;
+  taskId?: string;
+
+  source?: "app" | "task" | "google";
 }
+
+
 
 const CalendarPage: React.FC = () => {
   const { user } = useUser();
@@ -134,14 +139,34 @@ const CalendarPage: React.FC = () => {
             };
           });
 
+        const googleEventsRaw = await googleService.getEvents();
+
+        const googleEvents: CalendarEvent[] = googleEventsRaw.map((event: any) => ({
+          id: event.id,
+          title: event.title,
+          start: new Date(event.start),
+          end: new Date(event.end),
+          description: event.description,
+          location: event.location,
+          color: "#4285F4", // Google blue
+          source: "google",
+        }));
+
         // Combine events and tasks
-        setEvents([...formattedEvents, ...taskEvents]);
+        setEvents([
+          ...formattedEvents,
+          ...taskEvents,
+          ...googleEvents,
+        ]);
+
       } catch (error) {
         console.error("Error fetching calendar data:", error);
         setError("Failed to load calendar");
       } finally {
         setIsLoading(false);
       }
+
+
     };
 
     fetchData();

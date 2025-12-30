@@ -231,9 +231,16 @@ const SettingsPage: React.FC = () => {
               Edit Profile
             </button>
           )}
+          <button
+            className=""
+            onClick={() => {
+              window.location.href = "/api/google/connect";
+            }}
+          >
+            Connect Google Calendar
+          </button>
         </div>
       </section>
-
       {/* Appearance Section */}
       <section className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
@@ -246,7 +253,6 @@ const SettingsPage: React.FC = () => {
             Select your preferred theme. This will be your default when you log in.
           </p>
         </div>
-
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
           {themes.map((t) => (
             <button
