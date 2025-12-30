@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AnalogTimePickerProps {
@@ -19,8 +19,6 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
   const [minutes, setMinutes] = useState(0);
   const [meridiem, setMeridiem] = useState<"AM" | "PM">("AM");
   const [mode, setMode] = useState<"hours" | "minutes">("hours");
-  
-  const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (value) {
@@ -32,16 +30,6 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
       }
     }
   }, []); // Only run on mount to respect prop value initially
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
 
   const handleSave = () => {
     let h = hours;
@@ -64,7 +52,7 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
     : minutes * 6;
 
   return (
-    <div className="z-50" ref={pickerRef}>
+    <div className="z-50" onClick={(e) => e.stopPropagation()}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -74,6 +62,7 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
         <div className="bg-primary/10 p-4 flex items-center justify-center gap-2 border-b border-border/50">
           <div className="flex items-baseline text-4xl font-bold text-primary">
             <button 
+              type="button"
               onClick={() => setMode("hours")}
               className={`transition-opacity ${mode === "hours" ? "opacity-100" : "opacity-50 hover:opacity-80"}`}
             >
@@ -81,6 +70,7 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
             </button>
             <span className="opacity-50 text-2xl mx-1">:</span>
             <button 
+              type="button"
               onClick={() => setMode("minutes")}
               className={`transition-opacity ${mode === "minutes" ? "opacity-100" : "opacity-50 hover:opacity-80"}`}
             >
@@ -89,12 +79,14 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
           </div>
           <div className="flex flex-col ml-4 gap-1">
             <button
+              type="button"
               onClick={() => setMeridiem("AM")}
               className={`text-xs font-bold px-2 py-1 rounded ${meridiem === "AM" ? "bg-primary text-white" : "bg-card hover:bg-border"}`}
             >
               AM
             </button>
             <button
+              type="button"
               onClick={() => setMeridiem("PM")}
               className={`text-xs font-bold px-2 py-1 rounded ${meridiem === "PM" ? "bg-primary text-white" : "bg-card hover:bg-border"}`}
             >
@@ -138,6 +130,7 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
 
                   return (
                     <button
+                      type="button"
                       key={num}
                       onClick={() => {
                         if (mode === "hours") {
@@ -166,12 +159,14 @@ export const AnalogTimePicker: React.FC<AnalogTimePickerProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-border flex justify-end gap-2 bg-card">
           <button 
+            type="button"
             onClick={onClose}
             className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-border rounded-md"
           >
             Cancel
           </button>
           <button 
+            type="button"
             onClick={handleSave}
             className="px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:opacity-90 font-medium"
           >

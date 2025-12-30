@@ -13,15 +13,21 @@ function SplashPage() {
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
+    // Check if user is already logged in - use getUser() for server validation
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // User is logged in, redirect to dashboard
-        router.replace("/dashboard");
-      } else {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!error && user) {
+          // User is logged in, redirect to dashboard
+          router.replace("/dashboard");
+        } else {
+          setIsChecking(false);
+          // Only set light theme for splash page if not logged in
+          setTheme("light");
+          localStorage.setItem("appTheme", "light");
+        }
+      } catch {
         setIsChecking(false);
-        // Only set light theme for splash page if not logged in
         setTheme("light");
         localStorage.setItem("appTheme", "light");
       }

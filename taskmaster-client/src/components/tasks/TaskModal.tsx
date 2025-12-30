@@ -16,6 +16,18 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
   onClose,
   onTaskSaved,
 }) => {
+  const toLocalInputValue = (date: Date) => {
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const toISOStringFromLocalInput = (value: string) => {
+    const [datePart, timePart = "00:00"] = value.split("T");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hours, minutes] = timePart.split(":").map(Number);
+    return new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0).toISOString();
+  };
+
   const [formData, setFormData] = useState({
     title: "",
     deadline: "",
@@ -54,7 +66,7 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
       if (task) {
         setFormData({
           title: task.title || "",
-          deadline: task.deadline ? new Date(task.deadline).toISOString().slice(0, 16) : "",
+          deadline: task.deadline ? toLocalInputValue(new Date(task.deadline)) : "",
           topic: task.topic || "",
           status: task.status || "pending",
           points: task.points?.toString() || "",
@@ -94,7 +106,7 @@ export const TaskModal: React.FC<SimpleTaskModalProps> = ({
 
       const taskData = {
         title: formData.title,
-        deadline: formData.deadline || undefined,
+        deadline: formData.deadline ? toISOStringFromLocalInput(formData.deadline) : undefined,
         topic: formData.topic || undefined,
         status: formData.status,
         points: formData.points ? parseInt(formData.points) : undefined,

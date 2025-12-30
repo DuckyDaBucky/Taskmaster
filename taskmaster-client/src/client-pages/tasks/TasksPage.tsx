@@ -81,9 +81,10 @@ const TasksPage: React.FC = () => {
 
   const handleToggleComplete = async (taskId: string, completed: boolean) => {
     try {
-      await apiService.updateTask(taskId, { completed });
+      const status = completed ? 'completed' : 'pending';
+      await apiService.updateTask(taskId, { completed, status });
       setTasks(prev => prev.map(t => 
-        t._id === taskId ? { ...t, completed } : t
+        t._id === taskId ? { ...t, completed, status } : t
       ));
       
       // Notify other components

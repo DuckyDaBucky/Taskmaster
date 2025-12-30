@@ -81,6 +81,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTasks }) => {
     return () => { unsubscribe(); };
   }, [fetchTasks]);
 
+  // Refresh when page becomes visible (e.g., after navigating back from tasks page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTasks();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchTasks]);
+
   // Midnight check
   useEffect(() => {
     const interval = setInterval(() => {

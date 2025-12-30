@@ -38,7 +38,11 @@ export const TaskDateTimeInput: React.FC<TaskDateTimeInputProps> = ({
   };
 
   const handleTimeChange = (time: string) => {
-    const date = getDatePart() || new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString()
+      .split("T")[0];
+    const date = getDatePart() || localDate;
     onChange(`${date}T${time}`);
   };
 
@@ -76,15 +80,15 @@ export const TaskDateTimeInput: React.FC<TaskDateTimeInputProps> = ({
 
         {/* Floating Time Picker Overlay */}
         {showTimePicker && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            {/* Click outside to close */}
+          <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setShowTimePicker(false)}
+          >
+            {/* Picker Container - stops propagation to prevent closing */}
             <div 
-              className="absolute inset-0" 
-              onClick={() => setShowTimePicker(false)}
-            />
-            
-            {/* Picker Container */}
-            <div className="relative bg-surface rounded-xl shadow-2xl z-10">
+              className="relative bg-surface rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
               <AnalogTimePicker
                 value={getTimePart()}
                 onChange={handleTimeChange}
