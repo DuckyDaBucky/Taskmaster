@@ -8,6 +8,7 @@ interface MyEvent {
   end: Date;
   description?: string;
   location?: string;
+  source?: "app" | "task" | "google";
 }
 
 interface AddEventModalProps {
@@ -36,8 +37,11 @@ const AddEventModal: React.FC<AddEventModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const isGoogleEvent = eventData.source === "google";
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isGoogleEvent) return;
     if (!eventData.title.trim()) return;
     onSave(eventData);
   };
@@ -55,18 +59,25 @@ const AddEventModal: React.FC<AddEventModalProps> = ({
           </button>
         </div>
 
+        {isGoogleEvent && (
+          <p className="text-xs text-muted-foreground mb-3">
+            This event is synced from Google Calendar and can’t be edited here.
+          </p>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title */}
-          <div>
-            <input
-              type="text"
-              value={eventData.title}
-              onChange={(e) => setEventData({ ...eventData, title: e.target.value })}
-              placeholder="Event title"
-              autoFocus
-              className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground text-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+          <input
+            type="text"
+            disabled={isGoogleEvent}
+            value={eventData.title}
+            onChange={(e) =>
+              setEventData({ ...eventData, title: e.target.value })
+            }
+            placeholder="Event title"
+            autoFocus
+            className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground text-lg disabled:opacity-60"
+          />
 
           {/* Date/Time */}
           <div className="grid grid-cols-2 gap-3">
@@ -74,69 +85,83 @@ const AddEventModal: React.FC<AddEventModalProps> = ({
               <label className="block text-xs text-muted-foreground mb-1">Start</label>
               <input
                 type="datetime-local"
+                disabled={isGoogleEvent}
                 value={toLocalInputValue(eventData.start)}
-                onChange={(e) => setEventData({ ...eventData, start: new Date(e.target.value) })}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={(e) =>
+                  setEventData({ ...eventData, start: new Date(e.target.value) })
+                }
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground disabled:opacity-60"
               />
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">End</label>
               <input
                 type="datetime-local"
+                disabled={isGoogleEvent}
                 value={toLocalInputValue(eventData.end)}
-                onChange={(e) => setEventData({ ...eventData, end: new Date(e.target.value) })}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={(e) =>
+                  setEventData({ ...eventData, end: new Date(e.target.value) })
+                }
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground disabled:opacity-60"
               />
             </div>
           </div>
 
           {/* Location */}
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Location (optional)</label>
-            <input
-              type="text"
-              value={eventData.location || ""}
-              onChange={(e) => setEventData({ ...eventData, location: e.target.value })}
-              placeholder="e.g. Library Room 201"
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+          <input
+            type="text"
+            disabled={isGoogleEvent}
+            value={eventData.location || ""}
+            onChange={(e) =>
+              setEventData({ ...eventData, location: e.target.value })
+            }
+            placeholder="Location (optional)"
+            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground disabled:opacity-60"
+          />
 
-          {/* Description */}
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Notes (optional)</label>
-            <textarea
-              value={eventData.description || ""}
-              onChange={(e) => setEventData({ ...eventData, description: e.target.value })}
-              placeholder="Add notes..."
-              rows={2}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+          {/* Notes */}
+          <textarea
+            disabled={isGoogleEvent}
+            value={eventData.description || ""}
+            onChange={(e) =>
+              setEventData({ ...eventData, description: e.target.value })
+            }
+            placeholder="Notes (optional)"
+            rows={2}
+            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground resize-none disabled:opacity-60"
+          />
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
-            {isEditing && (
+            {isEditing && !isGoogleEvent && (
               <button
                 type="button"
                 onClick={onDelete}
-                className="px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                className="px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600"
               >
                 Delete
               </button>
             )}
+
             <div className="flex-1" />
+
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 border border-border rounded-lg text-foreground hover:bg-secondary transition-colors"
+              className="px-4 py-2.5 border border-border rounded-lg text-foreground hover:bg-secondary"
             >
               Cancel
             </button>
+
             <button
               type="submit"
-              disabled={!eventData.title.trim()}
-              className="px-4 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              disabled={isGoogleEvent || !eventData.title.trim()}
+              className={`px-4 py-2.5 rounded-lg font-medium
+                ${
+                  isGoogleEvent
+                    ? "bg-muted text-muted-foreground cursor-not-allowed"
+                    : "bg-primary text-white hover:bg-primary/90"
+                }`}
             >
               {isEditing ? "Update" : "Add Event"}
             </button>

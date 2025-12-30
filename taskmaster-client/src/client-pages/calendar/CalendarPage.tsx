@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Calendar as BigCalendar, dateFnsLocalizer, Components } from "react-big-calendar";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
+
 import AddEventModal from "../../components/AddEventModal";
 import { TaskModal } from "../../components/tasks/TaskModal";
 import { useUser } from "../../context/UserContext";
@@ -10,9 +11,7 @@ import { authService } from "../../services/api/authService";
 import type { TasksData } from "../../services/types";
 import { googleService } from "../../services/api/googleService";
 
-const locales = {
-  "en-US": enUS,
-};
+const locales = { "en-US": enUS };
 
 const localizer = dateFnsLocalizer({
   format,
@@ -22,22 +21,23 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-const hasTimezoneInfo = (deadlineStr: string) => /Z$|[+-]\d{2}:\d{2}$/.test(deadlineStr);
-const hasExplicitTime = (deadlineStr: string) => deadlineStr.includes("T") && /\d{2}:\d{2}/.test(deadlineStr);
+const hasTimezoneInfo = (s: string) =>
+  /Z$|[+-]\d{2}:\d{2}$/.test(s);
 
-const parseTaskDeadline = (deadlineStr: string) => {
+const hasExplicitTime = (s: string) =>
+  s.includes("T") && /\d{2}:\d{2}/.test(s);
+
+const parseTaskDeadline = (deadlineStr: string): Date => {
   if (deadlineStr.includes("T") && !hasTimezoneInfo(deadlineStr)) {
-    // Treat "YYYY-MM-DDTHH:mm" as local time instead of UTC.
-    const [datePart, timePart = "00:00"] = deadlineStr.split("T");
-    const [year, month, day] = datePart.split("-").map(Number);
-    const [hours, minutes] = timePart.split(":").map(Number);
-    return new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+    const [d, t = "00:00"] = deadlineStr.split("T");
+    const [y, m, day] = d.split("-").map(Number);
+    const [h, min] = t.split(":").map(Number);
+    return new Date(y, m - 1, day, h || 0, min || 0);
   }
 
   if (!deadlineStr.includes("T")) {
-    // Treat date-only strings as local midnight.
-    const [year, month, day] = deadlineStr.split("-").map(Number);
-    return new Date(year, month - 1, day, 0, 0, 0, 0);
+    const [y, m, day] = deadlineStr.split("-").map(Number);
+    return new Date(y, m - 1, day, 0, 0, 0);
   }
 
   return new Date(deadlineStr);
@@ -52,339 +52,144 @@ interface CalendarEvent {
   location?: string;
   isTask?: boolean;
   status?: "pending" | "completed" | "overdue";
-  classId?: string;
-  color?: string;
   taskId?: string;
-
   source?: "app" | "task" | "google";
+  allDay?: boolean;
 }
 
-
+interface ClassData {
+  _id: string;
+  name: string;
+}
 
 const CalendarPage: React.FC = () => {
-  const { user } = useUser();
+  const { user, isLoadingUser } = useUser();
+
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loginDates, setLoginDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  const initialLoadRef = useRef(true);
+
   const [eventData, setEventData] = useState<CalendarEvent>({
     id: "",
     title: "",
     start: new Date(),
-    end: new Date(new Date().setHours(new Date().getHours() + 1)),
-    description: "",
-    location: "",
+    end: new Date(Date.now() + 60 * 60 * 1000),
   });
-  const [error, setError] = useState<string | null>(null);
+
+  const resetEventData = () => {
+    setEventData({
+      id: "",
+      title: "",
+      start: new Date(),
+      end: new Date(Date.now() + 60 * 60 * 1000),
+    });
+  };
 
   const fetchData = useCallback(async () => {
-    if (!user?._id) {
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      
-      // Fetch login dates for streak indicators
-      const loginData = await authService.getLoginDates();
-      setLoginDates(loginData.loginDates || []);
-      
-      // Fetch classes
-      const userClasses = await apiService.getClassesByUserId(user._id);
-
-      // Fetch events
-      const userEvents = await apiService.getEvents();
-      const formattedEvents: CalendarEvent[] = userEvents.map((event: any) => ({
-        id: event._id || event.id,
-        title: event.title,
-        start: new Date(event.start),
-        end: new Date(event.end),
-        description: event.notes?.[0] || "",
-        location: event.location || "",
-        isTask: false,
-      }));
-
-      // Fetch all tasks (includes personal tasks)
-      const allTasks = await apiService.getAllTasks();
-
-      // Generate color map for classes
-      const classColors = new Map<string, string>();
-      const colors = [
-        "#3b82f6", // blue
-        "#10b981", // green
-        "#f59e0b", // orange
-        "#ef4444", // red
-        "#8b5cf6", // purple
-        "#ec4899", // pink
-        "#06b6d4", // cyan
-        "#84cc16", // lime
-      ];
-      userClasses.forEach((cls, idx) => {
-        classColors.set(cls._id, colors[idx % colors.length]);
-      });
-
-      // Convert tasks to calendar events (using deadline as the date)
-      const taskEvents: CalendarEvent[] = allTasks
-        .filter((task: TasksData) => task.deadline) // Only include tasks with deadlines
-        .map((task: TasksData) => {
-          const deadlineStr = task.deadline!;
-          const deadlineDate = parseTaskDeadline(deadlineStr);
-          
-          const className = task.class 
-            ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
-            : "Personal";
-          const taskClassId = task.class || "personal";
-          const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
-          
-          // Set end time to 1 hour after start (or end of day if no specific time)
-          const endDate = new Date(deadlineDate);
-          if (hasExplicitTime(deadlineStr)) {
-            // Has time component, add 1 hour
-            endDate.setHours(endDate.getHours() + 1);
-          } else {
-            // No time component, set to end of day
-            endDate.setHours(23, 59, 59);
-          }
-
-          return {
-            id: `task-${task._id}`,
-            title: task.title,
-            start: deadlineDate,
-            end: endDate,
-            description: task.topic || `Class: ${className}`,
-            location: className,
-            isTask: true,
-            status: task.status,
-            classId: taskClassId,
-            color: color,
-            taskId: task._id,
-          };
-        });
-
-        // Fetch Google Calendar events
-      let googleEvents: CalendarEvent[] = [];
-      try {
-        const googleEventsRaw = await googleService.getEvents();
-        googleEvents = googleEventsRaw.map((event: any) => ({
-          id: event.id,
-          title: event.title,
-          start: new Date(event.start),
-          end: new Date(event.end),
-          description: event.description,
-          location: event.location,
-          color: "#4285F4",
-          source: "google",
-        }));
-      } catch (err) {
-        console.warn("Failed to load Google events", err);
-      }
-
-        // Combine events and tasks
-        setEvents([
-          ...formattedEvents,
-          ...taskEvents,
-          ...googleEvents,
-        ]);
-
-      } catch (error) {
-        console.error("Error fetching calendar data:", error);
-        setError("Failed to load calendar");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [user?._id]);
-
-  const refreshCalendarData = async () => {
     if (!user?._id) return;
 
     try {
-      // Fetch classes
-      const userClasses = await apiService.getClassesByUserId(user._id);
+      if (initialLoadRef.current) setIsLoading(true);
 
-      // Fetch events
       const userEvents = await apiService.getEvents();
-      const formattedEvents: CalendarEvent[] = userEvents.map((event: any) => ({
-        id: event._id || event.id,
-        title: event.title,
-        start: new Date(event.start),
-        end: new Date(event.end),
-        description: event.notes?.[0] || "",
-        location: event.location || "",
-        isTask: false,
-      }));
-
-      // Fetch all tasks (includes personal tasks)
       const allTasks = await apiService.getAllTasks();
 
-      // Generate color map for classes
-      const classColors = new Map<string, string>();
-      const colors = [
-        "#3b82f6", // blue
-        "#10b981", // green
-        "#f59e0b", // orange
-        "#ef4444", // red
-        "#8b5cf6", // purple
-        "#ec4899", // pink
-        "#06b6d4", // cyan
-        "#84cc16", // lime
-      ];
-      userClasses.forEach((cls, idx) => {
-        classColors.set(cls._id, colors[idx % colors.length]);
-      });
+      const appEvents: CalendarEvent[] = userEvents.map((e: any) => ({
+        id: e._id,
+        title: e.title,
+        start: new Date(e.start),
+        end: new Date(e.end),
+        source: "app",
+      }));
 
-      // Convert tasks to calendar events
       const taskEvents: CalendarEvent[] = allTasks
-        .filter((task: TasksData) => task.deadline)
+        .filter((t: TasksData) => t.deadline)
         .map((task: TasksData) => {
-          const deadlineStr = task.deadline!;
-          const deadlineDate = parseTaskDeadline(deadlineStr);
-          const className = task.class 
-            ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
-            : "Personal";
-          const taskClassId = task.class || "personal";
-          const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
+          const start = parseTaskDeadline(task.deadline!);
+          const end = new Date(start.getTime());
           
-          const endDate = new Date(deadlineDate);
-          if (hasExplicitTime(deadlineStr)) {
-            endDate.setHours(endDate.getHours() + 1);
-          } else {
-            endDate.setHours(23, 59, 59);
-          }
+          // All-day events: midnight to 11:59:59 PM
+          end.setHours(23, 59, 59);
 
           return {
             id: `task-${task._id}`,
             title: task.title,
-            start: deadlineDate,
-            end: endDate,
-            description: task.topic || `Class: ${className}`,
-            location: className,
+            start,
+            end,
             isTask: true,
             status: task.status,
-            classId: taskClassId,
-            color: color,
             taskId: task._id,
+            source: "task",
+            allDay: true,
           };
         });
-        // Fetch Google Calendar events
+
       let googleEvents: CalendarEvent[] = [];
       try {
-        const googleEventsRaw = await googleService.getEvents();
-        googleEvents = googleEventsRaw.map((event: any) => ({
-          id: event.id,
-          title: event.title,
-          start: new Date(event.start),
-          end: new Date(event.end),
-          description: event.description,
-          location: event.location,
-          color: "#4285F4",
-          source: "google",
-        }));
-      } catch (err) {
-        console.warn("Failed to load Google events", err);
-      }
+        const raw = await googleService.getEvents();
+        googleEvents = raw.map((event: any) => {
+          const isAllDay =
+            typeof event.start === "string" &&
+            /^\d{4}-\d{2}-\d{2}$/.test(event.start);
 
-      // Combine events and tasks
-      setEvents([
-        ...formattedEvents,
-        ...taskEvents,
-        ...googleEvents,
-      ]);
+          if (isAllDay) {
+            // event.start like "YYYY-MM-DD"
+            // event.end might be "YYYY-MM-DD" (exclusive) OR undefined depending on your service
+            const [sy, sm, sd] = event.start.split("-").map(Number);
 
-    } catch (error) {
-      console.error("Error refreshing calendar data:", error);
+            const startTime = new Date(sy, sm - 1, sd, 0, 0, 0);
+
+            // If end is provided as date-only and exclusive, use (end - 1 day) at 23:59:59.
+            // Otherwise default to same day end at 23:59:59.
+            let endTime = new Date(sy, sm - 1, sd, 23, 59, 59);
+
+            if (typeof event.end === "string" && /^\d{4}-\d{2}-\d{2}$/.test(event.end)) {
+              const [ey, em, ed] = event.end.split("-").map(Number);
+              endTime = new Date(ey, em - 1, ed, 0, 0, 0);
+              endTime.setDate(endTime.getDate() - 1);
+              endTime.setHours(23, 59, 59);
+            }
+
+            return {
+              id: `google-${event.id}`,
+              title: event.title,
+              start: startTime,
+              end: endTime,
+              source: "google",
+              allDay: true,
+            };
+          }
+
+          // Timed events: keep your existing behavior
+          const start = typeof event.start === "string" ? new Date(event.start) : event.start;
+          const end = typeof event.end === "string" ? new Date(event.end) : event.end;
+
+          return {
+            id: `google-${event.id}`,
+            title: event.title,
+            start: new Date(start.getTime()),
+            end: new Date(end.getTime()),
+            source: "google",
+          };
+        });
+
+      } catch {}
+
+      setEvents([...appEvents, ...taskEvents, ...googleEvents]);
+      initialLoadRef.current = false;
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [user?._id]);
 
-  // Fetch on mount and when user changes
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Refresh when page becomes visible (e.g., after navigating back from tasks page)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchData();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchData]);
-
-  const handleSaveEvent = async (event: CalendarEvent) => {
-    try {
-      setError(null);
-
-      const eventPayload = {
-        title: event.title,
-        start: event.start.toISOString(),
-        end: event.end.toISOString(),
-        taskInput: "", // Optional - can be linked to a task
-        classInput: "", // Optional - can be linked to a class
-        repeatWeekly: false,
-        notes: event.description ? [event.description] : [],
-        color: "#3b82f6",
-      };
-
-      if (isEditing && event.id) {
-        // Update existing event
-        await apiService.updateEvent(event.id, eventPayload);
-      } else {
-        // Create new event
-        await apiService.createEvent(eventPayload);
-      }
-
-      // Refresh events and tasks
-      await refreshCalendarData();
-
-      setShowModal(false);
-      setIsEditing(false);
-      setEventData({
-        id: "",
-        title: "",
-        start: new Date(),
-        end: new Date(new Date().setHours(new Date().getHours() + 1)),
-        description: "",
-        location: "",
-      });
-    } catch (error: any) {
-      console.error("Error saving event:", error);
-      setError(error.response?.data?.message || "Failed to save event");
-    }
-  };
-
-  const handleDeleteEvent = async () => {
-    if (!eventData.id) return;
-
-    try {
-      await apiService.deleteEvent(eventData.id);
-
-      // Refresh events and tasks
-      await refreshCalendarData();
-
-      setShowModal(false);
-      setIsEditing(false);
-      setEventData({
-        id: "",
-        title: "",
-        start: new Date(),
-        end: new Date(new Date().setHours(new Date().getHours() + 1)),
-        description: "",
-        location: "",
-      });
-    } catch (error: any) {
-      console.error("Error deleting event:", error);
-      setError(error.response?.data?.message || "Failed to delete event");
-    }
-  };
+    if (!isLoadingUser) fetchData();
+  }, [fetchData, isLoadingUser]);
 
   const handleSelectSlot = ({ start, end }: { start: Date; end: Date }) => {
     setEventData({
@@ -392,14 +197,10 @@ const CalendarPage: React.FC = () => {
       title: "",
       start,
       end,
-      description: "",
-      location: "",
     });
     setIsEditing(false);
     setShowModal(true);
   };
-
-  
 
   const handleSelectEvent = (event: CalendarEvent) => {
     if (event.source === "google") {
@@ -414,45 +215,66 @@ const CalendarPage: React.FC = () => {
       setShowTaskModal(true);
       return;
     }
-    
-    // Regular events can be edited normally
+
     setEventData(event);
     setIsEditing(true);
     setShowModal(true);
   };
 
-  // Convert events to react-big-calendar format with styling
+  const handleSaveEvent = async (event: CalendarEvent) => {
+    if (event.source === "google") return;
+
+    const payload = {
+      title: event.title,
+      start: event.start.toISOString(),
+      end: event.end.toISOString(),
+    };
+
+    isEditing
+      ? await apiService.updateEvent(event.id, payload)
+      : await apiService.createEvent(payload);
+
+    await fetchData();
+    setShowModal(false);
+    resetEventData();
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!eventData.id || eventData.id.startsWith("task-") || eventData.source === "google") {
+      return;
+    }
+
+    try {
+      await apiService.deleteEvent(eventData.id);
+      await fetchData();
+      setShowModal(false);
+      resetEventData();
+    } catch (error) {
+      console.error("Error deleting event:", error);
+    }
+  };
+
   const calendarEvents = events.map((event) => ({
     ...event,
-    resource: event,
     style: {
-      backgroundColor: event.color || (event.isTask 
-        ? (event.status === 'completed' ? '#10b981' : event.status === 'overdue' ? '#ef4444' : '#f59e0b')
-        : '#3b82f6'),
-      borderColor: event.color || (event.isTask 
-        ? (event.status === 'completed' ? '#10b981' : event.status === 'overdue' ? '#ef4444' : '#f59e0b')
-        : '#3b82f6'),
-      color: '#ffffff',
+      backgroundColor:
+        event.source === "google"
+          ? "#4285F4"
+          : event.isTask
+            ? "#f59e0b"
+            : "#3b82f6",
+      color: "#fff",
     },
-    className: event.isTask 
-      ? `task-${event.status || 'pending'}` 
-      : '',
   }));
 
   return (
     <div className="h-full flex flex-col space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Header with title and Add Event button */}
+      <div className="flex items-center justify-between px-4">
         <h1 className="text-2xl font-bold text-foreground">Calendar</h1>
         <button
           onClick={() => {
-            setEventData({
-              id: "",
-              title: "",
-              start: new Date(),
-              end: new Date(new Date().setHours(new Date().getHours() + 1)),
-              description: "",
-              location: "",
-            });
+            resetEventData();
             setIsEditing(false);
             setShowModal(true);
           }}
@@ -462,52 +284,28 @@ const CalendarPage: React.FC = () => {
         </button>
       </div>
 
-      {error && (
-        <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md">
-          {error}
+      {/* Loading state */}
+      {isLoading || isLoadingUser ? (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Loading calendar...</p>
+        </div>
+      ) : (
+        /* Calendar */
+        <div className="flex-1 px-4">
+          <BigCalendar
+            localizer={localizer}
+            events={calendarEvents}
+            startAccessor="start"
+            endAccessor="end"
+            selectable
+            onSelectSlot={handleSelectSlot}
+            onSelectEvent={handleSelectEvent}
+            style={{ height: "100%", minHeight: "500px" }}
+          />
         </div>
       )}
 
-      <div className="flex-1 bg-card border border-border rounded-md overflow-hidden flex flex-col">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full p-4">
-            <p className="text-muted-foreground">Loading calendar...</p>
-          </div>
-        ) : (
-          <div className="h-full flex flex-col p-4 pt-4">
-            <BigCalendar
-              localizer={localizer}
-              events={calendarEvents}
-              startAccessor="start"
-              endAccessor="end"
-              style={{ height: "100%", minHeight: "500px" }}
-              onSelectSlot={handleSelectSlot}
-              onSelectEvent={handleSelectEvent}
-              selectable
-              components={{
-                dateCellWrapper: (props: any) => {
-                  const dateStr = format(props.value, 'yyyy-MM-dd');
-                  const hasStreak = loginDates.some(d => 
-                    format(new Date(d), 'yyyy-MM-dd') === dateStr
-                  );
-                  
-                  return (
-                    <div className="relative">
-                      {props.children}
-                      {hasStreak && (
-                        <div className="absolute top-1 right-1 text-xs text-orange-500 font-bold" title="Login streak!">
-                          *
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-              }}
-            />
-          </div>
-        )}
-      </div>
-
+      {/* Add/Edit Event Modal */}
       <AddEventModal
         isOpen={showModal}
         isEditing={isEditing}
@@ -515,19 +313,13 @@ const CalendarPage: React.FC = () => {
         setEventData={setEventData}
         onClose={() => {
           setShowModal(false);
-          setIsEditing(false);
-          setEventData({
-            id: "",
-            title: "",
-            start: new Date(),
-            end: new Date(new Date().setHours(new Date().getHours() + 1)),
-            description: "",
-            location: "",
-          });
+          resetEventData();
         }}
         onSave={handleSaveEvent}
         onDelete={handleDeleteEvent}
       />
+
+      {/* Task Modal */}
       {showTaskModal && (
         <TaskModal
           editingTaskId={editingTaskId}
@@ -535,7 +327,7 @@ const CalendarPage: React.FC = () => {
             setShowTaskModal(false);
             setEditingTaskId(null);
           }}
-          onTaskSaved={refreshCalendarData}
+          onTaskSaved={fetchData}
         />
       )}
     </div>

@@ -232,12 +232,18 @@ const SettingsPage: React.FC = () => {
             </button>
           )}
           <button
-            className=""
             onClick={() => {
               window.location.href = "/api/google/connect";
             }}
+            className="flex items-center gap-3 px-4 py-2.5 border border-border rounded-lg
+                      hover:bg-secondary transition-colors text-sm font-medium text-foreground"
           >
-            Connect Google Calendar
+            <img
+              src="https://www.gstatic.com/images/branding/product/1x/calendar_2020q4_48dp.png"
+              alt="Google Calendar"
+              className="w-5 h-5"
+            />
+            <span>Connect Google Calendar</span>
           </button>
         </div>
       </section>
