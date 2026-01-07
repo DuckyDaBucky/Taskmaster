@@ -68,7 +68,7 @@ async function extractMarkdownWithAzure(fileUrl: string): Promise<string> {
     throw new Error(`Document Intelligence Polling Error: ${result.body.error?.message}`);
   }
 
-  const content = result.body.analyzeResult?.content;
+  const content = (result.body as any).analyzeResult?.content;
   if (!content) {
     throw new Error('No content extracted from document');
   }
@@ -161,13 +161,9 @@ async function structureDataWithGPT5(markdown: string): Promise<any> {
     max_completion_tokens: 16384, // GPT-5 uses ~4K for reasoning, so we need extra for output
   });
 
-  console.log('[DEBUG] Full LLM response:', JSON.stringify(response, null, 2));
-  console.log('[DEBUG] Finish reason:', response.choices[0]?.finish_reason);
-  console.log('[DEBUG] Message refusal:', response.choices[0]?.message?.refusal);
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
-    console.error('[DEBUG] LLM returned empty content. Full choice:', response.choices[0]);
     throw new Error(`Empty response from LLM. Finish reason: ${response.choices[0]?.finish_reason}`);
   }
 
@@ -206,34 +202,23 @@ export async function POST(req: NextRequest) {
     const structuredData = await structureDataWithGPT5(markdownContent);
 
     // DEBUG: Log what the LLM returned
-    console.log('[DEBUG] LLM Response:', JSON.stringify(structuredData, null, 2));
-    console.log('[DEBUG] supabase client exists:', !!supabase);
-    console.log('[DEBUG] user_id:', user_id);
-    console.log('[DEBUG] structuredData.tasks:', structuredData?.tasks);
-    console.log('[DEBUG] structuredData.tasks type:', typeof structuredData?.tasks);
-    console.log('[DEBUG] structuredData.tasks isArray:', Array.isArray(structuredData?.tasks));
 
     // 4. Hydrate Database
     const { course_info, tasks, key_topics } = structuredData;
     let classId: string | null = null;
     let createdTaskCount = 0;
 
-    console.log('[DEBUG] course_info:', course_info);
-    console.log('[DEBUG] course_number:', course_info?.course_number);
 
     if (supabase && user_id) {
       // A. Class Creation/Linking
       if (course_info?.course_number) {
         const normalizedNumber = course_info.course_number.replace(/\s+/g, '').toUpperCase();
-        console.log('[DEBUG] Normalized course number:', normalizedNumber);
 
         const { data: userClasses, error: classesError } = await supabase
           .from('classes')
           .select('id, name')
           .eq('user_id', user_id);
 
-        console.log('[DEBUG] Existing classes:', userClasses);
-        if (classesError) console.error('[DEBUG] Classes query error:', classesError);
 
         const existingClass = userClasses?.find(c =>
           (c.name || '').toUpperCase().replace(/\s+/g, '').includes(normalizedNumber)
@@ -262,9 +247,6 @@ export async function POST(req: NextRequest) {
       }
 
       // B. Task Creation
-      console.log('[DEBUG] Tasks array:', tasks);
-      console.log('[DEBUG] Tasks length:', tasks?.length);
-      console.log('[DEBUG] classId for tasks:', classId);
 
       if (tasks && Array.isArray(tasks) && tasks.length > 0) {
         const tasksToInsert = tasks.map((t: any) => ({
@@ -279,7 +261,6 @@ export async function POST(req: NextRequest) {
           topic: t.type || null, // Also set topic for compatibility
         }));
 
-        console.log('[DEBUG] Tasks to insert:', JSON.stringify(tasksToInsert, null, 2));
 
         const { data: insertedTasks, error: taskError } = await supabase
           .from('tasks')
@@ -287,14 +268,10 @@ export async function POST(req: NextRequest) {
           .select('id, title, deadline');
 
         if (taskError) {
-          console.error('[DEBUG] Task insertion error:', taskError);
-          console.error('[DEBUG] Error details:', JSON.stringify(taskError, null, 2));
         } else {
           createdTaskCount = insertedTasks?.length || 0;
-          console.log(`[DEBUG] ✓ Created ${createdTaskCount} tasks:`, insertedTasks?.map(t => t.title));
         }
       } else {
-        console.log('[DEBUG] Skipping task creation - conditions not met:', {
           hasTasks: !!tasks,
           isArray: Array.isArray(tasks),
           tasksLength: tasks?.length,
