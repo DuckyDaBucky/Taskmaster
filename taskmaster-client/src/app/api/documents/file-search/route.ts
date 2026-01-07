@@ -196,10 +196,11 @@ async function uploadToFileSearch(
     // Poll operation until complete
     let operation = uploadData;
     let attempts = 0;
-    const maxAttempts = 60; // 5 minutes max (60 * 5 seconds)
+    const maxAttempts = 30; // 5 minutes max (30 * 10 seconds)
+    const pollInterval = 10000; // Increased to 10 seconds to reduce API calls
 
     while (!operation.done && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+      await new Promise(resolve => setTimeout(resolve, pollInterval)); // Wait 10 seconds
       attempts++;
       
       try {
@@ -224,8 +225,8 @@ async function uploadToFileSearch(
           }
           
           // Log progress
-          if (attempts % 6 === 0) { // Every 30 seconds
-            console.log(`[File Search] Operation in progress (${attempts * 5}s elapsed)...`);
+          if (attempts % 3 === 0) { // Every 30 seconds (3 * 10s)
+            console.log(`[File Search] Operation in progress (${attempts * 10}s elapsed)...`);
           }
         }
       } catch (pollError: any) {
@@ -238,7 +239,7 @@ async function uploadToFileSearch(
     }
 
     if (!operation.done) {
-      throw new Error(`File upload operation timed out after ${attempts * 5} seconds`);
+      throw new Error(`File upload operation timed out after ${attempts * 10} seconds`);
     }
 
     // Check if operation was successful

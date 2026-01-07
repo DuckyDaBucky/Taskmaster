@@ -205,7 +205,25 @@ export const resourceService = {
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
           const data = await response.json();
-          console.error("[Document Analysis] Failed:", data.error);
+          const errorMessage = data.error || 'Unknown error';
+          
+          // Check for quota/rate limit errors
+          if (response.status === 429 || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+            console.warn("[Document Analysis] Quota exceeded. Please wait before uploading more documents.");
+            // Update resource with a helpful message
+            await supabase
+              .from('resources')
+              .update({ 
+                processing_status: 'failed',
+                extracted_data: {
+                  error: 'API quota exceeded. Please wait a few minutes and try again, or check your Gemini API quota at https://ai.dev/usage',
+                  error_type: 'quota_exceeded'
+                }
+              })
+              .eq('id', resourceId);
+          } else {
+            console.error("[Document Analysis] Failed:", errorMessage);
+          }
         } else {
           console.error("[Document Analysis] Failed with status:", response.status);
         }

@@ -416,14 +416,14 @@ export async function POST(req: NextRequest) {
         // Normalize and filter due dates
         const validDueDates = analysisResult.due_dates
           .map(normalizeDueDate)
-          .filter((dd): dd is { date: string; description: string } => dd !== null);
+          .filter((dd: { date: string; description: string } | null): dd is { date: string; description: string } => dd !== null);
 
         if (validDueDates.length === 0) {
           console.log('[Auto-Tasks] No valid due dates found in document');
         } else {
           console.log(`[Auto-Tasks] Processing ${validDueDates.length} due dates...`);
 
-          const tasksToCreate = validDueDates.map((dd) => ({
+          const tasksToCreate = validDueDates.map((dd: { date: string; description: string }) => ({
             user_id: user_id,
             class_id: classId,
             title: dd.description.substring(0, 200), // Limit title length
@@ -434,7 +434,7 @@ export async function POST(req: NextRequest) {
           }));
 
           // Check for existing tasks to avoid duplicates (more comprehensive check)
-          const dateRange = tasksToCreate.map(t => t.deadline);
+          const dateRange = tasksToCreate.map((t: { deadline: string; title: string; user_id: string; class_id: string | null; status: string; completed: boolean; topic: string | null }) => t.deadline);
           const { data: existingTasks } = await supabase
             .from('tasks')
             .select('deadline, title, class_id')
@@ -443,14 +443,14 @@ export async function POST(req: NextRequest) {
 
           // Create a set of existing task keys (deadline + normalized title)
           const existingTaskKeys = new Set(
-            (existingTasks || []).map(t => {
+            (existingTasks || []).map((t: { deadline: string; title: string | null; class_id: string | null }) => {
               const normalizedTitle = (t.title || '').toLowerCase().trim();
               return `${t.deadline}-${normalizedTitle}`;
             })
           );
 
           // Filter out duplicates
-          const newTasks = tasksToCreate.filter(t => {
+          const newTasks = tasksToCreate.filter((t: { deadline: string; title: string; user_id: string; class_id: string | null; status: string; completed: boolean; topic: string | null }) => {
             const normalizedTitle = t.title.toLowerCase().trim();
             const key = `${t.deadline}-${normalizedTitle}`;
             return !existingTaskKeys.has(key);
@@ -527,11 +527,34 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Document analysis error:', error);
 
+    // Check if this is a quota/rate limit error
+    const isQuotaError = error.message?.includes('429') || 
+                        error.message?.includes('quota') || 
+                        error.message?.includes('RESOURCE_EXHAUSTED');
+
     if (supabase && resource_id_final) {
+      const updateData: any = { processing_status: 'failed' };
+      
+      if (isQuotaError) {
+        updateData.extracted_data = {
+          error: 'API quota exceeded. Please wait a few minutes and try again, or check your Gemini API quota at https://ai.dev/usage',
+          error_type: 'quota_exceeded',
+          retry_after: 'Please wait 1-2 minutes before retrying'
+        };
+      }
+      
       await supabase
         .from('resources')
-        .update({ processing_status: 'failed' })
+        .update(updateData)
         .eq('id', resource_id_final);
+    }
+
+    // Return appropriate status code and message
+    if (isQuotaError) {
+      return NextResponse.json({ 
+        error: 'API quota exceeded. Please wait a few minutes and try again, or check your Gemini API quota at https://ai.dev/usage',
+        quota_exceeded: true
+      }, { status: 429 });
     }
 
     return NextResponse.json({ error: error.message || 'Analysis failed' }, { status: 500 });

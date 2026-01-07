@@ -241,53 +241,6 @@ Due Dates: ${(extracted.due_dates || []).map((d: any) => `${d.date}: ${d.descrip
       }));
     }
 
-    // Build system instruction based on output format (for File Search, add to query if needed)
-    const systemInstruction = output_format === 'flashcards'
-      ? `Generate flashcards from the documents. Return ONLY valid JSON array:
-[{"front": "Question text", "back": "Answer text", "tags": ["topic"]}]`
-      : output_format === 'schedule'
-      ? `Extract all dates, deadlines, and events. Return ONLY valid JSON array:
-[{"date": "YYYY-MM-DD", "title": "Event name", "type": "exam|assignment|quiz|lecture|other", "course": "course number"}]`
-      : output_format === 'json'
-      ? 'Return your response as valid JSON only. No markdown, no explanation.'
-      : `You are a helpful study assistant. Answer questions based on the user's uploaded documents.
-Be specific and reference the documents when relevant. If the information isn't in the documents, say so.`;
-
-    // If File Search wasn't used, add system instruction to the query
-    if (!usedFileSearch && systemInstruction) {
-      responseText = await (async () => {
-        const geminiResponse = await fetch(
-          `${GEMINI_API_URL}/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              systemInstruction: {
-                parts: [{ text: systemInstruction }],
-              },
-              contents: [{
-                parts: [{
-                  text: `User's uploaded documents:\n${context}\n\nUser query: ${query}`,
-                }],
-              }],
-              generationConfig: {
-                temperature: 0.3,
-                maxOutputTokens: 2048,
-              },
-            }),
-          }
-        );
-
-        if (!geminiResponse.ok) {
-          const errorText = await geminiResponse.text();
-          throw new Error(`Gemini API error: ${geminiResponse.status} - ${errorText}`);
-        }
-
-        const data = await geminiResponse.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      })();
-    }
-
     // Try to parse JSON for structured outputs
     let parsedData = null;
     if (output_format === 'flashcards' || output_format === 'schedule' || output_format === 'json') {
