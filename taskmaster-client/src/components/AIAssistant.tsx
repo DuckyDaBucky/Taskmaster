@@ -166,7 +166,7 @@ const AIAssistant: React.FC = () => {
         .slice(-10)
         .map(m => ({ role: m.role, content: m.content }));
 
-      const response = await fetch('/api/gemini/chat', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

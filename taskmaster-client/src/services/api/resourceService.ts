@@ -184,12 +184,19 @@ export const resourceService = {
   },
 
   /**
-   * Trigger document analysis with Gemini
+   * Trigger document analysis with Azure
    * Extracts metadata, summary, and structured data from uploaded documents
    */
-  async triggerProcessing(resourceId: string, userId: string, fileUrl: string, classId?: string): Promise<void> {
+  async triggerProcessing(
+    resourceId: string,
+    userId: string,
+    fileUrl: string,
+    classId?: string,
+  ): Promise<void> {
     try {
-      const response = await fetch('/api/documents/analyze', {
+      const endpoint = '/api/documents/analyze-azure';
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -206,24 +213,8 @@ export const resourceService = {
         if (contentType?.includes('application/json')) {
           const data = await response.json();
           const errorMessage = data.error || 'Unknown error';
-          
-          // Check for quota/rate limit errors
-          if (response.status === 429 || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-            console.warn("[Document Analysis] Quota exceeded. Please wait before uploading more documents.");
-            // Update resource with a helpful message
-            await supabase
-              .from('resources')
-              .update({ 
-                processing_status: 'failed',
-                extracted_data: {
-                  error: 'API quota exceeded. Please wait a few minutes and try again, or check your Gemini API quota at https://ai.dev/usage',
-                  error_type: 'quota_exceeded'
-                }
-              })
-              .eq('id', resourceId);
-          } else {
-            console.error("[Document Analysis] Failed:", errorMessage);
-          }
+
+          console.error("[Document Analysis] Failed:", errorMessage);
         } else {
           console.error("[Document Analysis] Failed with status:", response.status);
         }

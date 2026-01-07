@@ -3,8 +3,8 @@
  * Handles chunking, embedding generation, and vector storage
  */
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+// Azure config would go here if/when embedding model is added
+// const AZURE_EMBEDDING_ENDPOINT = ...
 
 /**
  * Chunk text into smaller pieces for embedding
@@ -26,7 +26,7 @@ export function chunkText(text: string, chunkSize: number = 1000, overlap: numbe
       const lastPeriod = chunk.lastIndexOf('.');
       const lastNewline = chunk.lastIndexOf('\n');
       const breakPoint = Math.max(lastPeriod, lastNewline);
-      
+
       if (breakPoint > chunkSize * 0.5) {
         chunk = chunk.slice(0, breakPoint + 1);
         start += breakPoint + 1;
@@ -44,72 +44,12 @@ export function chunkText(text: string, chunkSize: number = 1000, overlap: numbe
 }
 
 /**
- * Generate embedding using Gemini's embedding model
+ * Generate embedding using Azure OpenAI (TODO: Configure Azure Embedding Model)
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY not configured');
-  }
-
-  try {
-    // Use Gemini's text-embedding-004 model
-    // Try the correct endpoint format
-    const response = await fetch(
-      `${GEMINI_API_URL}/text-embedding-004:embedContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'models/text-embedding-004',
-          content: {
-            parts: [{ text: text.substring(0, 20000) }], // Limit text length
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      // Try alternative endpoint format
-      const altResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: {
-              parts: [{ text: text.substring(0, 20000) }],
-            },
-          }),
-        }
-      );
-
-      if (!altResponse.ok) {
-        const errorText = await altResponse.text();
-        throw new Error(`Gemini embedding API error: ${altResponse.status} - ${errorText}`);
-      }
-
-      const altData = await altResponse.json();
-      const embedding = altData.embedding?.values || altData.embedding?.value;
-
-      if (!embedding || !Array.isArray(embedding)) {
-        throw new Error('Invalid embedding response from Gemini');
-      }
-
-      return embedding;
-    }
-
-    const data = await response.json();
-    const embedding = data.embedding?.values || data.embedding?.value;
-
-    if (!embedding || !Array.isArray(embedding)) {
-      throw new Error('Invalid embedding response from Gemini');
-    }
-
-    return embedding;
-  } catch (error: any) {
-    console.error('Error generating embedding:', error);
-    throw error;
-  }
+  // Placeholder until Azure Embedding Model is deployed/configured
+  console.warn('Azure OpenAI Embeddings not yet configured. Returning empty vector.');
+  throw new Error('Embeddings not currently supported in Azure pipeline. Please deploy an embedding model (e.g., text-embedding-3-small) and update vectorUtils.ts');
 }
 
 /**
@@ -126,7 +66,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
       batch.map(text => generateEmbedding(text))
     );
     embeddings.push(...batchEmbeddings);
-    
+
     // Small delay between batches
     if (i + batchSize < texts.length) {
       await new Promise(resolve => setTimeout(resolve, 100));
