@@ -166,7 +166,7 @@ const FlashCardsPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-foreground">Flashcards</h1>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
         >
           <Plus size={16} /> New Deck
         </button>
@@ -197,7 +197,7 @@ const FlashCardsPage: React.FC = () => {
               <p className="text-muted-foreground text-sm mb-6">{deck.cardCount} cards</p>
 
               <div className="flex justify-end">
-                <button className="p-3 rounded-full bg-secondary text-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                <button className="p-3 rounded-full bg-secondary text-foreground group-hover:bg-primary group-hover:text-white transition-colors">
                   <Play size={20} fill="currentColor" />
                 </button>
               </div>

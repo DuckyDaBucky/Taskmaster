@@ -24,6 +24,14 @@ const ProgressChart = dynamic(() => import("./ProgressChart").then(mod => mod.Pr
   loading: () => <div className="h-64 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
   ssr: false
 });
+const OverdueTasksWidget = dynamic(() => import("./OverdueTasksWidget").then(mod => mod.OverdueTasksWidget), {
+  loading: () => <div className="h-48 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
+  ssr: false
+});
+const QuoteOfDay = dynamic(() => import("./QuoteOfDay").then(mod => mod.QuoteOfDay), {
+  loading: () => <div className="h-32 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />,
+  ssr: false
+});
 
 interface DashboardPageProps {
   initialTasks?: TasksData[];
@@ -102,6 +110,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTasks }) => {
   }, []);
 
   const displayName = user?.firstName || user?.username || user?.email || "User";
+  const [chartView, setChartView] = useState<'activity' | 'progress'>('activity');
 
   return (
     <div className="space-y-6">
@@ -119,8 +128,51 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTasks }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <ActivityChart tasks={tasks} isLoading={isLoading} />
-          <ProgressChart tasks={tasks} isLoading={isLoading} />
+          {/* Overdue Tasks Alert */}
+          <OverdueTasksWidget tasks={tasks} isLoading={isLoading} />
+          
+          {/* Switchable Charts */}
+          <div className="relative">
+            {/* Navigation Arrows */}
+            <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+              <button
+                onClick={() => setChartView('activity')}
+                className={`p-2 rounded-lg transition-colors ${
+                  chartView === 'activity' 
+                    ? 'bg-primary text-white' 
+                    : 'bg-secondary hover:bg-secondary/80 text-foreground'
+                }`}
+                title="Activity Chart"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 18l-6-6 6-6"/>
+                </svg>
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {chartView === 'activity' ? 'Activity' : 'Progress'}
+              </span>
+              <button
+                onClick={() => setChartView('progress')}
+                className={`p-2 rounded-lg transition-colors ${
+                  chartView === 'progress' 
+                    ? 'bg-primary text-white' 
+                    : 'bg-secondary hover:bg-secondary/80 text-foreground'
+                }`}
+                title="Progress Chart"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+            </div>
+            
+            {/* Chart Content */}
+            {chartView === 'activity' ? (
+              <ActivityChart tasks={tasks} isLoading={isLoading} />
+            ) : (
+              <ProgressChart tasks={tasks} isLoading={isLoading} />
+            )}
+          </div>
         </div>
         
         <div>

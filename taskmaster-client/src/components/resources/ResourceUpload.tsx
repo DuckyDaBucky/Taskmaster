@@ -77,7 +77,7 @@ export const ResourceUpload: React.FC<ResourceUploadProps> = ({
         />
         <label
           htmlFor="file-upload"
-          className="inline-block px-5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer transition-colors font-medium text-sm"
+          className="inline-block px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg cursor-pointer transition-colors font-medium text-sm"
         >
           Select Files
         </label>
@@ -93,7 +93,7 @@ export const ResourceUpload: React.FC<ResourceUploadProps> = ({
             <button
               onClick={onUpload}
               disabled={isUploading}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
             >
               {isUploading && <Loader className="animate-spin" size={14} />}
               {isUploading ? 'Uploading...' : 'Upload'}

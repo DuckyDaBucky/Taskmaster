@@ -17,7 +17,7 @@ export const TaskViewToggle: React.FC<TaskViewToggleProps> = ({ currentView, onV
         onClick={() => onViewChange("list")}
         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
           currentView === "list"
-            ? "bg-primary text-primary-foreground shadow-sm"
+            ? "bg-primary text-white shadow-sm"
             : "text-muted-foreground hover:text-foreground"
         }`}
       >
@@ -28,7 +28,7 @@ export const TaskViewToggle: React.FC<TaskViewToggleProps> = ({ currentView, onV
         onClick={() => onViewChange("timeline")}
         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
           currentView === "timeline"
-            ? "bg-primary text-primary-foreground shadow-sm"
+            ? "bg-primary text-white shadow-sm"
             : "text-muted-foreground hover:text-foreground"
         }`}
       >

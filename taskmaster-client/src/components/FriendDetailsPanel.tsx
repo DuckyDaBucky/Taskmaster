@@ -62,7 +62,7 @@ const FriendDetailsPanel: React.FC<FriendDetailsPanelProps> = ({ friend }) => {
               placeholder="Type your message..."
               className="flex-1 px-3 py-2 text-sm rounded-md border border-input bg-input"
             />
-            <button className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md">
+            <button className="px-4 py-2 text-sm bg-primary text-white rounded-md">
               Send
             </button>
           </div>

@@ -83,10 +83,18 @@ export const TaskList: React.FC<TaskListProps> = ({
                 )}
               </button>
               <div>
+                {/* Overdue badge */}
+                {!task.completed && task.deadline && new Date(task.deadline) < new Date() && (
+                  <span className="inline-block px-2 py-0.5 bg-red-500/10 text-red-500 text-xs font-semibold rounded mb-1">
+                    OVERDUE
+                  </span>
+                )}
                 <h4
                   className={`font-medium ${
-                    task.status === "completed"
+                    task.completed
                       ? "text-muted-foreground line-through"
+                      : !task.completed && task.deadline && new Date(task.deadline) < new Date()
+                      ? "text-red-500"
                       : "text-foreground"
                   }`}
                 >

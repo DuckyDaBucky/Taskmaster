@@ -213,7 +213,7 @@ const AIAssistant: React.FC = () => {
         title="Open TaskMaster AI"
       >
         <Image 
-          src="/favicon.png" 
+          src="/LogoMaster.png" 
           alt="TaskMaster" 
           width={48}
           height={48}
@@ -249,7 +249,7 @@ const AIAssistant: React.FC = () => {
       <div className="flex items-center justify-between px-4 py-3 bg-primary text-white">
         <div className="flex items-center gap-2">
           <div className="relative w-6 h-6">
-            <Image src="/favicon.png" alt="" fill className="object-contain" sizes="24px" />
+            <Image src="/LogoMaster.png" alt="" fill className="object-contain" sizes="24px" />
           </div>
           <span className="font-semibold text-sm">TaskMaster AI</span>
           {contextLoaded && (

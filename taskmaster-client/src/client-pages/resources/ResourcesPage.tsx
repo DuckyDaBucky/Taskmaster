@@ -28,7 +28,7 @@ const ResourcesPage: React.FC = () => {
         </p>
         <Link
           href="/classes"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md transition-colors font-medium"
         >
           Go to Classes
           <ArrowRight size={16} />

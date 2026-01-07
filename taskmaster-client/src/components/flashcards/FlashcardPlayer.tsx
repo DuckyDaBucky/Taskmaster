@@ -71,7 +71,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
           <p className="text-muted-foreground">This deck has no flashcards yet.</p>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+            className="px-4 py-2 bg-primary text-white rounded-md"
           >
             Close
           </button>

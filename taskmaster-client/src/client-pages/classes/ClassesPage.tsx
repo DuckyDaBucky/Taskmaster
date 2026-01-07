@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { MoreVertical, Plus, X, Edit, Trash2, Upload } from "lucide-react";
+import { MoreVertical, Plus, X, Edit, Trash2, Upload, Eye } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import type { ClassData } from "../../services/types";
+import ClassOverviewDialog from "../../components/ClassOverviewDialog";
+import { ProcessingAnimation } from "../../components/ui";
 
 const ClassesPage: React.FC = () => {
   const { user } = useUser();
@@ -11,6 +13,7 @@ const ClassesPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState<string | null>(null);
+  const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -244,7 +247,7 @@ const ClassesPage: React.FC = () => {
           <button
             onClick={handleUploadSyllabus}
             disabled={isUploadingSyllabus}
-            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
           >
             <Upload size={16} />
             {isUploadingSyllabus ? "Uploading..." : "Upload Syllabus"}
@@ -274,7 +277,8 @@ const ClassesPage: React.FC = () => {
           {classes.map((course, index) => (
             <div
               key={course._id}
-              className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all"
+              onClick={() => setSelectedClass(course)}
+              className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
             >
               <div className={`h-2 ${getColorClass(index)}`} />
               <div className="p-5">
@@ -517,6 +521,23 @@ const ClassesPage: React.FC = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Class Overview Dialog */}
+      <ClassOverviewDialog
+        classData={selectedClass}
+        isOpen={!!selectedClass}
+        onClose={() => setSelectedClass(null)}
+      />
+
+      {/* Processing Animation Modal */}
+      {isUploadingSyllabus && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4">
+          <ProcessingAnimation 
+            isProcessing={isUploadingSyllabus}
+            className="w-full max-w-md"
+          />
         </div>
       )}
     </div>
