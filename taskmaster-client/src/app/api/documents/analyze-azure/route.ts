@@ -268,15 +268,10 @@ export async function POST(req: NextRequest) {
           .select('id, title, deadline');
 
         if (taskError) {
+          console.error('Task insertion error:', taskError.message);
         } else {
           createdTaskCount = insertedTasks?.length || 0;
         }
-      } else {
-          hasTasks: !!tasks,
-          isArray: Array.isArray(tasks),
-          tasksLength: tasks?.length,
-          hasClassId: !!classId
-        });
       }
     }
 

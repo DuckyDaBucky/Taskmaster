@@ -173,6 +173,7 @@ const AIAssistant: React.FC = () => {
           message: userMessage.content,
           systemPrompt: systemPrompt || `You are TaskMaster, a helpful study assistant for UTD students. User: ${user?.firstName || 'Student'}. Be concise and friendly.`,
           conversationHistory,
+          userId: user?._id, // Pass userId for agentic tool execution
         }),
       });
 
