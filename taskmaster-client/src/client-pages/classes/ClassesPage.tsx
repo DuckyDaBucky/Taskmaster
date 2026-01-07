@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { MoreVertical, Plus, X, Edit, Trash2 } from "lucide-react";
+import { MoreVertical, Plus, X, Edit, Trash2, Upload } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import type { ClassData } from "../../services/types";
@@ -24,6 +24,8 @@ const ClassesPage: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingSyllabus, setIsUploadingSyllabus] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -174,6 +176,36 @@ const ClassesPage: React.FC = () => {
     }
   };
 
+  const handleUploadSyllabus = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?._id) return;
+
+    try {
+      setIsUploadingSyllabus(true);
+      setError(null);
+      
+      await apiService.smartUploadResource(file);
+      
+      // Refresh classes to show any updates
+      const updatedClasses = await apiService.getAllClasses();
+      setClasses(updatedClasses);
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error: any) {
+      console.error("Error uploading syllabus:", error);
+      setError(error.message || "Failed to upload syllabus");
+    } finally {
+      setIsUploadingSyllabus(false);
+    }
+  };
+
   const getColorClass = (index: number) => {
     const colors = [
       "bg-blue-600",
@@ -201,13 +233,30 @@ const ClassesPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Classes</h1>
-        <button
-          onClick={handleOpenCreateModal}
-          className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md text-sm font-medium transition-colors flex items-center gap-2"
-        >
-          <Plus size={16} />
-          New Class
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <button
+            onClick={handleUploadSyllabus}
+            disabled={isUploadingSyllabus}
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <Upload size={16} />
+            {isUploadingSyllabus ? "Uploading..." : "Upload Syllabus"}
+          </button>
+          <button
+            onClick={handleOpenCreateModal}
+            className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <Plus size={16} />
+            New Class
+          </button>
+        </div>
       </div>
 
       {error && (

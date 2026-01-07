@@ -16,7 +16,7 @@ const supabase = SUPABASE_URL && SUPABASE_SERVICE_KEY
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
   : null;
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 export const maxDuration = 30;
 
@@ -42,38 +42,156 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
 
+  // Build system instruction based on output format (used for both File Search and fallback)
+  const systemInstruction = output_format === 'flashcards'
+    ? `Generate flashcards from the documents. Return ONLY valid JSON array:
+[{"front": "Question text", "back": "Answer text", "tags": ["topic"]}]`
+    : output_format === 'schedule'
+    ? `Extract all dates, deadlines, and events. Return ONLY valid JSON array:
+[{"date": "YYYY-MM-DD", "title": "Event name", "type": "exam|assignment|quiz|lecture|other", "course": "course number"}]`
+    : output_format === 'json'
+    ? 'Return your response as valid JSON only. No markdown, no explanation.'
+    : `You are a helpful study assistant. Answer questions based on the user's uploaded documents.
+Be specific and reference the documents when relevant. If the information isn't in the documents, say so.`;
+
   try {
-    // Fetch user's processed resources with extracted data
-    let resourceQuery = supabase
-      .from('resources')
-      .select('id, title, ai_summary, extracted_data, classification, created_at')
-      .eq('user_id', user_id)
-      .eq('processing_status', 'complete')
-      .order('created_at', { ascending: false })
-      .limit(20);
+    // Try Gemini File Search first if available
+    let responseText = '';
+    let sources: any[] = [];
+    let usedFileSearch = false;
 
-    if (class_id) {
-      resourceQuery = resourceQuery.eq('class_id', class_id);
+    try {
+      // Get user's resources with File Search store info
+      let resourceQuery = supabase
+        .from('resources')
+        .select('id, title, extracted_data, classification')
+        .eq('user_id', user_id)
+        .eq('processing_status', 'complete')
+        .not('extracted_data->file_search_store', 'is', null);
+
+      if (class_id) {
+        resourceQuery = resourceQuery.eq('class_id', class_id);
+      }
+
+      const { data: resourcesWithFileSearch } = await resourceQuery;
+
+      if (resourcesWithFileSearch && resourcesWithFileSearch.length > 0) {
+        // Get the File Search store name (should be the same for all)
+        const storeName = resourcesWithFileSearch[0].extracted_data?.file_search_store;
+        
+        if (storeName) {
+          // Build metadata filter if class_id is provided
+          let metadataFilter = '';
+          if (class_id) {
+            // Get course_number from resources in this class
+            const classResources = resourcesWithFileSearch.filter(
+              r => r.extracted_data?.course_number
+            );
+            if (classResources.length > 0) {
+              const courseNumbers = classResources
+                .map(r => r.extracted_data?.course_number)
+                .filter(Boolean)
+                .map((cn: string) => `course_number="${cn}"`)
+                .join(' OR ');
+              if (courseNumbers) {
+                metadataFilter = `(${courseNumbers})`;
+              }
+            }
+          }
+
+          // Query using Gemini File Search
+          const fileSearchConfig: any = {
+            fileSearchStoreNames: [storeName],
+          };
+          if (metadataFilter) {
+            fileSearchConfig.metadataFilter = metadataFilter;
+          }
+
+          const requestBody: any = {
+            contents: [{ parts: [{ text: query }] }],
+            tools: [{ fileSearch: fileSearchConfig }],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 2048,
+            },
+          };
+
+          // Add system instruction if output format is specified
+          if (output_format) {
+            requestBody.systemInstruction = {
+              parts: [{ text: systemInstruction }],
+            };
+          }
+
+          const geminiResponse = await fetch(
+            `${GEMINI_API_URL}/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(requestBody),
+            }
+          );
+
+          if (geminiResponse.ok) {
+            const data = await geminiResponse.json();
+            responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            
+            // Get grounding metadata for citations
+            const groundingMetadata = data.candidates?.[0]?.groundingMetadata;
+            
+            if (responseText) {
+              usedFileSearch = true;
+              console.log(`[File Search] ✓ Query successful using File Search`);
+              sources = resourcesWithFileSearch.map(r => ({
+                id: r.id,
+                title: r.title,
+                type: r.extracted_data?.document_type || r.classification,
+              }));
+            } else {
+              console.warn('[File Search] Query succeeded but no response text');
+            }
+          } else {
+            const errorText = await geminiResponse.text();
+            console.warn(`[File Search] Query failed: ${geminiResponse.status} - ${errorText}`);
+          }
+        }
+      }
+    } catch (fileSearchError: any) {
+      console.warn('[File Search] File Search failed, falling back to text search:', fileSearchError.message);
     }
 
-    const { data: resources, error } = await resourceQuery;
+    // Fallback to text-based search if File Search didn't work
+    if (!usedFileSearch) {
+      let resourceQuery = supabase
+        .from('resources')
+        .select('id, title, ai_summary, extracted_data, classification, created_at')
+        .eq('user_id', user_id)
+        .eq('processing_status', 'complete')
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json({ error: 'Failed to fetch resources' }, { status: 500 });
-    }
+      if (class_id) {
+        resourceQuery = resourceQuery.eq('class_id', class_id);
+      }
 
-    if (!resources || resources.length === 0) {
-      return NextResponse.json({
-        response: "You haven't uploaded any documents yet. Upload syllabi, notes, or assignments to enable document-based queries.",
-        sources: [],
-      });
-    }
+      const { data: resources, error } = await resourceQuery;
 
-    // Build context from resources
-    const context = resources.map(r => {
-      const extracted = r.extracted_data || {};
-      return `
+      if (error) {
+        console.error('Database error:', error);
+        return NextResponse.json({ error: 'Failed to fetch resources' }, { status: 500 });
+      }
+
+      if (!resources || resources.length === 0) {
+        return NextResponse.json({
+          response: "You haven't uploaded any documents yet. Upload syllabi, notes, or assignments to enable document-based queries.",
+          sources: [],
+        });
+      }
+
+      // Build context from resources
+      const context = resources.map(r => {
+        const extracted = r.extracted_data || {};
+        return `
 Document: ${r.title}
 Type: ${extracted.document_type || r.classification || 'unknown'}
 Course: ${extracted.course_number || 'N/A'} - ${extracted.course_name || 'N/A'}
@@ -82,54 +200,93 @@ Summary: ${r.ai_summary || 'No summary available'}
 Topics: ${(extracted.key_topics || []).join(', ') || 'N/A'}
 Due Dates: ${(extracted.due_dates || []).map((d: any) => `${d.date}: ${d.description}`).join('; ') || 'None found'}
 ---`;
-    }).join('\n');
+      }).join('\n');
 
-    // Build system instruction based on output format
-    let systemInstruction = '';
-    if (output_format === 'flashcards') {
-      systemInstruction = `Generate flashcards from the documents. Return ONLY valid JSON array:
-[{"front": "Question text", "back": "Answer text", "tags": ["topic"]}]`;
-    } else if (output_format === 'schedule') {
-      systemInstruction = `Extract all dates, deadlines, and events. Return ONLY valid JSON array:
-[{"date": "YYYY-MM-DD", "title": "Event name", "type": "exam|assignment|quiz|lecture|other", "course": "course number"}]`;
-    } else if (output_format === 'json') {
-      systemInstruction = 'Return your response as valid JSON only. No markdown, no explanation.';
-    } else {
-      systemInstruction = `You are a helpful study assistant. Answer questions based on the user's uploaded documents.
-Be specific and reference the documents when relevant. If the information isn't in the documents, say so.`;
-    }
-
-    // Query Gemini with context
-    const geminiResponse = await fetch(
-      `${GEMINI_API_URL}/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemInstruction }],
-          },
-          contents: [{
-            parts: [{
-              text: `User's uploaded documents:\n${context}\n\nUser query: ${query}`,
+      // Query Gemini with context
+      const geminiResponse = await fetch(
+        `${GEMINI_API_URL}/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: systemInstruction }],
+            },
+            contents: [{
+              parts: [{
+                text: `User's uploaded documents:\n${context}\n\nUser query: ${query}`,
+              }],
             }],
-          }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 2048,
-          },
-        }),
-      }
-    );
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 2048,
+            },
+          }),
+        }
+      );
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error('Gemini query failed:', errorText);
-      throw new Error(`Gemini API error: ${geminiResponse.status}`);
+      if (!geminiResponse.ok) {
+        const errorText = await geminiResponse.text();
+        console.error('Gemini query failed:', errorText);
+        throw new Error(`Gemini API error: ${geminiResponse.status}`);
+      }
+
+      const data = await geminiResponse.json();
+      responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      sources = resources.map(r => ({
+        id: r.id,
+        title: r.title,
+        type: r.extracted_data?.document_type || r.classification,
+      }));
     }
 
-    const data = await geminiResponse.json();
-    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    // Build system instruction based on output format (for File Search, add to query if needed)
+    const systemInstruction = output_format === 'flashcards'
+      ? `Generate flashcards from the documents. Return ONLY valid JSON array:
+[{"front": "Question text", "back": "Answer text", "tags": ["topic"]}]`
+      : output_format === 'schedule'
+      ? `Extract all dates, deadlines, and events. Return ONLY valid JSON array:
+[{"date": "YYYY-MM-DD", "title": "Event name", "type": "exam|assignment|quiz|lecture|other", "course": "course number"}]`
+      : output_format === 'json'
+      ? 'Return your response as valid JSON only. No markdown, no explanation.'
+      : `You are a helpful study assistant. Answer questions based on the user's uploaded documents.
+Be specific and reference the documents when relevant. If the information isn't in the documents, say so.`;
+
+    // If File Search wasn't used, add system instruction to the query
+    if (!usedFileSearch && systemInstruction) {
+      responseText = await (async () => {
+        const geminiResponse = await fetch(
+          `${GEMINI_API_URL}/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: {
+                parts: [{ text: systemInstruction }],
+              },
+              contents: [{
+                parts: [{
+                  text: `User's uploaded documents:\n${context}\n\nUser query: ${query}`,
+                }],
+              }],
+              generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 2048,
+              },
+            }),
+          }
+        );
+
+        if (!geminiResponse.ok) {
+          const errorText = await geminiResponse.text();
+          throw new Error(`Gemini API error: ${geminiResponse.status} - ${errorText}`);
+        }
+
+        const data = await geminiResponse.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      })();
+    }
 
     // Try to parse JSON for structured outputs
     let parsedData = null;
@@ -147,11 +304,7 @@ Be specific and reference the documents when relevant. If the information isn't 
     return NextResponse.json({
       response: responseText,
       data: parsedData,
-      sources: resources.map(r => ({
-        id: r.id,
-        title: r.title,
-        type: r.extracted_data?.document_type || r.classification,
-      })),
+      sources,
     });
 
   } catch (error: any) {

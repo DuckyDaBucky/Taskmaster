@@ -18,7 +18,7 @@ export const resourceService = {
 
     const { data, error } = await supabaseClient
       .from('resources')
-      .select('id, title, urls, websites, files, summary, description, class_id, processing_status')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, ai_summary, extracted_data, classification')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -35,6 +35,9 @@ export const resourceService = {
       description: resource.description,
       class: resource.class_id || undefined,
       processing_status: resource.processing_status,
+      ai_summary: resource.ai_summary,
+      extracted_data: resource.extracted_data,
+      classification: resource.classification,
     }));
   },
 
@@ -52,7 +55,7 @@ export const resourceService = {
 
     const { data, error } = await supabaseClient
       .from('resources')
-      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, classification')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, classification, ai_summary, extracted_data')
       .eq('user_id', userId)
       .eq('class_id', classId)
       .order('created_at', { ascending: false });
@@ -69,6 +72,9 @@ export const resourceService = {
       description: resource.description,
       class: resource.class_id || undefined,
       processing_status: resource.processing_status,
+      classification: resource.classification,
+      ai_summary: resource.ai_summary,
+      extracted_data: resource.extracted_data,
     }));
   },
 
