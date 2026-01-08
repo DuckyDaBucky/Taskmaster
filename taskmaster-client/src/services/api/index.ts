@@ -87,6 +87,7 @@ class ApiService {
   // Notes
   getAllNotes = notesService.getAllNotes;
   generateNotes = notesService.generateNotes;
+  deleteNote = notesService.deleteNote;
 
   // Events
   createEvent = eventService.createEvent;

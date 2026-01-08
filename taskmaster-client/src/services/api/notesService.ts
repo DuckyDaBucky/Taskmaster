@@ -35,6 +35,17 @@ export const notesService = {
     }));
   },
 
+  async deleteNote(noteId: string): Promise<void> {
+    const userId = await getCachedUserId();
+    const { error } = await supabase
+      .from("notes")
+      .delete()
+      .eq("id", noteId)
+      .eq("user_id", userId);
+
+    if (error) throw new Error(error.message);
+  },
+
   async generateNotes(input: GenerateNotesInput) {
     const resource = await resourceService.smartUploadResource(input.file, input.classId, {
       skipProcessing: true,
