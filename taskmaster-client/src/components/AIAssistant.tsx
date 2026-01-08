@@ -238,7 +238,7 @@ const AIAssistant: React.FC = () => {
       </button>
     );
   }
-
+  
   // Open
   return (
     <div className="fixed bottom-6 right-6 z-50 w-[360px] h-[480px] bg-card rounded-xl shadow-2xl flex flex-col overflow-hidden">

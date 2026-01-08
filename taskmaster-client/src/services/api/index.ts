@@ -82,6 +82,7 @@ class ApiService {
 
   // Users/Friends
   addHamizAsFriend = userService.addHamizAsFriend;
+  findUsers = userService.findUsers;
   matchFriends = userService.matchFriends;
   getFriendsFromUserService = userService.getFriends;
 

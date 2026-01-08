@@ -7,15 +7,17 @@ export interface UserData {
     name?: string;
     firstName?: string;
     lastName?: string;
+    email: string;
     username?: string;
     displayName?: string;
-    email: string;
     profileImageUrl?: string;
+    major?: string;
+    school?: string;
+    year?: string;
     preferences?: {
-        personality: number;
-        inPerson: number;
-        privateSpace: number;
-        time: number;
+        searchLevel: string;
+        section: string;
+        course: string;
     };
     theme?: string;
     settings?: {
