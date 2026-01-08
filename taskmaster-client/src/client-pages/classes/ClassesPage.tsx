@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MoreVertical, Plus, X, Edit, Trash2, Upload, Eye } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import type { ClassData } from "../../services/types";
@@ -15,6 +16,7 @@ const ClassesPage: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState<string | null>(null);
   const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const classesRef = useRef<ClassData[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     professor: "",
@@ -28,6 +30,7 @@ const ClassesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingSyllabus, setIsUploadingSyllabus] = useState(false);
+  const [pendingClassCount, setPendingClassCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown when clicking outside
@@ -58,6 +61,7 @@ const ClassesPage: React.FC = () => {
         setIsLoading(true);
         const userClasses = await apiService.getAllClasses();
         setClasses(userClasses);
+        classesRef.current = userClasses;
         setError(null);
       } catch (error) {
         console.error("Error fetching classes:", error);
@@ -69,6 +73,10 @@ const ClassesPage: React.FC = () => {
 
     fetchClasses();
   }, [user?._id]);
+
+  useEffect(() => {
+    classesRef.current = classes;
+  }, [classes]);
 
   const handleOpenEditModal = (classItem: ClassData) => {
     setEditingClassId(classItem._id);
@@ -187,8 +195,11 @@ const ClassesPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file || !user?._id) return;
 
+    const existingIds = new Set(classesRef.current.map((cls) => cls._id));
+
     try {
       setIsUploadingSyllabus(true);
+      setPendingClassCount((prev) => prev + 1);
       setError(null);
       
       await apiService.smartUploadResource(file);
@@ -196,6 +207,28 @@ const ClassesPage: React.FC = () => {
       // Refresh classes to show any updates
       const updatedClasses = await apiService.getAllClasses();
       setClasses(updatedClasses);
+      classesRef.current = updatedClasses;
+
+      const pollForNewClass = async () => {
+        const maxAttempts = 12;
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const nextClasses = await apiService.getAllClasses();
+          setClasses(nextClasses);
+          classesRef.current = nextClasses;
+          const hasNewClass = nextClasses.some((cls) => !existingIds.has(cls._id));
+          if (hasNewClass) {
+            setPendingClassCount((prev) => Math.max(prev - 1, 0));
+            return;
+          }
+        }
+        setPendingClassCount((prev) => Math.max(prev - 1, 0));
+      };
+
+      pollForNewClass().catch((pollError) => {
+        console.error("Error polling for new class:", pollError);
+        setPendingClassCount((prev) => Math.max(prev - 1, 0));
+      });
       
       // Reset file input
       if (fileInputRef.current) {
@@ -203,6 +236,7 @@ const ClassesPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Error uploading syllabus:", error);
+      setPendingClassCount((prev) => Math.max(prev - 1, 0));
       setError(error.message || "Failed to upload syllabus");
     } finally {
       setIsUploadingSyllabus(false);
@@ -268,83 +302,117 @@ const ClassesPage: React.FC = () => {
         </div>
       )}
 
-      {classes.length === 0 ? (
+      {classes.length === 0 && pendingClassCount === 0 ? (
         <div className="bg-card border border-border rounded-md p-8 text-center text-muted-foreground">
           <p>No classes found. Create your first class!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {classes.map((course, index) => (
-            <div
-              key={course._id}
-              onClick={() => setSelectedClass(course)}
-              className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
-            >
-              <div className={`h-2 ${getColorClass(index)}`} />
-              <div className="p-5">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    {course.name.split(" ").map((w) => w[0]).join("").substring(0, 6)}
-                  </span>
-                  <div className="relative" ref={showDropdown === course._id ? dropdownRef : null}>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowDropdown(showDropdown === course._id ? null : course._id);
-                      }}
-                      className="text-muted-foreground hover:text-foreground transition-colors p-1"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    {showDropdown === course._id && (
-                      <div className="absolute right-0 mt-1 w-36 bg-card border border-border rounded-md shadow-lg z-50">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEditModal(course);
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors first:rounded-t-md"
-                        >
-                          <Edit size={14} />
-                          Edit Class
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteClass(course._id);
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-secondary flex items-center gap-2 transition-colors last:rounded-b-md border-t border-border"
-                        >
-                          <Trash2 size={14} />
-                          Delete
-                        </button>
+          <AnimatePresence>
+            {classes.map((course, index) => (
+              <motion.div
+                layout
+                key={course._id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                onClick={() => setSelectedClass(course)}
+                className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
+              >
+                <div className={`h-2 ${getColorClass(index)}`} />
+                <div className="p-5">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      {course.name.split(" ").map((w) => w[0]).join("").substring(0, 6)}
+                    </span>
+                    <div className="relative" ref={showDropdown === course._id ? dropdownRef : null}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowDropdown(showDropdown === course._id ? null : course._id);
+                        }}
+                        className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {showDropdown === course._id && (
+                        <div className="absolute right-0 mt-1 w-36 bg-card border border-border rounded-md shadow-lg z-50">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditModal(course);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors first:rounded-t-md"
+                          >
+                            <Edit size={14} />
+                            Edit Class
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClass(course._id);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-secondary flex items-center gap-2 transition-colors last:rounded-b-md border-t border-border"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-1">{course.name}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {course.professor || "No professor listed"}
+                  </p>
+
+                  <div className="space-y-1">
+                    {course.timing && (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Time:</span> {course.timing}
+                      </div>
+                    )}
+                    {course.location && (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Location:</span> {course.location}
                       </div>
                     )}
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-1">{course.name}</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {course.professor || "No professor listed"}
-                </p>
+              </motion.div>
+            ))}
 
-                <div className="space-y-1">
-                  {course.timing && (
-                    <div className="text-xs text-muted-foreground">
-                      <span className="font-medium">Time:</span> {course.timing}
+            {Array.from({ length: pendingClassCount }).map((_, index) => (
+              <motion.div
+                layout
+                key={`pending-${index}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="bg-card border border-border rounded-md overflow-hidden animate-pulse"
+              >
+                <div className="h-2 bg-muted" />
+                <div className="p-5">
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      Pending
+                    </span>
+                    <div className="text-muted-foreground">
+                      <Eye className="h-4 w-4 animate-spin" />
                     </div>
-                  )}
-                  {course.location && (
-                    <div className="text-xs text-muted-foreground">
-                      <span className="font-medium">Location:</span> {course.location}
-                    </div>
-                  )}
+                  </div>
+                  <div className="h-4 w-2/3 rounded bg-muted/60 mb-3" />
+                  <div className="h-3 w-1/2 rounded bg-muted/40 mb-2" />
+                  <div className="h-3 w-1/3 rounded bg-muted/40" />
                 </div>
-              </div>
-            </div>
-          ))}
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
 

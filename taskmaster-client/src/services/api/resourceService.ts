@@ -114,7 +114,11 @@ export const resourceService = {
   /**
    * Upload a file and trigger document processing for RAG + Nebula verification
    */
-  async smartUploadResource(file: File, classId?: string): Promise<any> {
+  async smartUploadResource(
+    file: File,
+    classId?: string,
+    options?: { skipProcessing?: boolean }
+  ): Promise<any> {
     const userId = await getCachedUserId();
     console.log("smartUploadResource:", file.name);
 
@@ -164,9 +168,11 @@ export const resourceService = {
     }
 
     // 4. Trigger document processing (non-blocking)
-    resourceService.triggerProcessing(resource.id, userId, urlData.publicUrl, classId).catch(e => {
-      console.error("Processing trigger failed:", e);
-    });
+    if (!options?.skipProcessing) {
+      resourceService.triggerProcessing(resource.id, userId, urlData.publicUrl, classId).catch(e => {
+        console.error("Processing trigger failed:", e);
+      });
+    }
 
     // 5. Nebula enrichment is now optional - document processing extracts everything
     // No longer blocking on Nebula verification
@@ -180,7 +186,7 @@ export const resourceService = {
       metadata: { resourceId: resource.id, fileName: file.name }
     });
 
-    return resource;
+    return { ...resource, _id: resource.id };
   },
 
   /**
