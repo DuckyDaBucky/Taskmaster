@@ -21,11 +21,18 @@ export const TaskList: React.FC<TaskListProps> = ({
 }) => {
   const [completingTaskId, setCompletingTaskId] = React.useState<string | null>(null);
 
-  const filteredTasks = tasks.filter((task) => {
-    if (filter === "all") return true;
-    if (filter === "completed") return task.completed;
-    return !task.completed;
-  });
+  const filteredTasks = tasks
+    .filter((task) => {
+      if (filter === "all") return true;
+      if (filter === "completed") return task.completed;
+      return !task.completed;
+    })
+    .sort((a, b) => {
+      // Pending tasks first, completed tasks last
+      if (a.completed && !b.completed) return 1;
+      if (!a.completed && b.completed) return -1;
+      return 0;
+    });
 
   const handleToggle = async (task: TasksData) => {
     if (!onToggleComplete) return;
@@ -76,10 +83,18 @@ export const TaskList: React.FC<TaskListProps> = ({
                 )}
               </button>
               <div>
+                {/* Overdue badge */}
+                {!task.completed && task.deadline && new Date(task.deadline) < new Date() && (
+                  <span className="inline-block px-2 py-0.5 bg-red-500/10 text-red-500 text-xs font-semibold rounded mb-1">
+                    OVERDUE
+                  </span>
+                )}
                 <h4
                   className={`font-medium ${
-                    task.status === "completed"
+                    task.completed
                       ? "text-muted-foreground line-through"
+                      : !task.completed && task.deadline && new Date(task.deadline) < new Date()
+                      ? "text-red-500"
                       : "text-foreground"
                   }`}
                 >

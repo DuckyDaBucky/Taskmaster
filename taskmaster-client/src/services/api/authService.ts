@@ -1,19 +1,18 @@
-/**
- * Simple Supabase Auth Service
- * Minimal, bulletproof authentication
- */
-
 import { supabase } from "../../lib/supabase";
+import { clearAuthCache, setAuthCache } from "./authCache";
 import type { UserData } from "../types";
 
+export class AuthError extends Error {
+  constructor(message: string, public code: string = 'AUTH_ERROR') {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
 export const authService = {
-  /**
-   * Login with email and password
-   */
   async login(emailOrUsername: string, password: string, isEmail: boolean = true): Promise<void> {
     let email = emailOrUsername.trim().toLowerCase();
 
-    // If username, look up email
     if (!isEmail) {
       const { data } = await supabase
         .from('users')
@@ -23,30 +22,28 @@ export const authService = {
         .single();
 
       if (!data?.email) {
-        throw new Error("Username not found");
+        throw new AuthError("Username not found", "USER_NOT_FOUND");
       }
       email = data.email;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       if (error.message?.includes("Invalid")) {
-        throw new Error("Invalid email or password");
+        throw new AuthError("Invalid email or password", "INVALID_CREDENTIALS");
       }
       if (error.message?.includes("confirm")) {
-        throw new Error("Please confirm your email first");
+        throw new AuthError("Please confirm your email first", "EMAIL_NOT_CONFIRMED");
       }
-      throw new Error(error.message);
+      throw new AuthError(error.message, "LOGIN_FAILED");
+    }
+
+    if (data.user) {
+      setAuthCache(data.user.id);
     }
   },
 
-  /**
-   * Sign up new user
-   */
   async signup(userData: {
     email: string;
     password: string;
@@ -57,7 +54,21 @@ export const authService = {
     const email = userData.email.trim().toLowerCase();
     const userName = userData.userName.trim();
 
-    // Sign up with Supabase Auth
+    if (!userName || userName.toLowerCase() === 'user') {
+      throw new AuthError("Please provide a valid username", "INVALID_USERNAME");
+    }
+
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .or(`user_name.eq.${userName},display_name.eq.${userName}`)
+      .limit(1)
+      .single();
+
+    if (existingUser) {
+      throw new AuthError("Username already taken", "USERNAME_EXISTS");
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password: userData.password,
@@ -73,17 +84,16 @@ export const authService = {
 
     if (error) {
       if (error.message?.includes("already")) {
-        throw new Error("Email already registered");
+        throw new AuthError("Email already registered", "EMAIL_EXISTS");
       }
-      throw new Error(error.message);
+      throw new AuthError(error.message, "SIGNUP_FAILED");
     }
 
     if (!data.user) {
-      throw new Error("Failed to create account");
+      throw new AuthError("Failed to create account", "SIGNUP_FAILED");
     }
 
-    // Create profile in users table (fire and forget)
-    supabase.from('users').upsert({
+    await supabase.from('users').upsert({
       id: data.user.id,
       user_name: userName,
       display_name: userName,
@@ -93,60 +103,102 @@ export const authService = {
       streak: 0,
       points: 0,
       level: 1,
-      theme: 'light',
-    }, { onConflict: 'id' }).then(() => {
-      // Create Personal class
-      supabase.from('classes').upsert({
-        name: 'Personal',
-        user_id: data.user!.id,
-        is_personal: true,
-      }, { onConflict: 'user_id,is_personal' });
-    });
+      theme: 'dark',
+    }, { onConflict: 'id' });
+
+    await supabase.from('classes').upsert({
+      name: 'Personal',
+      user_id: data.user.id,
+      is_personal: true,
+    }, { onConflict: 'user_id,is_personal' });
+
+    setAuthCache(data.user.id);
   },
 
-  /**
-   * Get current user data
-   */
   async getUserMe(): Promise<UserData> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("Not authenticated");
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError) {
+      clearAuthCache();
+      throw new AuthError("Authentication failed: " + authError.message, "AUTH_FAILED");
+    }
+    
+    if (!user) {
+      clearAuthCache();
+      throw new AuthError("Not authenticated", "NOT_AUTHENTICATED");
+    }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    setAuthCache(user.id);
 
-    // Try to get profile
-    let { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
       .single();
 
-    // If no profile, create one from auth metadata
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error("Profile fetch error:", profileError);
+    }
+
     if (!profile) {
       const meta = user.user_metadata || {};
+      const emailPrefix = user.email?.split('@')[0] || '';
+      const userName = meta.user_name || meta.display_name || emailPrefix;
+      
+      if (!userName || userName.toLowerCase() === 'user') {
+        return {
+          _id: user.id,
+          firstName: meta.first_name || '',
+          lastName: meta.last_name || '',
+          email: user.email || '',
+          username: emailPrefix || 'Unknown',
+          displayName: emailPrefix || 'Unknown',
+          profileImageUrl: undefined,
+          preferences: { personality: 0.5, time: 0, inPerson: 0, privateSpace: 0 },
+          theme: 'dark',
+          settings: { emailNotifications: true, pushNotifications: false, weeklyDigest: true },
+          points: 0,
+          streak: 0,
+          level: 1,
+        };
+      }
+
       const newProfile = {
         id: user.id,
-        user_name: meta.user_name || meta.display_name || user.email?.split('@')[0] || 'user',
-        display_name: meta.display_name || meta.user_name || user.email?.split('@')[0] || 'user',
+        user_name: userName,
+        display_name: userName,
         first_name: meta.first_name || '',
         last_name: meta.last_name || '',
         email: user.email || '',
         streak: 0,
         points: 0,
         level: 1,
-        theme: 'light',
+        theme: 'dark',
       };
 
       await supabase.from('users').upsert(newProfile, { onConflict: 'id' });
 
-      // Also create Personal class
       await supabase.from('classes').upsert({
         name: 'Personal',
         user_id: user.id,
         is_personal: true,
       }, { onConflict: 'user_id,is_personal' });
 
-      profile = newProfile as any;
+      return {
+        _id: user.id,
+        firstName: meta.first_name || '',
+        lastName: meta.last_name || '',
+        email: user.email || '',
+        username: userName,
+        displayName: userName,
+        profileImageUrl: undefined,
+        preferences: { personality: 0.5, time: 0, inPerson: 0, privateSpace: 0 },
+        theme: 'dark',
+        settings: { emailNotifications: true, pushNotifications: false, weeklyDigest: true },
+        points: 0,
+        streak: 0,
+        level: 1,
+      };
     }
 
     return {
@@ -171,12 +223,13 @@ export const authService = {
     };
   },
 
-  /**
-   * Update profile
-   */
   async updateProfile(data: { firstName?: string; lastName?: string; pfp?: string | File }): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      clearAuthCache();
+      throw new AuthError("Not authenticated", "NOT_AUTHENTICATED");
+    }
 
     const updates: any = {};
     if (data.firstName) updates.first_name = data.firstName;
@@ -190,16 +243,16 @@ export const authService = {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw new AuthError(error.message, "UPDATE_FAILED");
     return profile;
   },
 
-  /**
-   * Get login dates
-   */
   async getLoginDates(): Promise<{ loginDates: string[]; streak: number }> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return { loginDates: [], streak: 0 };
+    }
 
     const { data } = await supabase
       .from('users')
@@ -213,26 +266,44 @@ export const authService = {
     };
   },
 
-  /**
-   * Logout
-   */
   async logout(): Promise<void> {
+    clearAuthCache();
     await supabase.auth.signOut();
   },
 
-  /**
-   * Check if authenticated
-   */
   async isAuthenticated(): Promise<boolean> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return !!session;
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      return !error && !!user;
+    } catch {
+      return false;
+    }
   },
 
-  /**
-   * Get session
-   */
   async getSession() {
     const { data: { session } } = await supabase.auth.getSession();
     return session;
+  },
+
+  async validateAuth(): Promise<{ isValid: boolean; userId: string | null; error?: string }> {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        clearAuthCache();
+        return { isValid: false, userId: null, error: error.message };
+      }
+      
+      if (!user) {
+        clearAuthCache();
+        return { isValid: false, userId: null, error: 'No user found' };
+      }
+      
+      setAuthCache(user.id);
+      return { isValid: true, userId: user.id };
+    } catch (err: any) {
+      clearAuthCache();
+      return { isValid: false, userId: null, error: err.message };
+    }
   },
 };

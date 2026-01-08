@@ -49,7 +49,7 @@ export const CreateDeckModal: React.FC<CreateDeckModalProps> = ({
             onClick={() => setCreateMode("auto")}
             className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               createMode === "auto"
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary text-white"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -59,7 +59,7 @@ export const CreateDeckModal: React.FC<CreateDeckModalProps> = ({
             onClick={() => setCreateMode("manual")}
             className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               createMode === "manual"
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary text-white"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >

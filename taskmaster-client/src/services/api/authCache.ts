@@ -1,47 +1,118 @@
 import { supabase } from "../../lib/supabase";
 
-// Centralized user ID cache to avoid repeated auth calls
+const CACHE_TTL_MS = 60000;
+
 let cachedUserId: string | null = null;
+let cacheTimestamp: number = 0;
 let cachePromise: Promise<string> | null = null;
+let isInitialized = false;
 
 export async function getCachedUserId(): Promise<string> {
-  // Return cached value if available
-  if (cachedUserId) return cachedUserId;
+  const now = Date.now();
   
-  // If already fetching, wait for that promise
-  if (cachePromise) return cachePromise;
-  
-  // Fetch and cache
-  cachePromise = (async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error("Not authenticated");
-    cachedUserId = session.user.id;
+  if (cachedUserId && (now - cacheTimestamp) < CACHE_TTL_MS) {
     return cachedUserId;
+  }
+  
+  if (cachePromise) {
+    return cachePromise;
+  }
+  
+  cachePromise = (async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        clearAuthCache();
+        throw new Error("Authentication error: " + error.message);
+      }
+      
+      if (!user) {
+        clearAuthCache();
+        throw new Error("Not authenticated");
+      }
+      
+      cachedUserId = user.id;
+      cacheTimestamp = Date.now();
+      
+      return user.id;
+    } catch (err) {
+      clearAuthCache();
+      throw err;
+    } finally {
+      cachePromise = null;
+    }
   })();
   
-  try {
-    return await cachePromise;
-  } finally {
-    cachePromise = null;
+  return cachePromise;
+}
+
+export function getCachedUserIdSync(): string | null {
+  const now = Date.now();
+  if (cachedUserId && (now - cacheTimestamp) < CACHE_TTL_MS) {
+    return cachedUserId;
   }
+  return null;
 }
 
 export function clearAuthCache(): void {
   cachedUserId = null;
+  cacheTimestamp = 0;
   cachePromise = null;
 }
 
-// Set cached user ID (called after login)
 export function setAuthCache(userId: string): void {
   cachedUserId = userId;
+  cacheTimestamp = Date.now();
 }
 
-// Listen for auth state changes
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_OUT') {
-    clearAuthCache();
-  } else if (event === 'SIGNED_IN' && session?.user) {
-    setAuthCache(session.user.id);
-  }
-});
+export function isAuthCacheValid(): boolean {
+  const now = Date.now();
+  return !!(cachedUserId && (now - cacheTimestamp) < CACHE_TTL_MS);
+}
 
+export async function refreshAuthCache(): Promise<string | null> {
+  clearAuthCache();
+  try {
+    return await getCachedUserId();
+  } catch {
+    return null;
+  }
+}
+
+function initAuthListener() {
+  if (isInitialized) return;
+  isInitialized = true;
+  
+  supabase.auth.onAuthStateChange((event, session) => {
+    switch (event) {
+      case 'SIGNED_OUT':
+        clearAuthCache();
+        break;
+      case 'SIGNED_IN':
+        if (session?.user) setAuthCache(session.user.id);
+        break;
+      case 'TOKEN_REFRESHED':
+        if (session?.user && cachedUserId === session.user.id) {
+          cacheTimestamp = Date.now();
+        } else if (session?.user) {
+          setAuthCache(session.user.id);
+        }
+        break;
+      case 'USER_UPDATED':
+        if (session?.user) setAuthCache(session.user.id);
+        break;
+      case 'PASSWORD_RECOVERY':
+        clearAuthCache();
+        break;
+      default:
+        if (session?.user && !cachedUserId) {
+          setAuthCache(session.user.id);
+        }
+    }
+  });
+}
+
+if (typeof window !== 'undefined') {
+  initAuthListener();
+}

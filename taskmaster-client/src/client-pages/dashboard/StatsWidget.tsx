@@ -18,10 +18,10 @@ export const StatsWidget: React.FC<StatsWidgetProps> = ({ tasks = [], isLoading 
   const [streak, setStreak] = useState(0);
   const [isLoadingStreak, setIsLoadingStreak] = useState(false);
 
-  // Calculate real stats from tasks
+  // Calculate real stats from tasks (check both completed flag and status for compatibility)
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'completed').length;
-  const pendingTasks = tasks.filter(t => t.status === 'pending').length;
+  const completedTasks = tasks.filter(t => t.completed || t.status === 'completed').length;
+  const pendingTasks = tasks.filter(t => !t.completed && t.status !== 'completed' && t.status !== 'overdue').length;
   const overdueTasks = tasks.filter(t => t.status === 'overdue').length;
   
   // Calculate completion percentage (avoid NaN)

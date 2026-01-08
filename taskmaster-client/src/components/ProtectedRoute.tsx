@@ -3,56 +3,109 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
+import { setAuthCache, clearAuthCache } from "../services/api/authCache";
 
-const AUTH_TIMEOUT_MS = 10000; // 10 second timeout
+const AUTH_TIMEOUT_MS = 12000;
+const RETRY_DELAY_MS = 1500;
+const MAX_RETRIES = 2;
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const checkAuth = useCallback(async () => {
+  const checkAuth = useCallback(async (retryCount = 0): Promise<boolean> => {
     try {
-      // Create a timeout promise
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Auth timeout')), AUTH_TIMEOUT_MS);
+        setTimeout(() => reject(new Error('Auth check timeout')), AUTH_TIMEOUT_MS);
       });
 
-      // Race between auth check and timeout
-      const authPromise = supabase.auth.getSession();
+      const authPromise = supabase.auth.getUser();
       const result = await Promise.race([authPromise, timeoutPromise]);
       
-      const session = result?.data?.session;
-      const authed = !!session;
-      setIsAuthenticated(authed);
+      const { data: { user }, error: authError } = result;
       
-      if (!authed) {
-        router.replace("/login");
+      if (authError) {
+        clearAuthCache();
+        return false;
+      }
+      
+      if (user) {
+        setAuthCache(user.id);
+        return true;
+      } else {
+        clearAuthCache();
+        return false;
       }
     } catch (err: any) {
-      console.error("Auth check failed:", err.message);
-      setError(err.message);
-      // On timeout or error, redirect to login
-      router.replace("/login");
-    } finally {
-      setIsLoading(false);
+      if (retryCount < MAX_RETRIES && err.message?.includes('timeout')) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        return checkAuth(retryCount + 1);
+      }
+      return false;
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
-    checkAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      const authed = !!session;
+    let isMounted = true;
+    
+    const performAuthCheck = async () => {
+      const authed = await checkAuth();
+      if (!isMounted) return;
+      
       setIsAuthenticated(authed);
-      if (event === "SIGNED_OUT" || !authed) {
-        router.replace("/login");
+      setIsLoading(false);
+      
+      if (!authed) {
+        setTimeout(() => {
+          if (isMounted) router.replace("/login");
+        }, 100);
+      }
+    };
+    
+    performAuthCheck();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+      
+      switch (event) {
+        case 'SIGNED_OUT':
+          clearAuthCache();
+          setIsAuthenticated(false);
+          router.replace("/login");
+          break;
+        case 'SIGNED_IN':
+          if (session?.user) {
+            setAuthCache(session.user.id);
+            setIsAuthenticated(true);
+          }
+          break;
+        case 'TOKEN_REFRESHED':
+          if (session?.user) {
+            setAuthCache(session.user.id);
+          } else {
+            const authed = await checkAuth();
+            if (!authed && isMounted) {
+              setIsAuthenticated(false);
+              router.replace("/login");
+            }
+          }
+          break;
+        default:
+          if (!session) {
+            const authed = await checkAuth();
+            if (!authed && isMounted) {
+              setIsAuthenticated(false);
+              router.replace("/login");
+            }
+          }
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [router, checkAuth]);
 
   if (isLoading) {
@@ -64,16 +117,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-        <p className="text-sm text-destructive">Connection error. Redirecting...</p>
-      </div>
-    );
-  }
-
   return isAuthenticated ? <>{children}</> : null;
 };
 
 export { ProtectedRoute };
-

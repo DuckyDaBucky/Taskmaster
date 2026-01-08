@@ -72,6 +72,19 @@ export interface ResourceData {
     summary?: string;
     description?: string;
     files?: any[];
+    processing_status?: 'pending' | 'processing' | 'complete' | 'failed';
+    ai_summary?: string;
+    extracted_data?: {
+        document_type?: string;
+        course_number?: string;
+        course_name?: string;
+        professor?: string;
+        key_topics?: string[];
+        due_dates?: Array<{ date: string; description: string }>;
+        analyzed_at?: string;
+        [key: string]: any;
+    };
+    classification?: string;
 }
 
 export interface FlashcardsData {

@@ -71,7 +71,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
           <p className="text-muted-foreground">This deck has no flashcards yet.</p>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+            className="px-4 py-2 bg-primary text-white rounded-md"
           >
             Close
           </button>
@@ -104,9 +104,13 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
         {/* Card Area */}
         <div className="flex-1 flex items-center justify-center relative perspective-1000">
           <div
-            className="relative w-full max-w-2xl aspect-[3/2] cursor-pointer transition-transform duration-500 transform-style-3d"
+            className="relative w-full max-w-2xl aspect-[3/2] cursor-pointer transform-style-3d"
             onClick={handleFlip}
-            style={{ transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)" }}
+            style={{ 
+              transition: 'transform 0.6s',
+              transformStyle: 'preserve-3d',
+              transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)" 
+            }}
           >
             {/* Front (Question) */}
             <div

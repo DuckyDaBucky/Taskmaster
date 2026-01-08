@@ -85,7 +85,7 @@ export const Sidebar: React.FC = () => {
             <div className="relative w-8 h-8 rounded-full overflow-hidden">
                <Image 
                 src={(user as any).pfp} 
-                alt={user?.firstName || user?.username || user?.email || "User"} 
+                alt={user?.firstName || user?.displayName || user?.email || "User"} 
                 fill
                 className="object-cover"
                 sizes="32px"
@@ -93,11 +93,11 @@ export const Sidebar: React.FC = () => {
             </div>
           ) : (
             <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xs">
-              {(user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0] || "U").toUpperCase()}
+              {(user?.firstName?.[0] || user?.displayName?.[0] || user?.email?.[0] || "?").toUpperCase()}
             </div>
           )}
-          <span className="text-sm text-foreground font-medium">
-            {user?.firstName || user?.username || user?.email || "User"}
+          <span className="text-sm text-foreground font-medium truncate max-w-[140px]">
+            {user?.firstName || user?.displayName || user?.email?.split('@')[0] || "Loading..."}
           </span>
         </div>
 

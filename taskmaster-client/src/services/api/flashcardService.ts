@@ -48,7 +48,34 @@ export const flashcardService = {
   },
 
   async generateFlashcards(classId: string, resourceId?: string): Promise<FlashcardsData[]> {
-    throw new Error("Flashcard generation requires ML service integration");
+    const userId = await getCachedUserId();
+
+    const response = await fetch('/api/flashcards/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        class_id: classId,
+        resource_id: resourceId,
+        user_id: userId,
+        count: 10,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to generate flashcards');
+    }
+
+    // Return the generated flashcards in the expected format
+    return (data.flashcards || []).map((card: any) => ({
+      _id: card.id || card._id,
+      class: classId,
+      topic: card.topic || '',
+      question: card.question || '',
+      answer: card.answer || '',
+      description: card.description || 'AI Generated',
+    }));
   },
 
   async createManualFlashcards(

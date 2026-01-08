@@ -18,7 +18,7 @@ export const resourceService = {
 
     const { data, error } = await supabaseClient
       .from('resources')
-      .select('id, title, urls, websites, files, summary, description, class_id, processing_status')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, ai_summary, extracted_data, classification')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -35,6 +35,9 @@ export const resourceService = {
       description: resource.description,
       class: resource.class_id || undefined,
       processing_status: resource.processing_status,
+      ai_summary: resource.ai_summary,
+      extracted_data: resource.extracted_data,
+      classification: resource.classification,
     }));
   },
 
@@ -52,7 +55,7 @@ export const resourceService = {
 
     const { data, error } = await supabaseClient
       .from('resources')
-      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, classification')
+      .select('id, title, urls, websites, files, summary, description, class_id, processing_status, classification, ai_summary, extracted_data')
       .eq('user_id', userId)
       .eq('class_id', classId)
       .order('created_at', { ascending: false });
@@ -69,6 +72,9 @@ export const resourceService = {
       description: resource.description,
       class: resource.class_id || undefined,
       processing_status: resource.processing_status,
+      classification: resource.classification,
+      ai_summary: resource.ai_summary,
+      extracted_data: resource.extracted_data,
     }));
   },
 
@@ -178,12 +184,19 @@ export const resourceService = {
   },
 
   /**
-   * Trigger document analysis with Gemini
+   * Trigger document analysis with Azure
    * Extracts metadata, summary, and structured data from uploaded documents
    */
-  async triggerProcessing(resourceId: string, userId: string, fileUrl: string, classId?: string): Promise<void> {
+  async triggerProcessing(
+    resourceId: string,
+    userId: string,
+    fileUrl: string,
+    classId?: string,
+  ): Promise<void> {
     try {
-      const response = await fetch('/api/documents/analyze', {
+      const endpoint = '/api/documents/analyze-azure';
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -199,7 +212,9 @@ export const resourceService = {
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
           const data = await response.json();
-          console.error("[Document Analysis] Failed:", data.error);
+          const errorMessage = data.error || 'Unknown error';
+
+          console.error("[Document Analysis] Failed:", errorMessage);
         } else {
           console.error("[Document Analysis] Failed with status:", response.status);
         }
