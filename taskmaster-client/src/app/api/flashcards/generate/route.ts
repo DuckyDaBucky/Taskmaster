@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { class_id, resource_id, user_id, count = 10 } = body;
+    const { class_id, resource_id, user_id, count = 10, topic } = body;
 
     if (!class_id || !user_id) {
         return NextResponse.json({ error: 'class_id and user_id required' }, { status: 400 });
@@ -177,15 +177,20 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        if (topic) {
+            content = `Primary Topic: ${topic}\n\n${content}`;
+        }
+
         // Generate flashcards
         const flashcards = await generateFlashcardsWithAI(content, className, count);
 
         // Save to database
         if (supabase && flashcards.length > 0) {
+            const forcedTopic = topic || null;
             const flashcardsToInsert = flashcards.map(card => ({
                 user_id,
                 class_id,
-                topic: card.topic || className,
+                topic: forcedTopic || card.topic || className,
                 question: card.question,
                 answer: card.answer,
                 description: `AI-generated from ${resource_id ? 'resource' : 'class topics'}`,
@@ -201,10 +206,15 @@ export async function POST(req: NextRequest) {
                 throw new Error('Failed to save flashcards');
             }
 
+            const responseFlashcards = inserted?.map((card: any) => ({
+                ...card,
+                topic: forcedTopic || card.topic,
+            })) || [];
+
             return NextResponse.json({
                 success: true,
-                count: inserted?.length || 0,
-                flashcards: inserted,
+                count: responseFlashcards.length,
+                flashcards: responseFlashcards,
             });
         }
 

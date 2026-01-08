@@ -21,6 +21,33 @@ export const OverdueTasksWidget: React.FC<OverdueTasksWidgetProps> = ({ tasks, i
       .slice(0, 5);
   }, [tasks]);
 
+  const dueTodayTasks = useMemo(() => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+    return tasks
+      .filter(t => {
+        if (t.completed || !t.deadline) return false;
+        const deadline = new Date(t.deadline);
+        return deadline >= startOfDay && deadline < endOfDay;
+      })
+      .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
+      .slice(0, 5);
+  }, [tasks]);
+
+  const urgentTasks = useMemo(() => {
+    const seen = new Set<string>();
+    const combined = [...overdueTasks, ...dueTodayTasks].filter(task => {
+      if (seen.has(task._id)) return false;
+      seen.add(task._id);
+      return true;
+    });
+    return combined
+      .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
+      .slice(0, 5);
+  }, [overdueTasks, dueTodayTasks]);
+
   const getDaysOverdue = (deadline: string): number => {
     const now = new Date();
     const dueDate = new Date(deadline);

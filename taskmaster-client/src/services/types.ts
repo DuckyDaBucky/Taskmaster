@@ -93,6 +93,17 @@ export interface FlashcardsData {
     question: string;
     answer: string;
     class?: string | any;
+    description?: string;
+}
+
+export interface NoteData {
+    _id: string;
+    classId: string;
+    topic: string;
+    title: string;
+    content: string;
+    resourceId?: string | null;
+    createdAt: string;
 }
 
 export interface Friend {

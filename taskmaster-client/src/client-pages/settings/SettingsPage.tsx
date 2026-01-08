@@ -2,11 +2,17 @@ import React, { useState, useEffect } from "react";
 import { useTheme, Theme } from "../../context/ThemeContext";
 import { useUser } from "../../context/UserContext";
 import { supabase } from "../../lib/supabase";
-import { User, Palette, Bell, Shield, Trash2 } from "lucide-react";
+import { User, Palette, Bell, Shield, Trash2, Calendar } from "lucide-react";
 
 const SettingsPage: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const { user, setUserState, logout } = useUser();
+
+  interface OutlookCalendar {
+    calendar_id: string;
+    name: string;
+    selected: boolean;
+  }
   
   // Profile editing
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -35,6 +41,16 @@ const SettingsPage: React.FC = () => {
   
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [outlookCalendars, setOutlookCalendars] = useState<OutlookCalendar[]>([]);
+  const [outlookSelection, setOutlookSelection] = useState<Record<string, boolean>>({});
+  const [isLoadingOutlook, setIsLoadingOutlook] = useState(false);
+  const [isSavingOutlook, setIsSavingOutlook] = useState(false);
+  const [outlookConnected, setOutlookConnected] = useState(false);
+
+  const showMessage = (type: "success" | "error", text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
 
   // Load user data
   useEffect(() => {
@@ -60,9 +76,81 @@ const SettingsPage: React.FC = () => {
     }
   }, [user]);
 
-  const showMessage = (type: "success" | "error", text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 3000);
+  const loadOutlookCalendars = async (refresh: boolean = false) => {
+    setIsLoadingOutlook(true);
+    try {
+      const response = await fetch(
+        `/api/outlook/calendars${refresh ? "?refresh=1" : ""}`
+      );
+      if (!response.ok) {
+        setOutlookConnected(false);
+        setOutlookCalendars([]);
+        setOutlookSelection({});
+        return;
+      }
+      const data = await response.json();
+      const calendars = data.calendars || [];
+      setOutlookCalendars(calendars);
+      setOutlookConnected(true);
+      const selectionState: Record<string, boolean> = {};
+      calendars.forEach((calendar: OutlookCalendar) => {
+        selectionState[calendar.calendar_id] = calendar.selected;
+      });
+      setOutlookSelection(selectionState);
+    } catch (error) {
+      setOutlookConnected(false);
+    } finally {
+      setIsLoadingOutlook(false);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("outlook") === "connected") {
+      showMessage("success", "Outlook connected successfully!");
+      params.delete("outlook");
+      const query = params.toString();
+      const next = query ? `?${query}` : "";
+      window.history.replaceState({}, "", `${window.location.pathname}${next}`);
+      loadOutlookCalendars(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user?._id) {
+      loadOutlookCalendars();
+    }
+  }, [user?._id]);
+
+  const handleConnectOutlook = () => {
+    window.location.href = "/api/auth/microsoft/start";
+  };
+
+  const handleSaveOutlookSelection = async () => {
+    setIsSavingOutlook(true);
+    try {
+      const selectedCalendarIds = Object.entries(outlookSelection)
+        .filter(([, selected]) => selected)
+        .map(([calendarId]) => calendarId);
+
+      const response = await fetch("/api/outlook/calendars", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selectedCalendarIds }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save calendar selection");
+      }
+
+      showMessage("success", "Calendar selection saved!");
+      await loadOutlookCalendars();
+    } catch (error: any) {
+      showMessage("error", error.message || "Failed to save selection");
+    } finally {
+      setIsSavingOutlook(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -392,6 +480,72 @@ const SettingsPage: React.FC = () => {
           >
             {isSaving ? "Saving..." : "Save Notifications"}
           </button>
+        </div>
+      </section>
+
+      {/* Calendar Sync Section */}
+      <section className="bg-card border border-border rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Calendar size={20} className="text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Calendar Sync</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Connect Outlook and choose which calendars you want to sync.
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleConnectOutlook}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+            >
+              {outlookConnected ? "Reconnect Outlook" : "Connect Outlook"}
+            </button>
+            <button
+              onClick={() => loadOutlookCalendars(true)}
+              disabled={isLoadingOutlook}
+              className="px-3 py-2 border border-border rounded-lg text-foreground hover:bg-secondary disabled:opacity-50"
+            >
+              {isLoadingOutlook ? "Refreshing..." : "Refresh Calendars"}
+            </button>
+            <button
+              onClick={handleSaveOutlookSelection}
+              disabled={isSavingOutlook}
+              className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isSavingOutlook ? "Saving..." : "Save Selection"}
+            </button>
+          </div>
+
+          {isLoadingOutlook ? (
+            <div className="text-sm text-muted-foreground">Loading calendars...</div>
+          ) : outlookCalendars.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              No calendars loaded yet. Connect Outlook or refresh to fetch them.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {outlookCalendars.map((calendar) => (
+                <label
+                  key={calendar.calendar_id}
+                  className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2"
+                >
+                  <span className="text-sm text-foreground">{calendar.name}</span>
+                  <input
+                    type="checkbox"
+                    checked={!!outlookSelection[calendar.calendar_id]}
+                    onChange={(e) =>
+                      setOutlookSelection((prev) => ({
+                        ...prev,
+                        [calendar.calendar_id]: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 accent-primary"
+                  />
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

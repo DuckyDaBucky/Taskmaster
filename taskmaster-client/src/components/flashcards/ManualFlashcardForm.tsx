@@ -9,6 +9,7 @@ interface ManualCard {
 
 interface ManualFlashcardFormProps {
   classes: ClassData[];
+  defaultClassId?: string;
   onCreate: (mode: "manual", data: { classId: string; cards: ManualCard[] }) => Promise<void>;
   isGenerating: boolean;
   onClose: () => void;
@@ -16,11 +17,12 @@ interface ManualFlashcardFormProps {
 
 export const ManualFlashcardForm: React.FC<ManualFlashcardFormProps> = ({
   classes,
+  defaultClassId,
   onCreate,
   isGenerating,
   onClose,
 }) => {
-  const [selectedClassId, setSelectedClassId] = useState<string>("");
+  const [selectedClassId, setSelectedClassId] = useState<string>(defaultClassId || "");
   const [manualCards, setManualCards] = useState<ManualCard[]>([
     { question: "", answer: "", topic: "" }
   ]);

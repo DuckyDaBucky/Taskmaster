@@ -47,7 +47,10 @@ export const flashcardService = {
     }));
   },
 
-  async generateFlashcards(classId: string, resourceId?: string): Promise<FlashcardsData[]> {
+  async generateFlashcards(
+    classId: string,
+    options?: { resourceId?: string; topic?: string; count?: number }
+  ): Promise<FlashcardsData[]> {
     const userId = await getCachedUserId();
 
     const response = await fetch('/api/flashcards/generate', {
@@ -55,9 +58,10 @@ export const flashcardService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         class_id: classId,
-        resource_id: resourceId,
+        resource_id: options?.resourceId,
+        topic: options?.topic,
         user_id: userId,
-        count: 10,
+        count: options?.count ?? 10,
       }),
     });
 
@@ -101,5 +105,23 @@ export const flashcardService = {
     if (error) throw new Error(error.message);
 
     return { count: data?.length || cards.length };
+  },
+
+  async deleteFlashcardSet(classId: string | null, topic: string): Promise<void> {
+    const userId = await getCachedUserId();
+    let query = supabase
+      .from('flashcards')
+      .delete()
+      .eq('user_id', userId)
+      .eq('topic', topic);
+
+    if (classId) {
+      query = query.eq('class_id', classId);
+    } else {
+      query = query.is('class_id', null);
+    }
+
+    const { error } = await query;
+    if (error) throw new Error(error.message);
   },
 };

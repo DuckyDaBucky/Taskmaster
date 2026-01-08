@@ -10,6 +10,8 @@ import { taskService } from "./taskService";
 import { classService } from "./classService";
 import { resourceService } from "./resourceService";
 import { flashcardService } from "./flashcardService";
+import { learnService } from "./learnService";
+import { notesService } from "./notesService";
 import { eventService } from "./eventService";
 import { userService } from "./userService";
 import { activityService } from "./activityService";
@@ -24,6 +26,8 @@ export {
   classService,
   resourceService,
   flashcardService,
+  learnService,
+  notesService,
   eventService,
   userService,
   activityService,
@@ -73,6 +77,16 @@ class ApiService {
   getFlashcardsByClassId = flashcardService.getFlashcardsByClassId;
   generateFlashcards = flashcardService.generateFlashcards;
   createManualFlashcards = flashcardService.createManualFlashcards;
+  deleteFlashcardSet = flashcardService.deleteFlashcardSet;
+
+  // Learn
+  getLearnQueue = learnService.getLearnQueue;
+  submitLearnAttempt = learnService.submitAttempt;
+  getLearnProgress = learnService.getProgressForSet;
+
+  // Notes
+  getAllNotes = notesService.getAllNotes;
+  generateNotes = notesService.generateNotes;
 
   // Events
   createEvent = eventService.createEvent;

@@ -103,6 +103,64 @@ export type Database = {
                 Insert: Omit<Database['public']['Tables']['resources']['Row'], 'id' | 'created_at' | 'updated_at'>;
                 Update: Partial<Database['public']['Tables']['resources']['Insert']>;
             };
+            calendar_connections: {
+                Row: {
+                    id: string;
+                    user_id: string;
+                    provider: string;
+                    access_token: string;
+                    refresh_token: string;
+                    expires_at: string;
+                    scope: string | null;
+                    created_at: string;
+                    updated_at: string;
+                };
+                Insert: Omit<Database['public']['Tables']['calendar_connections']['Row'], 'id' | 'created_at' | 'updated_at'>;
+                Update: Partial<Database['public']['Tables']['calendar_connections']['Insert']>;
+            };
+            calendar_oauth_states: {
+                Row: {
+                    id: string;
+                    user_id: string;
+                    provider: string;
+                    state: string;
+                    expires_at: string;
+                    created_at: string;
+                };
+                Insert: Omit<Database['public']['Tables']['calendar_oauth_states']['Row'], 'id' | 'created_at'>;
+                Update: Partial<Database['public']['Tables']['calendar_oauth_states']['Insert']>;
+            };
+            calendar_calendars: {
+                Row: {
+                    id: string;
+                    user_id: string;
+                    provider: string;
+                    calendar_id: string;
+                    name: string;
+                    selected: boolean;
+                    created_at: string;
+                    updated_at: string;
+                };
+                Insert: Omit<Database['public']['Tables']['calendar_calendars']['Row'], 'id' | 'created_at' | 'updated_at'>;
+                Update: Partial<Database['public']['Tables']['calendar_calendars']['Insert']>;
+            };
+            resource_links: {
+                Row: {
+                    id: string;
+                    user_id: string;
+                    class_id: string;
+                    topic: string;
+                    title: string;
+                    url: string;
+                    type: string;
+                    source: string | null;
+                    description: string | null;
+                    created_at: string;
+                    updated_at: string;
+                };
+                Insert: Omit<Database['public']['Tables']['resource_links']['Row'], 'id' | 'created_at' | 'updated_at'>;
+                Update: Partial<Database['public']['Tables']['resource_links']['Insert']>;
+            };
             flashcards: {
                 Row: {
                     id: string;
@@ -117,6 +175,38 @@ export type Database = {
                 };
                 Insert: Omit<Database['public']['Tables']['flashcards']['Row'], 'id' | 'created_at' | 'updated_at'>;
                 Update: Partial<Database['public']['Tables']['flashcards']['Insert']>;
+            };
+            flashcard_progress: {
+                Row: {
+                    id: string;
+                    user_id: string;
+                    set_id: string;
+                    card_id: string;
+                    mastery_level: number;
+                    last_seen_at: string | null;
+                    next_due_at: string | null;
+                    total_attempts: number;
+                    correct_attempts: number;
+                    streak_correct: number;
+                    updated_at: string;
+                };
+                Insert: Omit<Database['public']['Tables']['flashcard_progress']['Row'], 'id'>;
+                Update: Partial<Database['public']['Tables']['flashcard_progress']['Insert']>;
+            };
+            notes: {
+                Row: {
+                    id: string;
+                    user_id: string;
+                    class_id: string;
+                    topic: string;
+                    resource_id: string | null;
+                    title: string;
+                    content: string;
+                    created_at: string;
+                    updated_at: string;
+                };
+                Insert: Omit<Database['public']['Tables']['notes']['Row'], 'id' | 'created_at' | 'updated_at'>;
+                Update: Partial<Database['public']['Tables']['notes']['Insert']>;
             };
             events: {
                 Row: {
