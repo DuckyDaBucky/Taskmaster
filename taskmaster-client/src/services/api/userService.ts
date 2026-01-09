@@ -2,6 +2,25 @@ import { supabase } from "../../lib/supabase";
 import { getCachedUserId } from "./authCache";
 import type { UserData } from "../types";
 
+function mapYearToNumber(year: string | number | null | undefined): string {
+  if (!year) return "1";
+  
+  const yearStr = String(year).toLowerCase().trim();
+  
+  const yearMap: Record<string, string> = {
+    "freshman": "1",
+    "sophomore": "2",
+    "junior": "3",
+    "senior": "4",
+    "1": "1",
+    "2": "2",
+    "3": "3",
+    "4": "4",
+  };
+  
+  return yearMap[yearStr] || "1";
+}
+
 function updateYear(
   highYear: number,
   lowYear: number,
@@ -34,12 +53,14 @@ async function findQueries(
   filters: Record<string, any>,
   userId: string
 ): Promise<{ users: UserData[]; count: number }> {
+  console.log("🔍 findQueries called with:", { lowYear, highYear, filters, userId });
+  
   let query = supabase
     .from("users")
     .select("*")
-    .gte("year", lowYear.toString())
-    .lte("year", highYear.toString())
-    .neq("_id", userId);
+    .gte("current_year", lowYear.toString())
+    .lte("current_year", highYear.toString())
+    .neq("id", userId);
 
   for (const [key, value] of Object.entries(filters)) {
     if (value?.nin) {
@@ -51,7 +72,12 @@ async function findQueries(
 
   const { data, error } = await query;
 
-  if (error || !data) return { users: [], count: 0 };
+  console.log("📊 findQueries result:", { error, count: data?.length || 0, data });
+  
+  if (error || !data) {
+    console.warn("⚠️ findQueries error or no data:", error);
+    return { users: [], count: 0 };
+  }
   return { users: data as UserData[], count: data.length };
 }
 
@@ -59,12 +85,16 @@ async function findSortYears(
   targetUser: UserData,
   filters: Record<string, any>
 ): Promise<UserData[]> {
+  console.log("📅 findSortYears called for user:", targetUser._id, "with filters:", filters);
+  
   const startYear = parseInt(targetUser.year || "1", 10);
+  console.log("📅 Start year:", startYear);
 
   let highYear = startYear;
   let lowYear = startYear;
 
   let { users, count } = await findQueries(lowYear, highYear, filters, targetUser._id);
+  console.log(`📅 Initial query (year ${lowYear}-${highYear}): Found ${count} users`);
 
   let updatedHigh = false;
 
@@ -75,13 +105,20 @@ async function findSortYears(
     highYear = result.highYear;
     lowYear = result.lowYear;
 
-    if (result.noChange) break;
+    console.log(`📅 Expanding year range to ${lowYear}-${highYear}...`);
+
+    if (result.noChange) {
+      console.log("📅 Year range cannot expand further");
+      break;
+    }
 
     const res = await findQueries(lowYear, highYear, filters, targetUser._id);
     users = res.users;
     count = res.count;
+    console.log(`📅 Expanded query (year ${lowYear}-${highYear}): Found ${count} users`);
   }
 
+  console.log(`📅 findSortYears returning ${users.length} randomized users`);
   return users.sort(() => Math.random() - 0.5).slice(0, 19);
 }
 
@@ -92,78 +129,227 @@ export const userService = {
   },
 
   async findUsers(userId: string): Promise<{ users: string[] }> {
+    console.log("🎯 findUsers called for userId:", userId);
+    
     const { data, error } = await supabase
       .from("users")
       .select("*")
-      .eq("_id", userId)
+      .eq("id", userId)
       .single();
 
-    if (error || !data) return { users: [] };
+    console.log("🔍 Query result:", { found: !!data, error, rawData: data });
 
-    const targetUser = data as UserData;
-
-    if (!targetUser.preferences) {
+    if (error) {
+      console.error("❌ Error fetching user:", error);
+      return { users: [] };
+    }
+    
+    if (!data) {
+      console.warn("⚠️ No user data found for userId:", userId);
       return { users: [] };
     }
 
-    const { searchLevel, section, course } = targetUser.preferences;
+    // Properly map database response to UserData
+    const targetUser: UserData = {
+      _id: data.id,
+      name: data.name,
+      firstName: data.first_name || "",
+      lastName: data.last_name || "",
+      email: data.email || "",
+      username: data.display_name || data.user_name || "",
+      displayName: data.display_name || data.user_name || "",
+      profileImageUrl: data.pfp,
+      major: data.major,
+      school: data.school,
+      year: mapYearToNumber(data.current_year),
+      preferences: {
+        searchLevel: data.search_level || "",
+        section: data.section || "",
+        course: data.search_course || "",
+      },
+      theme: data.theme,
+      settings: data.settings,
+      points: data.points || 0,
+      streak: data.streak || 0,
+      level: data.level || 1,
+      password: data.password,
+      friendsList: data.friends_list || [],
+    };
+
+    console.log("👤 Mapped target user:", {
+      id: targetUser._id,
+      name: targetUser.displayName,
+      major: targetUser.major,
+      school: targetUser.school,
+      preferences: targetUser.preferences
+    });
+
+    if (!targetUser.preferences || !targetUser.preferences.searchLevel) {
+      console.warn("⚠️ No preferences or search level found for user");
+      return { users: [] };
+    }
+
+    const { searchLevel, course } = targetUser.preferences;
+    console.log("🔍 Search preferences:", { searchLevel, course });
 
     let querySearchLevel: Record<string, any> = {};
+    const searchLevels: Array<"class" | "major" | "school"> = [];
 
     switch (searchLevel) {
-      case "section":
-        querySearchLevel["preferences->section"] = section;
-        break;
-      case "course":
-        querySearchLevel["preferences->course"] = course;
+      case "class":
+        querySearchLevel["search_course"] = course;
+        searchLevels.push("class", "major", "school");
+        console.log("📚 Searching by class with course:", course);
         break;
       case "major":
         querySearchLevel["major"] = targetUser.major;
+        searchLevels.push("major", "school", "class");
+        console.log("🎓 Searching by major:", targetUser.major);
         break;
       case "school":
         querySearchLevel["school"] = targetUser.school;
+        searchLevels.push("school", "major", "class");
+        console.log("🏫 Searching by school:", targetUser.school);
         break;
+      default:
+        console.warn("⚠️ Unknown search level:", searchLevel);
+        searchLevels.push("major", "school", "class");
     }
 
-    const queryMatches = { friendsList: userId };
-    const queryNotMatches = { friendsList: { nin: [userId] } };
+    console.log("🔎 Query filters:", querySearchLevel);
 
-    const matched = await findSortYears(targetUser, { ...querySearchLevel, ...queryMatches });
-    const notMatched = await findSortYears(targetUser, { ...querySearchLevel, ...queryNotMatches });
+    const queryMatches = { friends_list: userId };
+    const queryNotMatches = { friends_list: { nin: [userId] } };
 
-    const combined = [...matched, ...notMatched];
+    let matched = await findSortYears(targetUser, { ...querySearchLevel, ...queryMatches });
+    let notMatched = await findSortYears(targetUser, { ...querySearchLevel, ...queryNotMatches });
+    
+    console.log(`✅ Matched users (${searchLevel}): ${matched.length}`);
+    console.log(`✅ Not matched users (${searchLevel}): ${notMatched.length}`);
+
+    let combined = [...matched, ...notMatched];
+    
+    // If no results, try fallback search levels
+    if (combined.length === 0) {
+      for (let i = 1; i < searchLevels.length; i++) {
+        const fallbackLevel = searchLevels[i];
+        console.log(`⚠️ No results for ${searchLevel}, trying ${fallbackLevel} as fallback...`);
+        
+        let fallbackFilters: Record<string, any> = {};
+        
+        switch (fallbackLevel) {
+          case "class":
+            fallbackFilters["search_course"] = course;
+            break;
+          case "major":
+            fallbackFilters["major"] = targetUser.major;
+            break;
+          case "school":
+            fallbackFilters["school"] = targetUser.school;
+            break;
+        }
+        
+        matched = await findSortYears(targetUser, { ...fallbackFilters, ...queryMatches });
+        notMatched = await findSortYears(targetUser, { ...fallbackFilters, ...queryNotMatches });
+        
+        combined = [...matched, ...notMatched];
+        console.log(`✅ Fallback search (${fallbackLevel}): ${combined.length} users found`);
+        
+        if (combined.length > 0) {
+          console.log(`✅ Found results using ${fallbackLevel} fallback`);
+          break;
+        }
+      }
+    }
+
+    // If still no results, search for ANY users regardless of search level
+    if (combined.length === 0) {
+      console.log("⚠️ No results from specific search levels, searching for ANY users...");
+      matched = await findSortYears(targetUser, { ...queryMatches });
+      notMatched = await findSortYears(targetUser, { ...queryNotMatches });
+      combined = [...matched, ...notMatched];
+      console.log(`✅ Unrestricted search: ${combined.length} users found`);
+    }
+
+    // If still no results, list EVERY user in the database with search level set
+    if (combined.length === 0) {
+      console.log("⚠️ No results from any search, fetching ALL users with search level from database...");
+      try {
+        const { data: allUsers, error } = await supabase
+          .from("users")
+          .select("*");
+
+        if (error) {
+          console.error("❌ Error fetching all users:", error);
+        } else if (allUsers && allUsers.length > 0) {
+          combined = allUsers
+            .filter((u: any) => u.id !== userId && u.search_level)
+            .map((u: any) => ({
+              _id: u.id,
+              name: u.name,
+              firstName: u.first_name || "",
+              lastName: u.last_name || "",
+              email: u.email || "",
+              username: u.display_name || u.user_name || "",
+              displayName: u.display_name || u.user_name || "",
+              profileImageUrl: u.pfp,
+              major: u.major,
+              school: u.school,
+              year: mapYearToNumber(u.current_year),
+              preferences: {
+                searchLevel: u.search_level || "",
+                section: u.section || "",
+                course: u.search_course || "",
+              },
+              theme: u.theme,
+              settings: u.settings,
+              points: u.points || 0,
+              streak: u.streak || 0,
+              level: u.level || 1,
+              password: u.password,
+              friendsList: u.friends_list || [],
+            }));
+          console.log(`✅ Database dump (with search level set): ${combined.length} users found`);
+        }
+      } catch (err) {
+        console.error("❌ Error in all users fallback:", err);
+      }
+    }
+
+    console.log(`✅ Total results: ${combined.length}`);
+    console.log("📋 Result names:", combined.map(u => u.displayName || u.username || u.name || "Unknown User"));
 
     return {
       users: combined.map(u => u.displayName || u.username || u.name || "Unknown User")
     };
   },
 
-  async matchFriends(userId: string): Promise<{ users: string[] }> {
-    // Find users with similar preferences for friend matching
-    const { data: currentUser, error: userError } = await supabase
-      .from('users')
-      .select('current_year, search_level, search_sections, search_courses, major, school')
-      .eq('id', userId)
-      .single();
+  // async matchFriends(userId: string): Promise<{ users: string[] }> {
+  //   // Find users with similar preferences for friend matching
+  //   const { data: currentUser, error: userError } = await supabase
+  //     .from('users')
+  //     .select('current_year, search_level, search_section, search_course, major, school')
+  //     .eq('id', userId)
+  //     .single();
 
-    if (userError || !currentUser) {
-      return { users: [] };
-    }
+  //   if (userError || !currentUser) {
+  //     return { users: [] };
+  //   }
 
-    const { data: matches, error: matchError } = await supabase
-      .from('users')
-      .select('display_name, user_name')
-      .neq('id', userId)
-      .limit(5);
+  //   const { data: matches, error: matchError } = await supabase
+  //     .from('users')
+  //     .select('display_name, user_name')
+  //     .neq('id', userId)
+  //     .limit(5);
 
-    if (matchError || !matches) {
-      return { users: [] };
-    }
+  //   if (matchError || !matches) {
+  //     return { users: [] };
+  //   }
 
-    return {
-      users: matches.map(m => m.display_name || m.user_name || 'Unknown User')
-    };
-  },
+  //   return {
+  //     users: matches.map(m => m.display_name || m.user_name || 'Unknown User')
+  //   };
+  // },
 
   async getFriends(): Promise<UserData[]> {
     const userId = await getCachedUserId();
@@ -207,5 +393,59 @@ export const userService = {
       streak: friend.streak || 0,
       level: friend.level || 1,
     }));
+  },
+
+  async setSearchLevel(searchLevel: "class" | "major" | "school", selectedCourse?: string): Promise<any> {
+    const userId = await getCachedUserId();
+
+    const updateData: any = { search_level: searchLevel };
+    if (selectedCourse) {
+      updateData.search_course = selectedCourse;
+    }
+
+    const { data, error } = await supabase
+      .from("users")
+      .update(updateData)
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async sendMatchRequest(fromUserId: string, toUsername: string) {
+    console.log(`🤝 Sending match request from ${fromUserId} to ${toUsername}`);
+    
+    // Find the user by username
+    const { data: targetUser, error: findError } = await supabase
+      .from("users")
+      .select("id, friends_list")
+      .eq("username", toUsername)
+      .single();
+
+    if (findError || !targetUser) {
+      throw new Error(`User ${toUsername} not found`);
+    }
+
+    const toUserId = targetUser.id;
+    const currentFriendsList = targetUser.friends_list || [];
+
+    // Add the user to friends list if not already there
+    if (!currentFriendsList.includes(fromUserId)) {
+      currentFriendsList.push(fromUserId);
+      
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ friends_list: currentFriendsList })
+        .eq("id", toUserId);
+
+      if (updateError) throw new Error(updateError.message);
+      console.log(`✅ Match request sent successfully to ${toUsername}`);
+    } else {
+      console.log(`ℹ️ ${toUsername} is already in friends list`);
+    }
+
+    return { success: true, message: `Match request sent to ${toUsername}` };
   },
 };

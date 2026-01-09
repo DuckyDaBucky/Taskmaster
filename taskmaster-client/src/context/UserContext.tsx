@@ -6,28 +6,33 @@ import { authService } from "../services/api/authService";
 import { clearAuthCache, setAuthCache } from "../services/api/authCache";
 
 interface UserData {
-  _id: string;
-  firstName?: string;
-  lastName?: string;
-  username?: string;
-  displayName?: string;
-  email: string;
-  profileImageUrl?: string;
-  preferences?: {
-    personality: number;
-    inPerson: number;
-    privateSpace: number;
-    time: number;
-  };
-  theme?: string;
-  settings?: {
-    emailNotifications: boolean;
-    pushNotifications: boolean;
-    weeklyDigest: boolean;
-  };
-  points?: number;
-  streak?: number;
-  level?: number;
+    _id: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+    username?: string;
+    displayName?: string;
+    profileImageUrl?: string;
+    major?: string;
+    school?: string;
+    year?: string;
+    preferences?: {
+        searchLevel: string;
+        section: string;
+        course: string;
+    };
+    theme?: string;
+    settings?: {
+        emailNotifications: boolean;
+        pushNotifications: boolean;
+        weeklyDigest: boolean;
+    };
+    points?: number;
+    streak?: number;
+    level?: number;
+    password?: string;
+    friendsList?: string[];
 }
 
 interface UserContextProps {
@@ -73,6 +78,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           document.documentElement.setAttribute('data-theme', userData.theme);
         }
       }
+      
     } catch (error) {
       console.error('[UserContext] Error loading user:', error);
       if (!user) setUser(null);
