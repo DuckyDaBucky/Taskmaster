@@ -1,11 +1,12 @@
 import React from "react";
 import { Edit2, Trash2 } from "lucide-react";
 import type { TasksData, ClassData } from "../../services/types";
+import { calculateEarnedPoints } from "../../lib/gamification";
 
 interface TaskListProps {
   tasks: TasksData[];
   classes: ClassData[];
-  filter: "today" | "upcoming" | "history";
+  filter: "today" | "upcoming" | "overdue" | "unscheduled" | "history";
   onEdit: (task: TasksData) => void;
   onDelete: (taskId: string) => void;
   onToggleComplete?: (taskId: string, completed: boolean) => void;
@@ -21,6 +22,9 @@ export const TaskList: React.FC<TaskListProps> = ({
 }) => {
   const [completingTaskId, setCompletingTaskId] = React.useState<string | null>(null);
   const [selectedHistoryDate, setSelectedHistoryDate] = React.useState<string | null>(null);
+  const [rewardedTaskId, setRewardedTaskId] = React.useState<string | null>(null);
+  const [rewardedPoints, setRewardedPoints] = React.useState<number>(0);
+  const rewardTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -38,6 +42,20 @@ export const TaskList: React.FC<TaskListProps> = ({
     return date >= endOfDay;
   };
 
+  const isOverdue = (task: TasksData) => {
+    const isComplete = task.completed || task.status === "completed";
+    if (isComplete) return false;
+    if (task.status === "overdue") return true;
+    if (!task.deadline) return false;
+    const date = new Date(task.deadline);
+    return date < startOfDay;
+  };
+
+  const isUnscheduled = (task: TasksData) => {
+    const isComplete = task.completed || task.status === "completed";
+    return !task.deadline && !isComplete;
+  };
+
   const todayTasks = tasks
     .filter((task) => task.deadline && isToday(task.deadline))
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime());
@@ -45,6 +63,14 @@ export const TaskList: React.FC<TaskListProps> = ({
   const upcomingTasks = tasks
     .filter((task) => !task.completed && isUpcoming(task.deadline))
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime());
+
+  const overdueTasks = tasks
+    .filter(isOverdue)
+    .sort((a, b) => taskDateSortValue(a.deadline) - taskDateSortValue(b.deadline));
+
+  const unscheduledTasks = tasks
+    .filter(isUnscheduled)
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   const historyTasks = tasks
     .filter((task) => task.completed || task.status === "completed")
@@ -55,7 +81,25 @@ export const TaskList: React.FC<TaskListProps> = ({
     });
 
   const filteredTasks =
-    filter === "today" ? todayTasks : filter === "upcoming" ? upcomingTasks : historyTasks;
+    filter === "today"
+      ? todayTasks
+      : filter === "upcoming"
+      ? upcomingTasks
+      : filter === "overdue"
+      ? overdueTasks
+      : filter === "unscheduled"
+      ? unscheduledTasks
+      : historyTasks;
+
+  const displayTasks = (() => {
+    if (!rewardedTaskId) return filteredTasks;
+    const rewardedTask = tasks.find((task) => task._id === rewardedTaskId);
+    if (!rewardedTask) return filteredTasks;
+    if (filteredTasks.some((task) => task._id === rewardedTask._id)) {
+      return filteredTasks;
+    }
+    return [rewardedTask, ...filteredTasks];
+  })();
 
   function taskDateSortValue(deadline?: string) {
     if (!deadline) return 0;
@@ -64,10 +108,29 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleToggle = async (task: TasksData) => {
     if (!onToggleComplete) return;
+    const wasComplete = task.completed || task.status === "completed";
+    const points = Number.isFinite(task.points ?? 0) ? (task.points ?? 0) : 0;
+    const earnedPoints = calculateEarnedPoints(points, task.deadline);
+    if (!wasComplete && earnedPoints > 0) {
+      if (rewardTimeoutRef.current) {
+        clearTimeout(rewardTimeoutRef.current);
+      }
+      setRewardedTaskId(task._id);
+      setRewardedPoints(earnedPoints);
+      rewardTimeoutRef.current = setTimeout(() => {
+        setRewardedTaskId(null);
+      }, 1100);
+    }
     setCompletingTaskId(task._id);
     await onToggleComplete(task._id, !task.completed);
     setTimeout(() => setCompletingTaskId(null), 600);
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (rewardTimeoutRef.current) clearTimeout(rewardTimeoutRef.current);
+    };
+  }, []);
 
   React.useEffect(() => {
     if (filter !== "history") return;
@@ -87,7 +150,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     if (next) setSelectedHistoryDate(next);
   }, [filter, historyTasks, selectedHistoryDate]);
 
-  if (filteredTasks.length === 0) {
+  if (displayTasks.length === 0) {
     return (
       <div className="bg-card border border-border rounded-md p-8 text-center text-muted-foreground">
         <p>No tasks found. Create your first task!</p>
@@ -204,12 +267,12 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   return (
     <div className="space-y-3">
-      {filteredTasks.map((task) => {
+      {displayTasks.map((task) => {
         const taskClass = task.class ? classes.find((c) => c._id === task.class) : null;
         return (
           <div
             key={task._id}
-            className="bg-card border border-border rounded-md p-4 flex items-center justify-between hover:border-primary/50 transition-colors group"
+            className="bg-card border border-border rounded-md p-4 flex items-center justify-between hover:border-primary/50 transition-colors group relative"
           >
             <div className="flex items-center gap-4">
               <button
@@ -243,7 +306,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                   </span>
                 )}
                 <h4
-                  className={`font-medium ${
+                  className={`font-medium flex items-center gap-2 ${
                     task.completed
                       ? "text-muted-foreground line-through"
                       : !task.completed && task.deadline && new Date(task.deadline) < new Date()
@@ -251,7 +314,12 @@ export const TaskList: React.FC<TaskListProps> = ({
                       : "text-foreground"
                   }`}
                 >
-                  {task.title}
+                  <span>{task.title}</span>
+                  {rewardedTaskId === task._id && rewardedPoints > 0 && (
+                    <span className="bg-green-500/10 text-green-600 border border-green-500/30 text-xs font-semibold px-2 py-0.5 rounded-full animate-bounce pointer-events-none">
+                      +{rewardedPoints} pts
+                    </span>
+                  )}
                 </h4>
                 <p className="text-xs text-muted-foreground">
                   {taskClass?.name || "Personal"} • Due{" "}

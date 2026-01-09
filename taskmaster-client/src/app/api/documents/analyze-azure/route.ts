@@ -4,6 +4,7 @@ import DocumentIntelligence from '@azure-rest/ai-document-intelligence';
 import { AzureKeyCredential } from '@azure/core-auth';
 import { getLongRunningPoller, isUnexpected } from '@azure-rest/ai-document-intelligence';
 import { AzureOpenAI } from 'openai';
+import { getPointsForPriority } from '../../../../lib/gamification';
 
 /**
  * Azure Document Intelligence + Foundry (GPT-5) Pipeline
@@ -259,6 +260,7 @@ export async function POST(req: NextRequest) {
           completed: false,
           task_type: t.type || 'other', // Use task_type instead of topic
           topic: t.type || null, // Also set topic for compatibility
+          points: getPointsForPriority(t.priority),
         }));
 
 

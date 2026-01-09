@@ -151,6 +151,7 @@ export const taskService = {
     if (updates.deadline !== undefined) updateData.deadline = updates.deadline;
     if (updates.textbook !== undefined) updateData.textbook = updates.textbook;
     if (updates.completed !== undefined) updateData.completed = updates.completed;
+    if (updates.earnedPoints !== undefined) updateData.earned_points = updates.earnedPoints;
 
     const { data, error } = await supabaseClient
       .from('tasks')

@@ -99,6 +99,7 @@ class ApiService {
   addHamizAsFriend = userService.addHamizAsFriend;
   matchFriends = userService.matchFriends;
   getFriendsFromUserService = userService.getFriends;
+  updateUserPoints = userService.updatePoints;
 
   // Activity
   getActivities = activityService.getActivities;
