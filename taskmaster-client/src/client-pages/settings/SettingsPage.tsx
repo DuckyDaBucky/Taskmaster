@@ -61,8 +61,6 @@ const SettingsPage: React.FC = () => {
     friendRequests: true,
   });
   
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [outlookCalendars, setOutlookCalendars] = useState<OutlookCalendar[]>([]);
   const [outlookSelection, setOutlookSelection] = useState<Record<string, boolean>>({});
   const [isLoadingOutlook, setIsLoadingOutlook] = useState(false);
