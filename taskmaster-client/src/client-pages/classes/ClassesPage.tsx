@@ -97,7 +97,10 @@ const ClassesPage: React.FC = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(null);
       }
     };
@@ -387,10 +390,16 @@ const ClassesPage: React.FC = () => {
         timing: formData.timing.trim() || undefined,
         location: formData.location.trim() || undefined,
         topics: formData.topics.trim()
-          ? formData.topics.split(",").map((t) => t.trim()).filter(Boolean)
+          ? formData.topics
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
           : undefined,
         textbooks: formData.textbooks.trim()
-          ? formData.textbooks.split(",").map((t) => t.trim()).filter(Boolean)
+          ? formData.textbooks
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
           : undefined,
         gradingPolicy: formData.gradingPolicy.trim() || undefined,
         contactInfo: contactInfoParts.length > 0 ? contactInfoParts.join("\n") : undefined,
@@ -462,14 +471,21 @@ const ClassesPage: React.FC = () => {
       setError(null);
     } catch (error: any) {
       console.error("Error saving class:", error);
-      setError(error.response?.data?.message || `Failed to ${editingClassId ? 'update' : 'create'} class`);
+      setError(
+        error.response?.data?.message ||
+          `Failed to ${editingClassId ? "update" : "create"} class`
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteClass = async (classId: string) => {
-    if (!confirm("Are you sure you want to delete this class? This action cannot be undone.")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this class? This action cannot be undone."
+      )
+    ) {
       return;
     }
 
@@ -550,7 +566,9 @@ const ClassesPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Classes</h1>
         </div>
-        <div className="text-center text-muted-foreground">Loading classes...</div>
+        <div className="text-center text-muted-foreground">
+          Loading classes...
+        </div>
       </div>
     );
   }

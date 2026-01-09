@@ -14,10 +14,7 @@ if (typeof window !== 'undefined') {
   if (!supabaseAnonKey) console.error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY');
 }
 
-export const supabase = createBrowserClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
-);
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
 // Re-export types
 export type { Database } from './database.types';
