@@ -7,6 +7,31 @@ export const userService = {
     return { message: "Hamiz Iqbal added as friend successfully" };
   },
 
+  async updatePoints(delta: number): Promise<number> {
+    const userId = await getCachedUserId();
+
+    const { data: current, error: fetchError } = await supabase
+      .from('users')
+      .select('points')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError) throw new Error(fetchError.message);
+
+    const nextPoints = Math.max(0, (current?.points || 0) + delta);
+
+    const { data: updated, error: updateError } = await supabase
+      .from('users')
+      .update({ points: nextPoints })
+      .eq('id', userId)
+      .select('points')
+      .single();
+
+    if (updateError) throw new Error(updateError.message);
+
+    return updated?.points ?? nextPoints;
+  },
+
   async matchFriends(userId: string): Promise<{ users: string[] }> {
     // Find users with similar preferences for friend matching
     const { data: currentUser, error: userError } = await supabase
