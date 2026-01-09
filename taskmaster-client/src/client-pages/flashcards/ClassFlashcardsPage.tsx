@@ -6,6 +6,7 @@ import { Plus, Layers, ChevronLeft, Trash2 } from "lucide-react";
 import { apiService } from "../../services/api";
 import type { ClassData, FlashcardsData } from "../../services/types";
 import { CreateDeckModal } from "../../components/flashcards/CreateDeckModal";
+import { getClassColor } from "../../utils/classColors";
 
 interface FlashcardSet {
   id: string;
@@ -168,7 +169,13 @@ const ClassFlashcardsPage: React.FC<ClassFlashcardsPageProps> = ({ classId }) =>
             <ChevronLeft size={14} />
             Back to Flashcards
           </Link>
-          <h1 className="text-2xl font-bold text-foreground">{className}</h1>
+          <div className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: getClassColor(classId) }}
+            />
+            <h1 className="text-2xl font-bold text-foreground">{className}</h1>
+          </div>
           <p className="text-sm text-muted-foreground">
             {sets.length} set{sets.length !== 1 ? "s" : ""}
           </p>

@@ -8,6 +8,7 @@ import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import { authService } from "../../services/api/authService";
 import type { TasksData } from "../../services/types";
+import { getClassColor } from "../../utils/classColors";
 
 const locales = {
   "en-US": enUS,
@@ -106,21 +107,11 @@ const CalendarPage: React.FC = () => {
       // Fetch all tasks (includes personal tasks)
       const allTasks = await apiService.getAllTasks();
 
-      // Generate color map for classes
-      const classColors = new Map<string, string>();
-      const colors = [
-        "#3b82f6", // blue
-        "#10b981", // green
-        "#f59e0b", // orange
-        "#ef4444", // red
-        "#8b5cf6", // purple
-        "#ec4899", // pink
-        "#06b6d4", // cyan
-        "#84cc16", // lime
-      ];
-      userClasses.forEach((cls, idx) => {
-        classColors.set(cls._id, colors[idx % colors.length]);
-      });
+      const classNameToId = new Map(
+        userClasses
+          .filter((cls) => cls.name)
+          .map((cls) => [cls.name!.toLowerCase(), cls._id])
+      );
 
       // Convert tasks to calendar events (using deadline as the date)
       const taskEvents: CalendarEvent[] = allTasks
@@ -129,11 +120,16 @@ const CalendarPage: React.FC = () => {
           const deadlineStr = task.deadline!;
           const deadlineDate = parseTaskDeadline(deadlineStr);
           
-          const className = task.class 
-            ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
+          const resolvedClassId =
+            task.class && userClasses.some((c) => c._id === task.class)
+              ? task.class
+              : task.class
+              ? classNameToId.get(task.class.toLowerCase()) || "personal"
+              : "personal";
+          const className = resolvedClassId !== "personal"
+            ? (userClasses.find((c) => c._id === resolvedClassId)?.name || "Unknown Class")
             : "Personal";
-          const taskClassId = task.class || "personal";
-          const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
+          const color = getClassColor(resolvedClassId);
           
           // Set end time to 1 hour after start (or end of day if no specific time)
           const endDate = new Date(deadlineDate);
@@ -154,7 +150,7 @@ const CalendarPage: React.FC = () => {
             location: className,
             isTask: true,
             status: task.status,
-            classId: taskClassId,
+            classId: resolvedClassId,
             color: color,
             taskId: task._id,
           };
@@ -289,21 +285,11 @@ const CalendarPage: React.FC = () => {
       // Fetch all tasks (includes personal tasks)
       const allTasks = await apiService.getAllTasks();
 
-      // Generate color map for classes
-      const classColors = new Map<string, string>();
-      const colors = [
-        "#3b82f6", // blue
-        "#10b981", // green
-        "#f59e0b", // orange
-        "#ef4444", // red
-        "#8b5cf6", // purple
-        "#ec4899", // pink
-        "#06b6d4", // cyan
-        "#84cc16", // lime
-      ];
-      userClasses.forEach((cls, idx) => {
-        classColors.set(cls._id, colors[idx % colors.length]);
-      });
+      const classNameToId = new Map(
+        userClasses
+          .filter((cls) => cls.name)
+          .map((cls) => [cls.name!.toLowerCase(), cls._id])
+      );
 
       // Convert tasks to calendar events
       const taskEvents: CalendarEvent[] = allTasks
@@ -311,11 +297,16 @@ const CalendarPage: React.FC = () => {
         .map((task: TasksData) => {
           const deadlineStr = task.deadline!;
           const deadlineDate = parseTaskDeadline(deadlineStr);
-          const className = task.class 
-            ? (userClasses.find((c) => c._id === task.class)?.name || "Unknown Class")
+          const resolvedClassId =
+            task.class && userClasses.some((c) => c._id === task.class)
+              ? task.class
+              : task.class
+              ? classNameToId.get(task.class.toLowerCase()) || "personal"
+              : "personal";
+          const className = resolvedClassId !== "personal"
+            ? (userClasses.find((c) => c._id === resolvedClassId)?.name || "Unknown Class")
             : "Personal";
-          const taskClassId = task.class || "personal";
-          const color = classColors.get(taskClassId) || "#6b7280"; // gray for personal
+          const color = getClassColor(resolvedClassId);
           
           const endDate = new Date(deadlineDate);
           if (hasExplicitTime(deadlineStr)) {
@@ -333,7 +324,7 @@ const CalendarPage: React.FC = () => {
             location: className,
             isTask: true,
             status: task.status,
-            classId: taskClassId,
+            classId: resolvedClassId,
             color: color,
             taskId: task._id,
           };
@@ -360,22 +351,29 @@ const CalendarPage: React.FC = () => {
   };
 
   // Convert events to react-big-calendar format with styling
-  const calendarEvents = events.map((event) => ({
-    ...event,
-    resource: event,
-    style: {
-      backgroundColor: event.color || (event.isTask 
-        ? (event.status === 'completed' ? '#10b981' : event.status === 'overdue' ? '#ef4444' : '#f59e0b')
-        : '#3b82f6'),
-      borderColor: event.color || (event.isTask 
-        ? (event.status === 'completed' ? '#10b981' : event.status === 'overdue' ? '#ef4444' : '#f59e0b')
-        : '#3b82f6'),
-      color: '#ffffff',
-    },
-    className: event.isTask 
-      ? `task-${event.status || 'pending'}` 
-      : '',
-  }));
+  const calendarEvents = events.map((event) => {
+    const isTask =
+      event.isTask || event.id?.toString().startsWith("task-") || Boolean(event.taskId);
+    const resolvedColor = event.color || (isTask ? getClassColor(event.classId) : undefined);
+    const fallbackColor = isTask
+      ? event.status === "completed"
+        ? "#10b981"
+        : event.status === "overdue"
+        ? "#ef4444"
+        : "#f59e0b"
+      : "#3b82f6";
+
+    return {
+      ...event,
+      resource: event,
+      style: {
+        backgroundColor: resolvedColor || fallbackColor,
+        borderColor: resolvedColor || fallbackColor,
+        color: "#ffffff",
+      },
+      className: isTask ? `task-${event.status || "pending"}` : "",
+    };
+  });
 
   return (
     <div className="h-full flex flex-col space-y-4">

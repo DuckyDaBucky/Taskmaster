@@ -131,8 +131,19 @@ const TasksPage: React.FC = () => {
       return date >= endOfDay;
     };
 
+    const isOverdue = (deadline?: string) => {
+      if (!deadline) return false;
+      const date = new Date(deadline);
+      return date < startOfDay;
+    };
+
+    const dueTodayCount = tasks.filter(t => t.deadline && isToday(t.deadline)).length;
+    const overdueCount = tasks.filter(
+      t => !t.completed && t.deadline && isOverdue(t.deadline)
+    ).length;
+
     return {
-      today: tasks.filter(t => t.deadline && isToday(t.deadline)).length,
+      today: dueTodayCount + overdueCount,
       upcoming: tasks.filter(t => !t.completed && isUpcoming(t.deadline)).length,
       history: tasks.filter(t => t.completed || t.status === "completed").length,
     };

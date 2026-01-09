@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { apiService } from "../../services/api";
 import type { ClassData, FlashcardsData } from "../../services/types";
 import { FlashcardPlayer } from "../../components/flashcards/FlashcardPlayer";
+import { getClassColor } from "../../utils/classColors";
 
 interface FlashcardSetPageProps {
   classId: string;
@@ -94,7 +95,11 @@ const FlashcardSetPage: React.FC<FlashcardSetPageProps> = ({ classId, topic }) =
               Flashcard Set
             </p>
             <h1 className="text-2xl font-bold text-foreground">{topic}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: getClassColor(classId) }}
+              />
               {className} • {cards.length} card{cards.length !== 1 ? "s" : ""}
             </p>
             {isNotesGenerated && (

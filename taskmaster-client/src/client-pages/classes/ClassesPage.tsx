@@ -1,31 +1,92 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, X, Edit, Trash2, Upload, Eye } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
-import type { ClassData } from "../../services/types";
-import ClassOverviewDialog from "../../components/ClassOverviewDialog";
+import type { ClassData, ResourceData } from "../../services/types";
 import { ProcessingAnimation } from "../../components/ui";
+import { getClassColor } from "../../utils/classColors";
+
+const extractSyllabusDetails = (classItem: ClassData, resources: ResourceData[]) => {
+  const syllabusResource = resources.find(
+    (resource) =>
+      resource.class === classItem._id &&
+      (resource.extracted_data?.document_type === "syllabus" ||
+        resource.title?.toLowerCase().includes("syllabus"))
+  );
+
+  const extracted: any = syllabusResource?.extracted_data || {};
+  const courseInfo = extracted.course_info || extracted.courseInfo || {};
+  const policies = extracted.course_policies || extracted.coursePolicies || {};
+
+  const rawContact = courseInfo.contact_info || classItem.contactInfo || "";
+  const emailMatch = typeof rawContact === "string"
+    ? rawContact.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
+    : null;
+  const phoneMatch = typeof rawContact === "string"
+    ? rawContact.match(/(\+?\d{1,2}\s*)?(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/)
+    : null;
+  const officeLine = typeof rawContact === "string"
+    ? rawContact.split("\n").find((line) => /office|location|room/i.test(line))
+    : null;
+  const officeLocationClean = officeLine
+    ? officeLine
+        .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "")
+        .replace(/(\+?\d{1,2}\s*)?(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/g, "")
+        .replace(/\b(email|e-mail|tel|telephone|phone)\b\s*[:\-]?\s*/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim()
+    : "";
+
+  return {
+    resourceId: syllabusResource?._id || null,
+    currentTerm: courseInfo.semester || "",
+    timing: courseInfo.schedule || classItem.timing || "",
+    officeHours: courseInfo.professor_office_hours || "",
+    location: courseInfo.location || classItem.location || "",
+    contactEmail: courseInfo.contact_email || (emailMatch ? emailMatch[0] : "") || "",
+    contactPhone: courseInfo.contact_phone || (phoneMatch ? phoneMatch[0] : "") || "",
+    officeLocation: courseInfo.office_location || officeLocationClean || "",
+    textbooks: policies.textbooks_and_materials || (classItem.textbooks || []).join(", "),
+    learningObjectives: policies.learning_objectives || "",
+    description: courseInfo.description || classItem.description || "",
+    gradingPolicy: policies.grading_policy || classItem.gradingPolicy || "",
+    attendancePolicy: policies.attendance_policy || "",
+    extraAndLate: policies.extra_and_late_policy || "",
+  };
+};
 
 const ClassesPage: React.FC = () => {
   const { user } = useUser();
   const [classes, setClasses] = useState<ClassData[]>([]);
+  const [resources, setResources] = useState<ResourceData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState<string | null>(null);
-  const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
+  const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const classesRef = useRef<ClassData[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     professor: "",
+    currentTerm: "",
     timing: "",
+    officeHours: "",
     location: "",
+    contactEmail: "",
+    contactPhone: "",
+    officeLocation: "",
     topics: "",
     textbooks: "",
+    learningObjectives: "",
     gradingPolicy: "",
+    attendancePolicy: "",
+    extraAndLate: "",
     contactInfo: "",
+    description: "",
+    syllabusResourceId: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,45 +111,227 @@ const ClassesPage: React.FC = () => {
     };
   }, [showDropdown]);
 
-  useEffect(() => {
-    const fetchClasses = async () => {
-      if (!user?._id) {
-        setIsLoading(false);
-        return;
-      }
+  const fetchClasses = useCallback(async () => {
+    if (!user?._id) {
+      setIsLoading(false);
+      return;
+    }
 
-      try {
-        setIsLoading(true);
-        const userClasses = await apiService.getAllClasses();
-        setClasses(userClasses);
-        classesRef.current = userClasses;
-        setError(null);
-      } catch (error) {
-        console.error("Error fetching classes:", error);
-        setError("Failed to load classes");
-      } finally {
-        setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const [userClasses, userResources] = await Promise.all([
+        apiService.getAllClasses(),
+        apiService.getAllResources(),
+      ]);
+      setClasses(userClasses);
+      setResources(userResources || []);
+      classesRef.current = userClasses;
+      setError(null);
+    } catch (error) {
+      console.error("Error fetching classes:", error);
+      setError("Failed to load classes");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?._id]);
+
+  useEffect(() => {
+    fetchClasses();
+  }, [fetchClasses]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchClasses();
       }
     };
+    const handleFocus = () => fetchClasses();
 
-    fetchClasses();
-  }, [user?._id]);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [fetchClasses]);
 
   useEffect(() => {
     classesRef.current = classes;
   }, [classes]);
 
+  const classSections = useMemo(() => {
+    if (classes.length === 0) return [] as Array<{ label: string; sortKey: number; classes: ClassData[] }>;
+
+    const termMap: Record<string, { label: string; sortKey: number }> = {};
+
+    const normalizeYear = (year: string) => {
+      const num = Number(year);
+      if (Number.isNaN(num)) return null;
+      if (year.length === 2) {
+        return num >= 50 ? 1900 + num : 2000 + num;
+      }
+      return num;
+    };
+
+    const parseSemester = (value?: string | null) => {
+      if (!value) return null;
+      const cleaned = value.trim().replace(/\s+/g, " ");
+      if (!cleaned) return null;
+
+      const termAliases: Record<string, number> = {
+        spring: 1,
+        sp: 1,
+        summer: 2,
+        su: 2,
+        fall: 3,
+        fa: 3,
+        autumn: 3,
+        winter: 4,
+        wi: 4,
+      };
+
+      const termFirst = cleaned.match(/^(spring|summer|fall|autumn|winter|sp|su|fa|wi)\s*(\d{2,4})/i);
+      const yearFirst = cleaned.match(/(\d{2,4})\s*(spring|summer|fall|autumn|winter|sp|su|fa|wi)/i);
+      const compact = cleaned.match(/(\d{2})([sfw])\b/i);
+
+      let term: string | null = null;
+      let year: string | null = null;
+
+      if (termFirst) {
+        term = termFirst[1].toLowerCase();
+        year = termFirst[2];
+      } else if (yearFirst) {
+        year = yearFirst[1];
+        term = yearFirst[2].toLowerCase();
+      } else if (compact) {
+        year = compact[1];
+        const code = compact[2].toLowerCase();
+        term = code === "s" ? "spring" : code === "f" ? "fall" : "winter";
+      }
+
+      if (!term || !year) return null;
+      const normalizedYear = normalizeYear(year);
+      if (!normalizedYear) return null;
+
+      const termKey = termAliases[term];
+      if (!termKey) return null;
+
+      return {
+        label: `${term.charAt(0).toUpperCase()}${term.slice(1)} ${normalizedYear}`,
+        sortKey: normalizedYear * 10 + termKey,
+      };
+    };
+
+    const extractSemester = (resource?: ResourceData) => {
+      if (!resource) return null;
+      const data: any = resource.extracted_data || {};
+      const candidates = [
+        data?.course_info?.semester,
+        data?.courseInfo?.semester,
+        data?.semester,
+      ].filter(Boolean);
+
+      for (const candidate of candidates) {
+        const parsed = parseSemester(String(candidate));
+        if (parsed) return parsed;
+      }
+
+      return null;
+    };
+
+    resources.forEach((resource) => {
+      const classId = resource.class;
+      if (!classId) return;
+      const parsed = extractSemester(resource);
+      if (!parsed) return;
+      const existing = termMap[classId];
+      if (!existing || parsed.sortKey > existing.sortKey) {
+        termMap[classId] = parsed;
+      }
+    });
+
+    const compareByName = (a: ClassData, b: ClassData) => {
+      const aName = a.name || "";
+      const bName = b.name || "";
+      return aName.localeCompare(bName);
+    };
+
+    const sortedClasses = [...classes].sort((a, b) => {
+      const aSemester = termMap[a._id] || parseSemester(a.name) || parseSemester(a.description || "");
+      const bSemester = termMap[b._id] || parseSemester(b.name) || parseSemester(b.description || "");
+
+      if (aSemester && bSemester) {
+        if (aSemester.sortKey !== bSemester.sortKey) {
+          return bSemester.sortKey - aSemester.sortKey;
+        }
+      } else if (aSemester) {
+        return -1;
+      } else if (bSemester) {
+        return 1;
+      }
+
+      return compareByName(a, b);
+    });
+
+    const sections: Array<{ label: string; sortKey: number; classes: ClassData[] }> = [];
+    const sectionMap = new Map<string, { label: string; sortKey: number; classes: ClassData[] }>();
+    const uncategorized = { label: "Uncategorized", sortKey: -1, classes: [] as ClassData[] };
+
+    sortedClasses.forEach((course) => {
+      const semester = termMap[course._id]
+        || parseSemester(course.name)
+        || parseSemester(course.description || "");
+
+      if (!semester) {
+        uncategorized.classes.push(course);
+        return;
+      }
+
+      const existing = sectionMap.get(semester.label);
+      if (existing) {
+        existing.classes.push(course);
+      } else {
+        const entry = { label: semester.label, sortKey: semester.sortKey, classes: [course] };
+        sectionMap.set(semester.label, entry);
+        sections.push(entry);
+      }
+    });
+
+    sections.sort((a, b) => b.sortKey - a.sortKey);
+    sections.forEach((section) => section.classes.sort(compareByName));
+
+    if (uncategorized.classes.length > 0) {
+      uncategorized.classes.sort(compareByName);
+      sections.push(uncategorized);
+    }
+
+    return sections;
+  }, [classes, resources]);
+
   const handleOpenEditModal = (classItem: ClassData) => {
+    const syllabusDetails = extractSyllabusDetails(classItem, resources);
+
     setEditingClassId(classItem._id);
     setFormData({
       name: classItem.name || "",
       professor: classItem.professor || "",
-      timing: classItem.timing || "",
-      location: classItem.location || "",
+      currentTerm: syllabusDetails.currentTerm,
+      timing: syllabusDetails.timing,
+      officeHours: syllabusDetails.officeHours,
+      location: syllabusDetails.location,
+      contactEmail: syllabusDetails.contactEmail,
+      contactPhone: syllabusDetails.contactPhone,
+      officeLocation: syllabusDetails.officeLocation,
       topics: classItem.topics?.join(", ") || "",
-      textbooks: classItem.textbooks?.join(", ") || "",
-      gradingPolicy: classItem.gradingPolicy || "",
+      textbooks: syllabusDetails.textbooks,
+      learningObjectives: syllabusDetails.learningObjectives,
+      gradingPolicy: syllabusDetails.gradingPolicy,
+      attendancePolicy: syllabusDetails.attendancePolicy,
+      extraAndLate: syllabusDetails.extraAndLate,
       contactInfo: classItem.contactInfo || "",
+      description: classItem.description || "",
+      syllabusResourceId: syllabusDetails.resourceId || "",
     });
     setShowDropdown(null);
     setError(null);
@@ -100,12 +343,22 @@ const ClassesPage: React.FC = () => {
     setFormData({
       name: "",
       professor: "",
+      currentTerm: "",
       timing: "",
+      officeHours: "",
       location: "",
+      contactEmail: "",
+      contactPhone: "",
+      officeLocation: "",
       topics: "",
       textbooks: "",
+      learningObjectives: "",
       gradingPolicy: "",
+      attendancePolicy: "",
+      extraAndLate: "",
       contactInfo: "",
+      description: "",
+      syllabusResourceId: "",
     });
     setError(null);
     setShowModal(true);
@@ -122,6 +375,12 @@ const ClassesPage: React.FC = () => {
       setIsSubmitting(true);
       setError(null);
 
+      const contactInfoParts = [
+        formData.contactEmail && `Email: ${formData.contactEmail.trim()}`,
+        formData.contactPhone && `Phone: ${formData.contactPhone.trim()}`,
+        formData.officeLocation && `Office: ${formData.officeLocation.trim()}`,
+      ].filter(Boolean);
+
       const classData = {
         name: formData.name.trim(),
         professor: formData.professor.trim() || undefined,
@@ -134,13 +393,43 @@ const ClassesPage: React.FC = () => {
           ? formData.textbooks.split(",").map((t) => t.trim()).filter(Boolean)
           : undefined,
         gradingPolicy: formData.gradingPolicy.trim() || undefined,
-        contactInfo: formData.contactInfo.trim() || undefined,
+        contactInfo: contactInfoParts.length > 0 ? contactInfoParts.join("\n") : undefined,
+        description: formData.description.trim() || undefined,
       };
 
       if (editingClassId) {
         await apiService.updateClass(editingClassId, classData);
       } else {
         await apiService.createClass(classData);
+      }
+
+      if (formData.syllabusResourceId) {
+        await fetch('/api/resources/update-syllabus-details', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resource_id: formData.syllabusResourceId,
+            user_id: user?._id,
+            course_info: {
+              semester: formData.currentTerm.trim() || null,
+              schedule: formData.timing.trim() || null,
+              professor_office_hours: formData.officeHours.trim() || null,
+              location: formData.location.trim() || null,
+              description: formData.description.trim() || null,
+              contact_email: formData.contactEmail.trim() || null,
+              contact_phone: formData.contactPhone.trim() || null,
+              office_location: formData.officeLocation.trim() || null,
+              contact_info: contactInfoParts.length > 0 ? contactInfoParts.join("\n") : null,
+            },
+            course_policies: {
+              textbooks_and_materials: formData.textbooks.trim() || null,
+              learning_objectives: formData.learningObjectives.trim() || null,
+              grading_policy: formData.gradingPolicy.trim() || null,
+              attendance_policy: formData.attendancePolicy.trim() || null,
+              extra_and_late_policy: formData.extraAndLate.trim() || null,
+            },
+          }),
+        });
       }
 
       // Refresh classes
@@ -151,12 +440,22 @@ const ClassesPage: React.FC = () => {
       setFormData({
         name: "",
         professor: "",
+        currentTerm: "",
         timing: "",
+        officeHours: "",
         location: "",
+        contactEmail: "",
+        contactPhone: "",
+        officeLocation: "",
         topics: "",
         textbooks: "",
+        learningObjectives: "",
         gradingPolicy: "",
+        attendancePolicy: "",
+        extraAndLate: "",
         contactInfo: "",
+        description: "",
+        syllabusResourceId: "",
       });
       setEditingClassId(null);
       setShowModal(false);
@@ -243,17 +542,7 @@ const ClassesPage: React.FC = () => {
     }
   };
 
-  const getColorClass = (index: number) => {
-    const colors = [
-      "bg-blue-600",
-      "bg-green-600",
-      "bg-purple-600",
-      "bg-red-600",
-      "bg-orange-600",
-      "bg-cyan-600",
-    ];
-    return colors[index % colors.length];
-  };
+  const getColorClass = (classId: string) => getClassColor(classId);
 
   if (isLoading) {
     return (
@@ -307,9 +596,18 @@ const ClassesPage: React.FC = () => {
           <p>No classes found. Create your first class!</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence>
-            {classes.map((course, index) => (
+        <div className="space-y-8">
+          {classSections.map((section) => (
+            <div key={section.label} className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-foreground">{section.label}</h2>
+                <span className="text-xs text-muted-foreground">
+                  {section.classes.length} class{section.classes.length === 1 ? "" : "es"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <AnimatePresence>
+                  {section.classes.map((course) => (
               <motion.div
                 layout
                 key={course._id}
@@ -317,10 +615,10 @@ const ClassesPage: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.25 }}
-                onClick={() => setSelectedClass(course)}
+                onClick={() => router.push(`/classes/${course._id}`)}
                 className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
               >
-                <div className={`h-2 ${getColorClass(index)}`} />
+                <div className="h-2" style={{ backgroundColor: getColorClass(course._id) }} />
                 <div className="p-5">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
@@ -385,6 +683,10 @@ const ClassesPage: React.FC = () => {
                 </div>
               </motion.div>
             ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          ))}
 
             {Array.from({ length: pendingClassCount }).map((_, index) => (
               <motion.div
@@ -412,7 +714,6 @@ const ClassesPage: React.FC = () => {
                 </div>
               </motion.div>
             ))}
-          </AnimatePresence>
         </div>
       )}
 
@@ -472,6 +773,23 @@ const ClassesPage: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">
+                    Current Term
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.currentTerm}
+                    onChange={(e) =>
+                      setFormData({ ...formData, currentTerm: e.target.value })
+                    }
+                    placeholder="e.g., Fall 2025"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Timing
                   </label>
                   <input
@@ -481,6 +799,21 @@ const ClassesPage: React.FC = () => {
                       setFormData({ ...formData, timing: e.target.value })
                     }
                     placeholder="e.g., MWF 10:00-11:00"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Professor Office Hours
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.officeHours}
+                    onChange={(e) =>
+                      setFormData({ ...formData, officeHours: e.target.value })
+                    }
+                    placeholder="e.g., Tue/Thu 2:00-4:00 PM"
                     className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
@@ -501,6 +834,67 @@ const ClassesPage: React.FC = () => {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Professor Contact Email
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.contactEmail}
+                    onChange={(e) =>
+                      setFormData({ ...formData, contactEmail: e.target.value })
+                    }
+                    placeholder="professor@university.edu"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Professor Contact Telephone
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.contactPhone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, contactPhone: e.target.value })
+                    }
+                    placeholder="(555) 123-4567"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Professor Office Location
+                </label>
+                <input
+                  type="text"
+                  value={formData.officeLocation}
+                  onChange={(e) =>
+                    setFormData({ ...formData, officeLocation: e.target.value })
+                  }
+                  placeholder="e.g., ECS 3.101"
+                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Course Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  placeholder="Brief course description"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Topics (comma-separated)
@@ -518,16 +912,31 @@ const ClassesPage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
+                  Learning Objectives or Outcomes
+                </label>
+                <textarea
+                  value={formData.learningObjectives}
+                  onChange={(e) =>
+                    setFormData({ ...formData, learningObjectives: e.target.value })
+                  }
+                  placeholder="List the key outcomes for this course"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Textbooks (comma-separated)
                 </label>
-                <input
-                  type="text"
+                <textarea
                   value={formData.textbooks}
                   onChange={(e) =>
                     setFormData({ ...formData, textbooks: e.target.value })
                   }
-                  placeholder="e.g., Introduction to Algorithms, CLRS"
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="List required/optional materials"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                 />
               </div>
 
@@ -548,16 +957,31 @@ const ClassesPage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
-                  Contact Info
+                  Attendance Policy
                 </label>
-                <input
-                  type="text"
-                  value={formData.contactInfo}
+                <textarea
+                  value={formData.attendancePolicy}
                   onChange={(e) =>
-                    setFormData({ ...formData, contactInfo: e.target.value })
+                    setFormData({ ...formData, attendancePolicy: e.target.value })
                   }
-                  placeholder="e.g., email@university.edu"
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Attendance expectations and requirements"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Extra Credit, Make Up, and Late Work Policy
+                </label>
+                <textarea
+                  value={formData.extraAndLate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, extraAndLate: e.target.value })
+                  }
+                  placeholder="Late work rules, extra credit options, make-up work policy"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                 />
               </div>
 
@@ -591,13 +1015,6 @@ const ClassesPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Class Overview Dialog */}
-      <ClassOverviewDialog
-        classData={selectedClass}
-        isOpen={!!selectedClass}
-        onClose={() => setSelectedClass(null)}
-      />
 
       {/* Processing Animation Modal */}
       {isUploadingSyllabus && (

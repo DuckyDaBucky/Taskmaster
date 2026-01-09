@@ -18,6 +18,7 @@ import { activityService } from "./activityService";
 import { chatService } from "./chatService";
 import { nebulaService } from "./nebulaService";
 import { courseCatalogService } from "./courseCatalogService";
+import { askTaskmasterService } from "./askTaskmasterService";
 
 // Individual service exports (preferred)
 export {
@@ -34,6 +35,7 @@ export {
   chatService,
   nebulaService,
   courseCatalogService,
+  askTaskmasterService,
 };
 
 /**
@@ -109,6 +111,13 @@ class ApiService {
   getOrCreateChat = chatService.getOrCreateChat;
   getUserChats = chatService.getUserChats;
   getFriends = chatService.getFriends;
+
+  // AskTaskmaster
+  getAskTaskmasterConversations = askTaskmasterService.getConversations;
+  createAskTaskmasterConversation = askTaskmasterService.createConversation;
+  getAskTaskmasterMessages = askTaskmasterService.getMessages;
+  addAskTaskmasterMessage = askTaskmasterService.addMessage;
+  updateAskTaskmasterTitle = askTaskmasterService.updateConversationTitle;
 }
 
 export const apiService = new ApiService();

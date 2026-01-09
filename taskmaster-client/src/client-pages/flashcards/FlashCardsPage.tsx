@@ -5,6 +5,7 @@ import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import { CreateDeckModal } from "../../components/flashcards/CreateDeckModal";
 import type { ClassData, FlashcardsData } from "../../services/types";
+import { getClassColor } from "../../utils/classColors";
 
 // DO NOT CHANGE: Flashcards data flow relies on:
 // - apiService.getAllFlashcards / getAllClasses / getAllResources
@@ -186,6 +187,10 @@ const FlashCardsPage: React.FC = () => {
               href={`/flashcards/class/${encodeURIComponent(folder.classId)}`}
               className="bg-card border border-border rounded-md p-6 hover:border-primary/50 transition-all group cursor-pointer relative overflow-hidden"
             >
+              <span
+                className="absolute inset-x-0 top-0 h-1"
+                style={{ backgroundColor: getClassColor(folder.classId) }}
+              />
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-foreground mb-2">

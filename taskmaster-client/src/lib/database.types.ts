@@ -208,6 +208,29 @@ export type Database = {
                 Insert: Omit<Database['public']['Tables']['notes']['Row'], 'id' | 'created_at' | 'updated_at'>;
                 Update: Partial<Database['public']['Tables']['notes']['Insert']>;
             };
+            ai_conversations: {
+                Row: {
+                    id: string;
+                    user_id: string;
+                    title: string | null;
+                    created_at: string;
+                    updated_at: string;
+                };
+                Insert: Omit<Database['public']['Tables']['ai_conversations']['Row'], 'id' | 'created_at' | 'updated_at'>;
+                Update: Partial<Database['public']['Tables']['ai_conversations']['Insert']>;
+            };
+            ai_messages: {
+                Row: {
+                    id: string;
+                    conversation_id: string;
+                    user_id: string;
+                    role: string;
+                    content: string;
+                    created_at: string;
+                };
+                Insert: Omit<Database['public']['Tables']['ai_messages']['Row'], 'id' | 'created_at'>;
+                Update: Partial<Database['public']['Tables']['ai_messages']['Insert']>;
+            };
             events: {
                 Row: {
                     id: string;

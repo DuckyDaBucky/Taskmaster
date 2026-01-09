@@ -19,9 +19,13 @@ export const InfoCard: React.FC<InfoCardProps> = ({
   fullWidth = false 
 }) => {
   return (
-    <div className={`bg-secondary/20 rounded-lg p-3 ${fullWidth ? 'col-span-2' : ''} ${className}`}>
+    <div
+      className={`bg-secondary/10 border border-border rounded-xl p-3 h-full ${fullWidth ? 'col-span-2' : ''} ${className}`}
+    >
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="text-sm font-medium text-foreground">{value}</p>
+      <p className="text-sm font-medium text-foreground break-words whitespace-pre-wrap">
+        {value}
+      </p>
     </div>
   );
 };

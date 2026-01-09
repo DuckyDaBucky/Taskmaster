@@ -104,6 +104,21 @@ export interface NoteData {
     createdAt: string;
 }
 
+export interface AiConversation {
+    _id: string;
+    title?: string | null;
+    updatedAt: string;
+    createdAt: string;
+}
+
+export interface AiMessage {
+    _id: string;
+    conversationId: string;
+    role: "user" | "assistant";
+    content: string;
+    createdAt: string;
+}
+
 export interface Friend {
     id: string;
     username: string;

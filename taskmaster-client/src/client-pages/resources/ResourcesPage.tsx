@@ -17,6 +17,7 @@ import { classService } from "@/services/api/classService";
 import type { ClassData } from "@/services/types";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/context/UserContext";
+import { getClassColor } from "@/utils/classColors";
 
 interface ResourceLink {
   title: string;
@@ -260,13 +261,19 @@ const ResourcesPage: React.FC = () => {
                   onClick={() => toggleClass(classItem._id)}
                   className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
                 >
-                  <div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: getClassColor(classItem._id) }}
+                    />
+                    <div>
                     <div className="text-sm font-semibold text-foreground">
                       {classItem.name}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {topics.length} topics
                       {classItem.professor ? ` - ${classItem.professor}` : ""}
+                    </div>
                     </div>
                   </div>
                   {isOpen ? (

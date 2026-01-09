@@ -11,6 +11,7 @@ import {
   BookOpen, 
   FileText, 
   PenLine,
+  MessageCircle,
   Zap, 
   MessageSquare, 
   Settings, 
@@ -26,6 +27,7 @@ const menuItems = [
   { label: "Classes", path: "/classes", icon: BookOpen },
   { label: "Resources", path: "/resources", icon: FileText },
   { label: "Note Creation", path: "/notes", icon: PenLine },
+  { label: "AskTaskmaster", path: "/ask-taskmaster", icon: MessageCircle },
   { label: "Flashcards", path: "/flashcards", icon: Zap },
   { label: "Friends", path: "/friends", icon: MessageSquare },
 ];
