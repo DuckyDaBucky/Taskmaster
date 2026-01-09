@@ -6,12 +6,14 @@ import type { FlashcardsData } from "../../services/types";
 interface FlashcardPlayerProps {
   classId: string;
   className: string;
+  topic?: string;
   onClose: () => void;
 }
 
 export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
   classId,
   className,
+  topic,
   onClose,
 }) => {
   const [cards, setCards] = useState<FlashcardsData[]>([]);
@@ -23,8 +25,14 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
     const fetchCards = async () => {
       try {
         setIsLoading(true);
-        const allCards = await apiService.getFlashcardsByClassId(classId);
-        setCards(allCards);
+        const allCards = classId
+          ? await apiService.getFlashcardsByClassId(classId)
+          : await apiService.getAllFlashcards();
+        if (topic) {
+          setCards(allCards.filter((card) => (card.topic || "General") === topic));
+        } else {
+          setCards(allCards);
+        }
       } catch (error) {
         console.error("Error fetching flashcards for player:", error);
       } finally {
@@ -33,7 +41,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
     };
 
     fetchCards();
-  }, [classId]);
+  }, [classId, topic]);
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -54,6 +62,8 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
   const handleFlip = () => {
     setIsFlipped(!isFlipped);
   };
+
+  const currentCard = cards[currentIndex];
 
   if (isLoading) {
     return (
@@ -79,8 +89,6 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
       </div>
     );
   }
-
-  const currentCard = cards[currentIndex];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -143,7 +151,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
               <p className="text-xl md:text-2xl text-foreground leading-relaxed select-none">
                 {currentCard.answer}
               </p>
-            </div>
+          </div>
           </div>
 
           {/* Navigation Buttons (Absolute to be on sides) */}

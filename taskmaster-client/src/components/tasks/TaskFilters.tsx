@@ -5,20 +5,20 @@
 import React from 'react';
 
 interface TaskFiltersProps {
-  currentFilter: "all" | "pending" | "completed";
-  onFilterChange: (filter: "all" | "pending" | "completed") => void;
+  currentFilter: "today" | "upcoming" | "history";
+  onFilterChange: (filter: "today" | "upcoming" | "history") => void;
   counts: {
-    all: number;
-    pending: number;
-    completed: number;
+    today: number;
+    upcoming: number;
+    history: number;
   };
 }
 
 export const TaskFilters: React.FC<TaskFiltersProps> = ({ currentFilter, onFilterChange, counts }) => {
-  const filters: Array<{ value: "all" | "pending" | "completed"; label: string }> = [
-    { value: "all", label: "All Tasks" },
-    { value: "pending", label: "Pending" },
-    { value: "completed", label: "Completed" },
+  const filters: Array<{ value: "today" | "upcoming" | "history"; label: string }> = [
+    { value: "today", label: "Today" },
+    { value: "upcoming", label: "Upcoming" },
+    { value: "history", label: "History" },
   ];
 
   return (

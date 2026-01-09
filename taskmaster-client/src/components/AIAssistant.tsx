@@ -5,6 +5,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { X, Send, Loader2, Minimize2, RefreshCw, Paperclip, File } from 'lucide-react';
+import { marked } from 'marked';
 import { useUser } from '../context/UserContext';
 import { aiContextService } from '../services/aiContextService';
 import { supabase } from '../lib/supabase';
@@ -36,6 +37,16 @@ const AIAssistant: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const normalizeMarkdown = (value: string) =>
+    value
+      .replace(/\\r\\n/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "  ")
+      .replace(/\r\n/g, "\n");
+
+  const renderMarkdown = (value: string) =>
+    marked.parse(normalizeMarkdown(value), { gfm: true, breaks: true });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -283,7 +294,10 @@ const AIAssistant: React.FC = () => {
                 ? 'bg-primary text-white'
                 : 'bg-secondary text-foreground'
             }`}>
-              {msg.content}
+              <div
+                className="space-y-2 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_pre]:bg-muted/40 [&_pre]:p-2 [&_pre]:rounded-md [&_code]:bg-muted/40 [&_code]:px-1 [&_code]:rounded"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+              />
             </div>
           </div>
         ))}

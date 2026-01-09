@@ -102,6 +102,8 @@ export const classService = {
     textbooks?: string[];
     gradingPolicy?: string;
     contactInfo?: string;
+    description?: string;
+    examDates?: string[];
   }, client?: SupabaseClient): Promise<ClassData> {
     let userId: string;
     const supabaseClient = client || supabase;
@@ -125,6 +127,8 @@ export const classService = {
         textbooks: classData.textbooks || [],
         grading_policy: classData.gradingPolicy || null,
         contact_info: classData.contactInfo || null,
+        description: classData.description || null,
+        exam_dates: classData.examDates || [],
         user_id: userId,
         is_personal: false,
       })
@@ -158,6 +162,8 @@ export const classService = {
     textbooks?: string[];
     gradingPolicy?: string;
     contactInfo?: string;
+    description?: string;
+    examDates?: string[];
   }, client?: SupabaseClient): Promise<ClassData> {
     let userId: string;
     const supabaseClient = client || supabase;
@@ -179,6 +185,8 @@ export const classService = {
     if (classData.textbooks !== undefined) updateData.textbooks = classData.textbooks;
     if (classData.gradingPolicy !== undefined) updateData.grading_policy = classData.gradingPolicy;
     if (classData.contactInfo !== undefined) updateData.contact_info = classData.contactInfo;
+    if (classData.description !== undefined) updateData.description = classData.description;
+    if (classData.examDates !== undefined) updateData.exam_dates = classData.examDates;
 
     const { data, error } = await supabaseClient
       .from('classes')

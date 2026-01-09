@@ -91,6 +91,32 @@ export interface FlashcardsData {
     question: string;
     answer: string;
     class?: string | any;
+    description?: string;
+}
+
+export interface NoteData {
+    _id: string;
+    classId: string;
+    topic: string;
+    title: string;
+    content: string;
+    resourceId?: string | null;
+    createdAt: string;
+}
+
+export interface AiConversation {
+    _id: string;
+    title?: string | null;
+    updatedAt: string;
+    createdAt: string;
+}
+
+export interface AiMessage {
+    _id: string;
+    conversationId: string;
+    role: "user" | "assistant";
+    content: string;
+    createdAt: string;
 }
 
 export interface Friend {

@@ -9,6 +9,8 @@ interface CreateDeckModalProps {
   onClose: () => void;
   classes: ClassData[];
   resources: any[];
+  topicsByClass: Record<string, string[]>;
+  defaultClassId?: string;
   onCreateDeck: (mode: "auto" | "manual", data: any) => Promise<void>;
   isGenerating: boolean;
 }
@@ -18,6 +20,8 @@ export const CreateDeckModal: React.FC<CreateDeckModalProps> = ({
   onClose,
   classes,
   resources,
+  topicsByClass,
+  defaultClassId,
   onCreateDeck,
   isGenerating,
 }) => {
@@ -72,6 +76,8 @@ export const CreateDeckModal: React.FC<CreateDeckModalProps> = ({
           <AutoFlashcardForm
             classes={classes}
             resources={resources}
+            topicsByClass={topicsByClass}
+            defaultClassId={defaultClassId}
             onCreate={onCreateDeck}
             isGenerating={isGenerating}
             onClose={handleClose}
@@ -79,6 +85,7 @@ export const CreateDeckModal: React.FC<CreateDeckModalProps> = ({
         ) : (
           <ManualFlashcardForm
             classes={classes}
+            defaultClassId={defaultClassId}
             onCreate={onCreateDeck}
             isGenerating={isGenerating}
             onClose={handleClose}

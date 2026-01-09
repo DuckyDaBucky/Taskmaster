@@ -1,28 +1,35 @@
-import React, { useState, useEffect } from "react";
-import { Plus, Play } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Folder, Plus } from "lucide-react";
+import Link from "next/link";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
 import { CreateDeckModal } from "../../components/flashcards/CreateDeckModal";
-import { FlashcardPlayer } from "../../components/flashcards/FlashcardPlayer";
-import type { ClassData } from "../../services/types";
+import type { ClassData, FlashcardsData } from "../../services/types";
+import { getClassColor } from "../../utils/classColors";
 
-interface FlashcardDeck {
-  _id: string;
-  class: string;
-  className?: string;
-  cardCount: number;
+// DO NOT CHANGE: Flashcards data flow relies on:
+// - apiService.getAllFlashcards / getAllClasses / getAllResources
+// - apiService.generateFlashcards / createManualFlashcards
+// - /api/flashcards/generate payload compatibility
+// - FlashcardPlayer props: classId, className, onClose (topic optional)
+
+interface ClassFolder {
+  classId: string;
+  className: string;
+  setCount: number;
+  topics: string[];
 }
 
 const FlashCardsPage: React.FC = () => {
   const { user } = useUser();
-  const [decks, setDecks] = useState<FlashcardDeck[]>([]);
+  const [flashcards, setFlashcards] = useState<FlashcardsData[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedDeck, setSelectedDeck] = useState<FlashcardDeck | null>(null);
   const [resources, setResources] = useState<any[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [topicsByClass, setTopicsByClass] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,34 +48,29 @@ const FlashCardsPage: React.FC = () => {
         const allResources = await apiService.getAllResources();
         setResources(allResources);
 
-        // Fetch all flashcards and group by class
+        // Fetch all flashcards
         const allFlashcards = await apiService.getAllFlashcards();
-        
-        // Group flashcards by class (skip null/personal classes)
-        const deckMap = new Map<string, number>();
-        allFlashcards.forEach((card: any) => {
-          const classId = card.class?._id || card.class;
-          // Only count flashcards with valid class IDs (not null or "personal")
-          if (classId && typeof classId === 'string' && classId !== 'personal') {
-            deckMap.set(classId, (deckMap.get(classId) || 0) + 1);
-          }
+        setFlashcards(allFlashcards);
+
+        const topicsMap: Record<string, Set<string>> = {};
+        userClasses.forEach((cls) => {
+          if (!cls._id) return;
+          topicsMap[cls._id] = new Set(cls.topics || []);
         });
 
-        // Create deck objects
-        const deckList: FlashcardDeck[] = Array.from(deckMap.entries()).map(([classId, count]) => {
-          const card = allFlashcards.find((c: any) => {
-            const cid = c.class?._id || c.class;
-            return cid === classId;
-          });
-          return {
-            _id: classId,
-            class: classId,
-            className: userClasses.find(c => c._id === classId)?.name || card?.class?.name || "Unknown Class",
-            cardCount: count,
-          };
+        allResources.forEach((res: any) => {
+          const classId = res.class;
+          const keyTopics = res.extracted_data?.key_topics || [];
+          if (!classId || keyTopics.length === 0) return;
+          if (!topicsMap[classId]) topicsMap[classId] = new Set();
+          keyTopics.forEach((topic: string) => topicsMap[classId].add(topic));
         });
 
-        setDecks(deckList);
+        const normalizedTopics: Record<string, string[]> = {};
+        Object.entries(topicsMap).forEach(([classId, topics]) => {
+          normalizedTopics[classId] = Array.from(topics).filter(Boolean).sort();
+        });
+        setTopicsByClass(normalizedTopics);
       } catch (error) {
         console.error("Error fetching flashcards:", error);
       } finally {
@@ -85,7 +87,11 @@ const FlashCardsPage: React.FC = () => {
       setSuccessMessage(null);
 
       if (mode === "auto") {
-        const result = await apiService.generateFlashcards(data.classId, data.resourceId);
+        const result = await apiService.generateFlashcards(data.classId, {
+          resourceId: data.resourceId,
+          topic: data.topic,
+          count: data.count,
+        });
         setSuccessMessage(`Flashcards generated successfully! Created ${result.length || 0} cards.`);
       } else {
         const result = await apiService.createManualFlashcards(data.classId, data.cards);
@@ -105,49 +111,39 @@ const FlashCardsPage: React.FC = () => {
   const refreshDecks = async () => {
     try {
       const allFlashcards = await apiService.getAllFlashcards();
-      const deckMap = new Map<string, number>();
-      
-      allFlashcards.forEach((card: any) => {
-        // Handle both populated and non-populated class field
-        const classId = card.class?._id || card.class;
-        if (classId && typeof classId === 'string' && classId !== 'personal') {
-          deckMap.set(classId, (deckMap.get(classId) || 0) + 1);
-        }
-      });
-
-      const deckList: FlashcardDeck[] = Array.from(deckMap.entries()).map(([classId, count]) => {
-        const card = allFlashcards.find((c: any) => {
-             const cid = c.class?._id || c.class;
-             return cid === classId;
-        });
-        return {
-            _id: classId,
-            class: classId,
-            className: classes.find(c => c._id === classId)?.name || card?.class?.name || "Unknown Class",
-            cardCount: count,
-        };
-      });
-
-      setDecks(deckList);
+      setFlashcards(allFlashcards);
     } catch (error) {
       console.error("Error refreshing decks:", error);
     }
   };
 
+  const folders = useMemo<ClassFolder[]>(() => {
+    const folderMap = new Map<string, { className: string; topics: Set<string> }>();
 
-  const getDeckColor = (index: number) => {
-    const colors = [
-      "bg-blue-600",
-      "bg-yellow-600",
-      "bg-purple-600",
-      "bg-red-600",
-      "bg-green-600",
-      "bg-pink-600",
-      "bg-indigo-600",
-      "bg-orange-600",
-    ];
-    return colors[index % colors.length];
-  };
+    classes.forEach((cls) => {
+      if (!cls._id) return;
+      folderMap.set(cls._id, {
+        className: cls.name || "Unknown Class",
+        topics: new Set(),
+      });
+    });
+
+    flashcards.forEach((card) => {
+      const classId = (card.class as string) || "personal";
+      const topic = card.topic || "General";
+      if (!folderMap.has(classId)) {
+        folderMap.set(classId, { className: "Personal", topics: new Set() });
+      }
+      folderMap.get(classId)?.topics.add(topic);
+    });
+
+    return Array.from(folderMap.entries()).map(([classId, info]) => ({
+      classId,
+      className: info.className,
+      setCount: info.topics.size,
+      topics: Array.from(info.topics).slice(0, 3),
+    }));
+  }, [flashcards, classes]);
 
   if (isLoading) {
     return (
@@ -179,32 +175,43 @@ const FlashCardsPage: React.FC = () => {
         </div>
       )}
 
-      {decks.length === 0 ? (
+      {folders.length === 0 ? (
         <div className="bg-card border border-border rounded-md p-8 text-center text-muted-foreground">
           <p>No flashcard decks yet. Create your first deck!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {decks.map((deck, index) => (
-            <div
-              key={deck._id}
-              onClick={() => setSelectedDeck(deck)}
+          {folders.map((folder) => (
+            <Link
+              key={folder.classId}
+              href={`/flashcards/class/${encodeURIComponent(folder.classId)}`}
               className="bg-card border border-border rounded-md p-6 hover:border-primary/50 transition-all group cursor-pointer relative overflow-hidden"
             >
-              <div className={`absolute top-0 left-0 w-1 h-full ${getDeckColor(index)}`} />
-
-              <h3 className="text-xl font-bold text-foreground mb-2">{deck.className}</h3>
-              <p className="text-muted-foreground text-sm mb-6">{deck.cardCount} cards</p>
-
-              <div className="flex justify-end">
-                <button className="p-3 rounded-full bg-secondary text-foreground group-hover:bg-primary group-hover:text-white transition-colors">
-                  <Play size={20} fill="currentColor" />
-                </button>
+              <span
+                className="absolute inset-x-0 top-0 h-1"
+                style={{ backgroundColor: getClassColor(folder.classId) }}
+              />
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-foreground mb-2">
+                    {folder.className}
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    {folder.setCount} set{folder.setCount !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <div className="p-3 rounded-full bg-secondary text-foreground group-hover:bg-primary group-hover:text-white transition-colors">
+                  <Folder size={20} />
+                </div>
               </div>
-            </div>
+              {folder.topics.length > 0 && (
+                <div className="mt-4 text-xs text-muted-foreground">
+                  Top topics: {folder.topics.join(", ")}
+                </div>
+              )}
+            </Link>
           ))}
 
-          {/* Create New Deck Card */}
           <button
             onClick={() => setShowCreateModal(true)}
             className="border-2 border-dashed border-border rounded-md p-6 flex flex-col items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors h-full min-h-[180px]"
@@ -222,17 +229,11 @@ const FlashCardsPage: React.FC = () => {
         }}
         classes={classes}
         resources={resources}
+        topicsByClass={topicsByClass}
         onCreateDeck={handleCreateDeck}
         isGenerating={isGenerating}
       />
 
-      {selectedDeck && (
-        <FlashcardPlayer
-          classId={selectedDeck.class}
-          className={selectedDeck.className || "Flashcards"}
-          onClose={() => setSelectedDeck(null)}
-        />
-      )}
     </div>
   );
 };

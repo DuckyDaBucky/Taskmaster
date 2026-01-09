@@ -1,7 +1,6 @@
 # Local development docs and notes
 .local-docs/
 *.local.md
-notes/
 
 # Environment variables
 .env

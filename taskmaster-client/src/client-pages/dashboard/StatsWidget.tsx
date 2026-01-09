@@ -23,10 +23,23 @@ export const StatsWidget: React.FC<StatsWidgetProps> = ({ tasks = [], isLoading 
   const completedTasks = tasks.filter(t => t.completed || t.status === 'completed').length;
   const pendingTasks = tasks.filter(t => !t.completed && t.status !== 'completed' && t.status !== 'overdue').length;
   const overdueTasks = tasks.filter(t => t.status === 'overdue').length;
+  const dueTodayTasks = tasks.filter(t => {
+    if (!t.deadline) return false;
+    const deadline = new Date(t.deadline);
+    const now = new Date();
+    return (
+      deadline.getFullYear() === now.getFullYear() &&
+      deadline.getMonth() === now.getMonth() &&
+      deadline.getDate() === now.getDate()
+    );
+  });
+  const dueTodayTotal = dueTodayTasks.length;
+  const dueTodayCompleted = dueTodayTasks.filter(t => t.completed || t.status === 'completed').length;
+  const dueTodayPending = dueTodayTasks.filter(t => !t.completed && t.status !== 'completed').length;
   
   // Calculate completion percentage (avoid NaN)
-  const completionPercentage = totalTasks > 0 
-    ? Math.round((completedTasks / totalTasks) * 100) 
+  const completionPercentage = dueTodayTotal > 0 
+    ? Math.round((dueTodayCompleted / dueTodayTotal) * 100) 
     : 0;
 
   // Get user streak from user prop or context
@@ -80,9 +93,9 @@ export const StatsWidget: React.FC<StatsWidgetProps> = ({ tasks = [], isLoading 
 
   const stats = [
     { 
-      label: "Total Tasks", 
-      value: isLoading ? "..." : totalTasks.toString(), 
-      change: `${pendingTasks} pending`, 
+      label: "Due Today", 
+      value: isLoading ? "..." : dueTodayTotal.toString(), 
+      change: `${dueTodayPending} pending`, 
       icon: CheckSquare, 
       color: "text-blue-500",
       onClick: undefined
@@ -114,7 +127,7 @@ export const StatsWidget: React.FC<StatsWidgetProps> = ({ tasks = [], isLoading 
     { 
       label: "Completion", 
       value: isLoading ? "..." : `${completionPercentage}%`, 
-      change: totalTasks > 0 ? `${completedTasks}/${totalTasks} tasks` : "No tasks yet", 
+      change: dueTodayTotal > 0 ? `${dueTodayCompleted}/${dueTodayTotal} due today` : "No tasks due today", 
       icon: TrendingUp, 
       color: "text-purple-500",
       onClick: undefined

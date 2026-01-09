@@ -104,8 +104,42 @@ async function structureDataWithGPT5(markdown: string): Promise<any> {
           professor: { type: ["string", "null"] },
           semester: { type: ["string", "null"] },
           description: { type: ["string", "null"] },
+          schedule: { type: ["string", "null"] },
+          location: { type: ["string", "null"] },
+          professor_office_hours: { type: ["string", "null"] },
+          contact_info: { type: ["string", "null"] },
         },
-        required: ["course_number", "course_name", "professor", "semester", "description"],
+        required: [
+          "course_number",
+          "course_name",
+          "professor",
+          "semester",
+          "description",
+          "schedule",
+          "location",
+          "professor_office_hours",
+          "contact_info"
+        ],
+        additionalProperties: false
+      },
+      course_policies: {
+        type: "object",
+        properties: {
+          learning_objectives: { type: ["string", "null"] },
+          textbooks_and_materials: { type: ["string", "null"] },
+          grading_policy: { type: ["string", "null"] },
+          attendance_policy: { type: ["string", "null"] },
+          late_work_policy: { type: ["string", "null"] },
+          extra_credit_policy: { type: ["string", "null"] },
+        },
+        required: [
+          "learning_objectives",
+          "textbooks_and_materials",
+          "grading_policy",
+          "attendance_policy",
+          "late_work_policy",
+          "extra_credit_policy"
+        ],
         additionalProperties: false
       },
       key_topics: {
@@ -128,7 +162,7 @@ async function structureDataWithGPT5(markdown: string): Promise<any> {
         }
       }
     },
-    required: ["document_type", "course_info", "key_topics", "tasks"],
+    required: ["document_type", "course_info", "course_policies", "key_topics", "tasks"],
     additionalProperties: false
   };
 
@@ -145,8 +179,10 @@ async function structureDataWithGPT5(markdown: string): Promise<any> {
           1. Identify Course Info (Name, Number, Professor).
           2. Scan for all Deadlines/Assignments.
           3. For Exams/Projects, mark priority as 'high'.
-          4. Return STRICT JSON.
-          5. If year is missing, assume 2026.`
+          4. Extract schedule, location, office hours, contact info.
+          5. Extract course policies: learning objectives, textbooks/materials, grading, attendance, late work (include make-up details), extra credit.
+          6. Return STRICT JSON.
+          7. If year is missing, assume 2026.`
       },
       { role: "user", content: markdown }
     ],

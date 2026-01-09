@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Loader } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { apiService } from "../../services/api";
@@ -16,12 +17,14 @@ import type { TasksData, ClassData } from "../../services/types";
 
 const TasksPage: React.FC = () => {
   const { user, isLoadingUser } = useUser();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [tasks, setTasks] = useState<TasksData[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
+  const [filter, setFilter] = useState<"today" | "upcoming" | "history">("today");
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +33,15 @@ const TasksPage: React.FC = () => {
       fetchData();
     }
   }, [user?._id, isLoadingUser]);
+
+  useEffect(() => {
+    if (!searchParams) return;
+    if (searchParams.get("newTask") === "1") {
+      setEditingTaskId(null);
+      setShowModal(true);
+      router.replace("/tasks");
+    }
+  }, [searchParams, router]);
 
   const fetchData = async () => {
     if (!user?._id) {
@@ -102,11 +114,40 @@ const TasksPage: React.FC = () => {
   };
 
   // Calculate filter counts
-  const filterCounts = useMemo(() => ({
-    all: tasks.length,
-    pending: tasks.filter(t => !t.completed).length,
-    completed: tasks.filter(t => t.completed).length,
-  }), [tasks]);
+  const filterCounts = useMemo(() => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+    const isToday = (deadline?: string) => {
+      if (!deadline) return false;
+      const date = new Date(deadline);
+      return date >= startOfDay && date < endOfDay;
+    };
+
+    const isUpcoming = (deadline?: string) => {
+      if (!deadline) return false;
+      const date = new Date(deadline);
+      return date >= endOfDay;
+    };
+
+    const isOverdue = (deadline?: string) => {
+      if (!deadline) return false;
+      const date = new Date(deadline);
+      return date < startOfDay;
+    };
+
+    const dueTodayCount = tasks.filter(t => t.deadline && isToday(t.deadline)).length;
+    const overdueCount = tasks.filter(
+      t => !t.completed && t.deadline && isOverdue(t.deadline)
+    ).length;
+
+    return {
+      today: dueTodayCount + overdueCount,
+      upcoming: tasks.filter(t => !t.completed && isUpcoming(t.deadline)).length,
+      history: tasks.filter(t => t.completed || t.status === "completed").length,
+    };
+  }, [tasks]);
 
   if (isLoading) {
     return (

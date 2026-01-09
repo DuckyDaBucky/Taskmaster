@@ -10,12 +10,15 @@ import { taskService } from "./taskService";
 import { classService } from "./classService";
 import { resourceService } from "./resourceService";
 import { flashcardService } from "./flashcardService";
+import { learnService } from "./learnService";
+import { notesService } from "./notesService";
 import { eventService } from "./eventService";
 import { userService } from "./userService";
 import { activityService } from "./activityService";
 import { chatService } from "./chatService";
 import { nebulaService } from "./nebulaService";
 import { courseCatalogService } from "./courseCatalogService";
+import { askTaskmasterService } from "./askTaskmasterService";
 
 // Individual service exports (preferred)
 export {
@@ -24,12 +27,15 @@ export {
   classService,
   resourceService,
   flashcardService,
+  learnService,
+  notesService,
   eventService,
   userService,
   activityService,
   chatService,
   nebulaService,
   courseCatalogService,
+  askTaskmasterService,
 };
 
 /**
@@ -73,6 +79,17 @@ class ApiService {
   getFlashcardsByClassId = flashcardService.getFlashcardsByClassId;
   generateFlashcards = flashcardService.generateFlashcards;
   createManualFlashcards = flashcardService.createManualFlashcards;
+  deleteFlashcardSet = flashcardService.deleteFlashcardSet;
+
+  // Learn
+  getLearnQueue = learnService.getLearnQueue;
+  submitLearnAttempt = learnService.submitAttempt;
+  getLearnProgress = learnService.getProgressForSet;
+
+  // Notes
+  getAllNotes = notesService.getAllNotes;
+  generateNotes = notesService.generateNotes;
+  deleteNote = notesService.deleteNote;
 
   // Events
   createEvent = eventService.createEvent;
@@ -94,6 +111,13 @@ class ApiService {
   getOrCreateChat = chatService.getOrCreateChat;
   getUserChats = chatService.getUserChats;
   getFriends = chatService.getFriends;
+
+  // AskTaskmaster
+  getAskTaskmasterConversations = askTaskmasterService.getConversations;
+  createAskTaskmasterConversation = askTaskmasterService.createConversation;
+  getAskTaskmasterMessages = askTaskmasterService.getMessages;
+  addAskTaskmasterMessage = askTaskmasterService.addMessage;
+  updateAskTaskmasterTitle = askTaskmasterService.updateConversationTitle;
 }
 
 export const apiService = new ApiService();

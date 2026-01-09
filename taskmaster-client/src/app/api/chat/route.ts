@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AzureOpenAI } from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import DocumentIntelligence from '@azure-rest/ai-document-intelligence';
+import { AzureKeyCredential } from '@azure/core-auth';
+import { getLongRunningPoller, isUnexpected } from '@azure-rest/ai-document-intelligence';
 
 /**
  * Agentic Chat API - TaskMaster AI Assistant with Tool Calling
@@ -16,6 +19,8 @@ import { createClient } from '@supabase/supabase-js';
 const AOAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || '';
 const AOAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || '';
 const AOAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.2';
+const AOAI_NOTES_DEPLOYMENT =
+    process.env.AZURE_OPENAI_NOTES_DEPLOYMENT_NAME || AOAI_DEPLOYMENT;
 const AOAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -24,6 +29,9 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const supabase = SUPABASE_URL && SUPABASE_SERVICE_KEY
     ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     : null;
+
+const DOC_INTEL_ENDPOINT = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT || '';
+const DOC_INTEL_KEY = process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY || '';
 
 // Tool definitions for the agentic capabilities
 const TOOLS = [
@@ -54,6 +62,58 @@ const TOOLS = [
                     task_title: { type: 'string', description: 'The title or name of the task to mark complete' }
                 },
                 required: ['task_title']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'create_task',
+            description: 'Create a new task with optional deadline and class.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    title: { type: 'string' },
+                    description: { type: 'string' },
+                    deadline: { type: 'string', description: 'ISO date or datetime' },
+                    class_name: { type: 'string', description: 'Class name (optional)' }
+                },
+                required: ['title']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'update_task',
+            description: 'Update an existing task by id or title.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    task_id: { type: 'string' },
+                    title: { type: 'string', description: 'Current task title if id not provided' },
+                    new_title: { type: 'string' },
+                    description: { type: 'string' },
+                    deadline: { type: 'string', description: 'ISO date or datetime' },
+                    status: { type: 'string', enum: ['pending', 'completed', 'overdue'] },
+                    completed: { type: 'boolean' }
+                },
+                required: []
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'delete_task',
+            description: 'Delete a task by id or title.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    task_id: { type: 'string' },
+                    title: { type: 'string' }
+                },
+                required: []
             }
         }
     },
@@ -99,6 +159,142 @@ const TOOLS = [
             }
         }
     }
+    ,
+    {
+        type: 'function',
+        function: {
+            name: 'create_event',
+            description: 'Create a calendar event.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    title: { type: 'string' },
+                    start: { type: 'string', description: 'ISO datetime' },
+                    end: { type: 'string', description: 'ISO datetime' },
+                    description: { type: 'string' },
+                    location: { type: 'string' },
+                    class_name: { type: 'string' },
+                    repeat_weekly: { type: 'boolean' },
+                    color: { type: 'string' }
+                },
+                required: ['title', 'start']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'update_event',
+            description: 'Update an event by id or title.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    event_id: { type: 'string' },
+                    title: { type: 'string', description: 'Current event title if id not provided' },
+                    new_title: { type: 'string' },
+                    start: { type: 'string' },
+                    end: { type: 'string' },
+                    description: { type: 'string' },
+                    location: { type: 'string' },
+                    class_name: { type: 'string' },
+                    repeat_weekly: { type: 'boolean' },
+                    color: { type: 'string' }
+                },
+                required: []
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'delete_event',
+            description: 'Delete an event by id or title.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    event_id: { type: 'string' },
+                    title: { type: 'string' }
+                },
+                required: []
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'create_class',
+            description: 'Create a class manually.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    name: { type: 'string' },
+                    professor: { type: 'string' },
+                    description: { type: 'string' },
+                    topics: { type: 'array', items: { type: 'string' } },
+                    location: { type: 'string' }
+                },
+                required: ['name']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'create_class_from_syllabus',
+            description: 'Create or update class from an uploaded syllabus (resource_id required).',
+            parameters: {
+                type: 'object',
+                properties: {
+                    resource_id: { type: 'string' }
+                },
+                required: ['resource_id']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'create_notes',
+            description: 'Generate structured notes from an uploaded lecture file.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    resource_id: { type: 'string' },
+                    class_name: { type: 'string' },
+                    topic: { type: 'string' },
+                    create_flashcards: { type: 'boolean' },
+                    card_count: { type: 'number' }
+                },
+                required: ['topic']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'create_flashcards_manual',
+            description: 'Create a flashcard set from provided Q/A pairs.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    class_name: { type: 'string' },
+                    topic: { type: 'string' },
+                    cards: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                question: { type: 'string' },
+                                answer: { type: 'string' }
+                            },
+                            required: ['question', 'answer']
+                        }
+                    }
+                },
+                required: ['topic', 'cards']
+            }
+        }
+    }
 ];
 
 // System prompt for agentic assistant
@@ -110,6 +306,11 @@ const SYSTEM_PROMPT = `You are TaskMaster AI, an intelligent and ACTION-ORIENTED
 - SEARCH documents to answer questions about course content - use the query_documents tool
 - GET tasks and deadlines - use the get_tasks tool
 - GET classes info - use the get_classes tool
+- CREATE, UPDATE, and DELETE tasks - use create_task / update_task / delete_task
+- CREATE, UPDATE, and DELETE events - use create_event / update_event / delete_event
+- CREATE classes manually or from syllabus uploads - use create_class / create_class_from_syllabus
+- CREATE study notes from uploaded lecture files - use create_notes
+- CREATE flashcard decks manually or with AI - use create_flashcards / create_flashcards_manual
 
 ## CRITICAL: Be Proactive!
 - When user mentions a topic, offer to create flashcards
@@ -140,6 +341,15 @@ async function executeCreateFlashcards(params: any, userId: string) {
 
         if (classes?.[0]) classId = classes[0].id;
     }
+    if (!classId) {
+        const { data: personal } = await supabase
+            .from('classes')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('is_personal', true)
+            .limit(1);
+        if (personal?.[0]) classId = personal[0].id;
+    }
 
     // Get relevant content from resources
     let content = `Topic: ${topic}\n`;
@@ -164,7 +374,7 @@ async function executeCreateFlashcards(params: any, userId: string) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                class_id: classId || 'general',
+                class_id: classId,
                 user_id: userId,
                 count: count,
                 topic: topic,
@@ -307,6 +517,461 @@ async function executeGetClasses(userId: string) {
     return { classes: classes || [] };
 }
 
+async function findClassIdByName(userId: string, className?: string) {
+    if (!supabase) return null;
+    if (!className) return null;
+    const { data: classes } = await supabase
+        .from('classes')
+        .select('id, name')
+        .eq('user_id', userId)
+        .ilike('name', `%${className}%`)
+        .limit(1);
+    return classes?.[0]?.id || null;
+}
+
+async function executeCreateTask(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { title, description, deadline, class_name } = params;
+    const classId = await findClassIdByName(userId, class_name);
+
+    const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+            user_id: userId,
+            title,
+            description: description || null,
+            deadline: deadline || null,
+            status: 'pending',
+            completed: false,
+            class_id: classId || null,
+        })
+        .select('id, title')
+        .single();
+
+    if (error) return { error: error.message };
+    return { success: true, task_id: data.id, message: `Created task "${data.title}".` };
+}
+
+async function executeUpdateTask(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { task_id, title, new_title, description, deadline, status, completed } = params;
+
+    let taskId = task_id;
+    if (!taskId && title) {
+        const { data: tasks } = await supabase
+            .from('tasks')
+            .select('id, title')
+            .eq('user_id', userId)
+            .ilike('title', `%${title}%`)
+            .limit(1);
+        taskId = tasks?.[0]?.id;
+    }
+
+    if (!taskId) return { error: 'Task not found' };
+
+    const updateData: any = {};
+    if (new_title !== undefined) updateData.title = new_title;
+    if (description !== undefined) updateData.description = description;
+    if (deadline !== undefined) updateData.deadline = deadline;
+    if (status !== undefined) updateData.status = status;
+    if (completed !== undefined) updateData.completed = completed;
+
+    const { data, error } = await supabase
+        .from('tasks')
+        .update(updateData)
+        .eq('id', taskId)
+        .eq('user_id', userId)
+        .select('id, title')
+        .single();
+
+    if (error) return { error: error.message };
+    return { success: true, task_id: data.id, message: `Updated task "${data.title}".` };
+}
+
+async function executeDeleteTask(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { task_id, title } = params;
+
+    let taskId = task_id;
+    if (!taskId && title) {
+        const { data: tasks } = await supabase
+            .from('tasks')
+            .select('id, title')
+            .eq('user_id', userId)
+            .ilike('title', `%${title}%`)
+            .limit(1);
+        taskId = tasks?.[0]?.id;
+    }
+
+    if (!taskId) return { error: 'Task not found' };
+
+    const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId)
+        .eq('user_id', userId);
+
+    if (error) return { error: error.message };
+    return { success: true, message: 'Task deleted.' };
+}
+
+async function executeCreateEvent(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { title, start, end, description, location, class_name, repeat_weekly, color } = params;
+    const classId = await findClassIdByName(userId, class_name);
+
+    const { data, error } = await supabase
+        .from('events')
+        .insert({
+            user_id: userId,
+            title,
+            start_time: start,
+            end_time: end || start,
+            description: description || null,
+            location: location || null,
+            class_id: classId || null,
+            recurrence: repeat_weekly ? 'weekly' : null,
+            color: color || '#6B6BFF',
+        })
+        .select('id, title')
+        .single();
+
+    if (error) return { error: error.message };
+    return { success: true, event_id: data.id, message: `Created event "${data.title}".` };
+}
+
+async function executeUpdateEvent(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { event_id, title, new_title, start, end, description, location, class_name, repeat_weekly, color } = params;
+    let eventId = event_id;
+    if (!eventId && title) {
+        const { data: events } = await supabase
+            .from('events')
+            .select('id, title')
+            .eq('user_id', userId)
+            .ilike('title', `%${title}%`)
+            .limit(1);
+        eventId = events?.[0]?.id;
+    }
+
+    if (!eventId) return { error: 'Event not found' };
+    const classId = await findClassIdByName(userId, class_name);
+
+    const updateData: any = {};
+    if (new_title !== undefined) updateData.title = new_title;
+    if (start !== undefined) updateData.start_time = start;
+    if (end !== undefined) updateData.end_time = end;
+    if (description !== undefined) updateData.description = description;
+    if (location !== undefined) updateData.location = location;
+    if (classId !== null && class_name !== undefined) updateData.class_id = classId;
+    if (repeat_weekly !== undefined) updateData.recurrence = repeat_weekly ? 'weekly' : null;
+    if (color !== undefined) updateData.color = color;
+
+    const { data, error } = await supabase
+        .from('events')
+        .update(updateData)
+        .eq('id', eventId)
+        .eq('user_id', userId)
+        .select('id, title')
+        .single();
+
+    if (error) return { error: error.message };
+    return { success: true, event_id: data.id, message: `Updated event "${data.title}".` };
+}
+
+async function executeDeleteEvent(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { event_id, title } = params;
+    let eventId = event_id;
+    if (!eventId && title) {
+        const { data: events } = await supabase
+            .from('events')
+            .select('id, title')
+            .eq('user_id', userId)
+            .ilike('title', `%${title}%`)
+            .limit(1);
+        eventId = events?.[0]?.id;
+    }
+
+    if (!eventId) return { error: 'Event not found' };
+
+    const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventId)
+        .eq('user_id', userId);
+
+    if (error) return { error: error.message };
+    return { success: true, message: 'Event deleted.' };
+}
+
+async function executeCreateClass(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { name, professor, description, topics, location } = params;
+
+    const { data, error } = await supabase
+        .from('classes')
+        .insert({
+            user_id: userId,
+            name,
+            professor: professor || null,
+            description: description || null,
+            topics: topics || [],
+            location: location || null,
+            is_personal: false,
+        })
+        .select('id, name')
+        .single();
+
+    if (error) return { error: error.message };
+    return { success: true, class_id: data.id, message: `Created class "${data.name}".` };
+}
+
+async function executeCreateClassFromSyllabus(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { resource_id } = params;
+
+    const { data: resource, error: resourceError } = await supabase
+        .from('resources')
+        .select('id, files')
+        .eq('id', resource_id)
+        .eq('user_id', userId)
+        .single();
+
+    if (resourceError || !resource) return { error: 'Resource not found' };
+    const fileUrl = resource.files?.[0]?.url;
+    if (!fileUrl) return { error: 'Resource file URL not found' };
+
+    const endpoint = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/documents/analyze-azure`;
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            resource_id,
+            user_id: userId,
+            file_url: fileUrl,
+        }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) return { error: result.error || 'Failed to analyze syllabus' };
+    return { success: true, message: 'Syllabus processed.', class_id: result.class_id };
+}
+
+async function extractMarkdownWithAzure(fileUrl: string): Promise<string> {
+    if (!DOC_INTEL_ENDPOINT || !DOC_INTEL_KEY) {
+        throw new Error('Azure Document Intelligence not configured');
+    }
+    const client = DocumentIntelligence(DOC_INTEL_ENDPOINT, new AzureKeyCredential(DOC_INTEL_KEY));
+
+    const initialResponse = await client
+        .path("/documentModels/{modelId}:analyze", "prebuilt-layout")
+        .post({
+            contentType: "application/json",
+            body: { urlSource: fileUrl },
+            queryParameters: { outputContentFormat: "markdown" },
+        });
+
+    if (isUnexpected(initialResponse)) {
+        throw new Error(initialResponse.body.error?.message || 'Document analysis failed');
+    }
+
+    const poller = getLongRunningPoller(client, initialResponse);
+    const result = await poller.pollUntilDone();
+    if (isUnexpected(result)) {
+        throw new Error(result.body.error?.message || 'Document analysis failed');
+    }
+
+    const content = (result.body as any).analyzeResult?.content;
+    if (!content) throw new Error('No content extracted from document');
+    return content;
+}
+
+async function generateNotesContent(markdown: string, className: string, topic: string) {
+    const client = new AzureOpenAI({
+        endpoint: AOAI_ENDPOINT,
+        apiKey: AOAI_API_KEY,
+        apiVersion: AOAI_API_VERSION,
+        deployment: AOAI_NOTES_DEPLOYMENT,
+    });
+
+    const prompt = `Create a clean, well-structured study note document in Markdown.
+
+Class: ${className}
+Topic: ${topic}
+
+Requirements:
+- Output Markdown only (no JSON, no HTML).
+- Headings must start at column 1 (no leading spaces).
+- Do NOT wrap the output in code fences.
+- Use clear headings and bullet points.
+- Include: Overview, Key Concepts, Definitions, Examples, Steps/Processes (if any),
+  Important Formulas/Rules (if any), Common Mistakes, Quick Review, and 5–8 Practice Questions.
+- Keep it concise, factual, and easy to study from.
+
+Source material (markdown):
+${markdown.substring(0, 12000)}`;
+
+    const response = await client.chat.completions.create({
+        model: AOAI_NOTES_DEPLOYMENT,
+        messages: [
+            { role: 'system', content: 'You are an expert study note writer.' },
+            { role: 'user', content: prompt },
+        ],
+        max_completion_tokens: 4096,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('Empty response from notes model');
+    return content.trim();
+}
+
+async function generateFlashcardsFromNotes(
+    notesContent: string,
+    topic: string,
+    count: number
+) {
+    const client = new AzureOpenAI({
+        endpoint: AOAI_ENDPOINT,
+        apiKey: AOAI_API_KEY,
+        apiVersion: AOAI_API_VERSION,
+        deployment: AOAI_DEPLOYMENT,
+    });
+
+    const response = await client.chat.completions.create({
+        model: AOAI_DEPLOYMENT,
+        messages: [
+            { role: 'system', content: 'Return JSON only with a "flashcards" array.' },
+            {
+                role: 'user',
+                content: `Generate ${count} flashcards from these notes.
+Return JSON only. The topic field must be "${topic}".
+
+Notes:
+${notesContent.substring(0, 8000)}`
+            },
+        ],
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 2048,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('Empty response from flashcard model');
+    const parsed = JSON.parse(content);
+    return parsed.flashcards || [];
+}
+
+async function executeCreateNotes(params: any, userId: string, fallbackResourceId?: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { resource_id, class_name, topic, create_flashcards, card_count } = params;
+
+    const resourceId = resource_id || fallbackResourceId;
+    if (!resourceId) return { error: 'resource_id required (attach a file first).' };
+
+    const { data: resource, error: resourceError } = await supabase
+        .from('resources')
+        .select('id, title, files, class_id')
+        .eq('id', resourceId)
+        .eq('user_id', userId)
+        .single();
+
+    if (resourceError || !resource) return { error: 'Resource not found' };
+    const fileUrl = resource.files?.[0]?.url;
+    if (!fileUrl) return { error: 'Resource file URL not found' };
+
+    let classId = resource.class_id || null;
+    if (!classId && class_name) {
+        classId = await findClassIdByName(userId, class_name);
+    }
+    if (!classId) {
+        const { data: personal } = await supabase
+            .from('classes')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('is_personal', true)
+            .limit(1);
+        classId = personal?.[0]?.id || null;
+    }
+
+    const className = class_name || 'Class';
+    const markdown = await extractMarkdownWithAzure(fileUrl);
+    const notesContent = await generateNotesContent(markdown, className, topic);
+
+    const noteTitle = resource.title ? `${resource.title}` : `${topic} Notes`;
+    const { data: note, error: noteError } = await supabase
+        .from('notes')
+        .insert({
+            user_id: userId,
+            class_id: classId,
+            topic,
+            resource_id: resourceId,
+            title: noteTitle,
+            content: notesContent,
+        })
+        .select('id')
+        .single();
+
+    if (noteError) return { error: noteError.message };
+
+    let flashcards = null;
+    if (create_flashcards) {
+        const count = Math.min(Math.max(Number(card_count || 10), 1), 50);
+        const cards = await generateFlashcardsFromNotes(notesContent, topic, count);
+        if (cards.length > 0) {
+            const rows = cards.map((card: any) => ({
+                user_id: userId,
+                class_id: classId,
+                topic,
+                question: card.question,
+                answer: card.answer,
+                description: 'Notes-generated',
+            }));
+            const { error: insertError } = await supabase.from('flashcards').insert(rows);
+            if (insertError) return { error: insertError.message };
+            flashcards = { count: cards.length };
+        }
+    }
+
+    return {
+        success: true,
+        note_id: note?.id,
+        flashcards,
+        message: 'Notes created successfully.',
+    };
+}
+
+async function executeCreateFlashcardsManual(params: any, userId: string) {
+    if (!supabase) return { error: 'Database not configured' };
+    const { class_name, topic, cards } = params;
+    if (!cards || !Array.isArray(cards) || cards.length === 0) {
+        return { error: 'No cards provided' };
+    }
+
+    let classId = await findClassIdByName(userId, class_name);
+    if (!classId) {
+        const { data: personal } = await supabase
+            .from('classes')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('is_personal', true)
+            .limit(1);
+        classId = personal?.[0]?.id || null;
+    }
+
+    const rows = cards.map((card: any) => ({
+        user_id: userId,
+        class_id: classId,
+        topic,
+        question: card.question,
+        answer: card.answer,
+        description: 'Manual',
+    }));
+
+    const { error } = await supabase.from('flashcards').insert(rows);
+    if (error) return { error: error.message };
+    return { success: true, count: rows.length, message: `Created ${rows.length} flashcards.` };
+}
+
 // Main handler
 export async function POST(req: NextRequest) {
     if (!AOAI_ENDPOINT || !AOAI_API_KEY) {
@@ -321,14 +986,20 @@ export async function POST(req: NextRequest) {
     });
 
     try {
-        const { message, systemPrompt, conversationHistory, userId } = await req.json();
+        const { message, systemPrompt, conversationHistory, userId, attachments } = await req.json();
 
         if (!message || typeof message !== 'string') {
             return NextResponse.json({ error: 'Message is required' }, { status: 400 });
         }
 
+        const attachmentNote = Array.isArray(attachments) && attachments.length > 0
+            ? `\n\nRecent attachments:\n${attachments
+                .map((file: any) => `- ${file.name || 'file'} (resource_id: ${file.resource_id})`)
+                .join('\n')}\nUse resource_id when calling create_notes or create_class_from_syllabus.`
+            : '';
+
         const messages: any[] = [
-            { role: 'system', content: systemPrompt || SYSTEM_PROMPT },
+            { role: 'system', content: (systemPrompt || SYSTEM_PROMPT) + attachmentNote },
             ...(conversationHistory || []).map((msg: any) => ({
                 role: msg.role === 'user' ? 'user' : 'assistant',
                 content: msg.content
@@ -336,13 +1007,21 @@ export async function POST(req: NextRequest) {
             { role: 'user', content: message }
         ];
 
+        const hasAttachment = Array.isArray(attachments) && attachments.length > 0;
+        const wantsClassFromSyllabus =
+            hasAttachment &&
+            /create|make|add|set up/i.test(message) &&
+            /class|course|syllabus/i.test(message);
+
         // First call with tools
         const response = await client.chat.completions.create({
             messages,
             model: AOAI_DEPLOYMENT,
             max_completion_tokens: 4096,
             tools: TOOLS as any,
-            tool_choice: 'auto',
+            tool_choice: wantsClassFromSyllabus
+                ? { type: 'function', function: { name: 'create_class_from_syllabus' } }
+                : 'auto',
         });
 
         const choice = response.choices[0];
@@ -353,6 +1032,7 @@ export async function POST(req: NextRequest) {
         if (toolCalls.length > 0 && userId) {
             const toolResults: string[] = [];
 
+            const fallbackResourceId = attachments?.[0]?.resource_id;
             for (const toolCall of toolCalls as any[]) {
                 const fnName = toolCall.function.name;
                 const fnArgs = JSON.parse(toolCall.function.arguments);
@@ -365,6 +1045,15 @@ export async function POST(req: NextRequest) {
                     case 'complete_task':
                         result = await executeCompleteTask(fnArgs, userId);
                         break;
+                    case 'create_task':
+                        result = await executeCreateTask(fnArgs, userId);
+                        break;
+                    case 'update_task':
+                        result = await executeUpdateTask(fnArgs, userId);
+                        break;
+                    case 'delete_task':
+                        result = await executeDeleteTask(fnArgs, userId);
+                        break;
                     case 'query_documents':
                         result = await executeQueryDocuments(fnArgs, userId);
                         break;
@@ -373,6 +1062,27 @@ export async function POST(req: NextRequest) {
                         break;
                     case 'get_classes':
                         result = await executeGetClasses(userId);
+                        break;
+                    case 'create_event':
+                        result = await executeCreateEvent(fnArgs, userId);
+                        break;
+                    case 'update_event':
+                        result = await executeUpdateEvent(fnArgs, userId);
+                        break;
+                    case 'delete_event':
+                        result = await executeDeleteEvent(fnArgs, userId);
+                        break;
+                    case 'create_class':
+                        result = await executeCreateClass(fnArgs, userId);
+                        break;
+                    case 'create_class_from_syllabus':
+                        result = await executeCreateClassFromSyllabus(fnArgs, userId);
+                        break;
+                    case 'create_notes':
+                        result = await executeCreateNotes(fnArgs, userId, fallbackResourceId);
+                        break;
+                    case 'create_flashcards_manual':
+                        result = await executeCreateFlashcardsManual(fnArgs, userId);
                         break;
                     default:
                         result = { error: 'Unknown tool' };
