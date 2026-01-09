@@ -150,17 +150,86 @@
 }
 
 .rbc-btn-group button.rbc-active {
-  background-color: var(--primary);
-  color: white;
-  border-color: var(--primary);
+  background-color: var(--primary) !important;
+  color: white !important;
+  border-color: var(--primary) !important;
   z-index: 1;
   position: relative;
 }
 
 .rbc-btn-group button.rbc-active:hover {
-  background-color: var(--primary);
+  background-color: var(--primary) !important;
   opacity: 0.9;
-  color: white;
+  color: white !important;
+}
+
+/* Light mode explicit fixes */
+[data-theme="light"] .rbc-btn-group button {
+  background-color: white;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  font-weight: 500;
+}
+
+[data-theme="light"] .rbc-btn-group button:hover {
+  background-color: #f1f5f9;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .rbc-btn-group button.rbc-active {
+  background-color: #3b82f6 !important;
+  color: white !important;
+  border-color: #3b82f6 !important;
+}
+
+[data-theme="light"] .rbc-toolbar-label {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+[data-theme="light"] .rbc-header {
+  background-color: #eff6ff;
+  color: #1e40af;
+  font-weight: 700;
+  border-color: #bfdbfe !important;
+}
+
+[data-theme="light"] .rbc-date-cell,
+[data-theme="light"] .rbc-date-cell>a {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+[data-theme="light"] .rbc-day-bg {
+  background-color: white;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .rbc-month-view,
+[data-theme="light"] .rbc-month-row {
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .rbc-today {
+  background-color: #dbeafe !important;
+}
+
+[data-theme="light"] .rbc-day-bg.rbc-today {
+  background-color: #dbeafe !important;
+  border: 3px solid #3b82f6 !important;
+}
+
+[data-theme="light"] .rbc-off-range-bg {
+  background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .rbc-calendar {
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* Individual buttons in group - remove double borders */
@@ -280,11 +349,13 @@
 /* Events */
 .rbc-event {
   background-color: var(--primary);
-  color: white;
+  color: white !important;
   border-radius: 0.25rem;
-  padding: 0.125rem 0.25rem;
+  padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
-  border: none;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
   /* Prevent text overflow - single line */
   white-space: nowrap;
   overflow: hidden;
@@ -294,8 +365,8 @@
 }
 
 .rbc-event:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
 }
 
 .rbc-event-label {

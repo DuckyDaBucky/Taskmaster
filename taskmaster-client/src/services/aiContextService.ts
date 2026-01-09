@@ -95,12 +95,22 @@ export const aiContextService = {
           name: userData?.display_name || userData?.first_name || 'Student',
           email: userData?.email || '',
         },
-        tasks: (tasks || []).slice(0, 20).map((t) => ({
-          title: t.title,
-          status: t.status,
-          deadline: t.deadline,
-          className: (t as any).classes?.name,
-        })),
+        tasks: (tasks || []).slice(0, 20).map((t) => {
+          // Compute actual status (overdue if past deadline and not completed)
+          let computedStatus = t.status;
+          if (!t.completed && t.deadline) {
+            const deadline = new Date(t.deadline);
+            if (deadline < now) {
+              computedStatus = 'overdue';
+            }
+          }
+          return {
+            title: t.title,
+            status: computedStatus,
+            deadline: t.deadline,
+            className: (t as any).classes?.name,
+          };
+        }),
         classes: (classes || []).map((c) => ({
           name: c.name,
           professor: c.professor,

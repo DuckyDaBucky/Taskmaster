@@ -150,7 +150,7 @@ export const ManualFlashcardForm: React.FC<ManualFlashcardFormProps> = ({
         <button
           type="submit"
           disabled={isGenerating || !selectedClassId || manualCards.filter(c => c.question.trim() && c.answer.trim()).length === 0}
-          className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md transition-colors disabled:opacity-50"
         >
           {isGenerating ? "Creating..." : "Create Deck"}
         </button>

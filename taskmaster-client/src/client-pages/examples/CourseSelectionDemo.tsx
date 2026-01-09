@@ -103,7 +103,7 @@ export const CourseSelectionDemo: React.FC = () => {
           <button
             onClick={handleCreateClass}
             disabled={!selectedCourse}
-            className="w-full px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed text-primary-foreground rounded-lg text-sm font-medium transition-colors"
+            className="w-full px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
           >
             Create Class with {selectedSyllabus ? 'Selected Syllabus' : 'Nebula Data'}
           </button>

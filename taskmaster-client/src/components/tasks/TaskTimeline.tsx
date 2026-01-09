@@ -12,6 +12,24 @@ interface TaskTimelineProps {
   onTaskClick?: (task: TasksData) => void;
 }
 
+const hasTimezoneInfo = (deadlineStr: string) => /Z$|[+-]\d{2}:\d{2}$/.test(deadlineStr);
+
+const parseTaskDeadline = (deadlineStr: string) => {
+  if (deadlineStr.includes("T") && !hasTimezoneInfo(deadlineStr)) {
+    const [datePart, timePart = "00:00"] = deadlineStr.split("T");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hours, minutes] = timePart.split(":").map(Number);
+    return new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+  }
+
+  if (!deadlineStr.includes("T")) {
+    const [year, month, day] = deadlineStr.split("-").map(Number);
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
+  }
+
+  return new Date(deadlineStr);
+};
+
 export const TaskTimeline: React.FC<TaskTimelineProps> = ({ tasks, onTaskClick }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -30,7 +48,7 @@ export const TaskTimeline: React.FC<TaskTimelineProps> = ({ tasks, onTaskClick }
     tasks.forEach(task => {
       if (!task.deadline) return;
       
-      const taskDate = new Date(task.deadline);
+      const taskDate = parseTaskDeadline(task.deadline);
       if (taskDate >= startOfDay && taskDate <= endOfDay) {
         const hour = taskDate.getHours();
         if (!organized[hour]) organized[hour] = [];
@@ -50,7 +68,7 @@ export const TaskTimeline: React.FC<TaskTimelineProps> = ({ tasks, onTaskClick }
 
     return tasks.filter(task => {
       if (!task.deadline) return false;
-      const taskDate = new Date(task.deadline);
+      const taskDate = parseTaskDeadline(task.deadline);
       return taskDate >= startOfDay && taskDate <= endOfDay;
     });
   }, [tasks, selectedDate]);
@@ -176,7 +194,7 @@ export const TaskTimeline: React.FC<TaskTimelineProps> = ({ tasks, onTaskClick }
                                 <div className="text-xs opacity-75 truncate">{task.topic}</div>
                               )}
                               <div className="text-xs opacity-60 mt-1">
-                                {new Date(task.deadline!).toLocaleTimeString('en-US', {
+                                {parseTaskDeadline(task.deadline!).toLocaleTimeString('en-US', {
                                   hour: 'numeric',
                                   minute: '2-digit'
                                 })}

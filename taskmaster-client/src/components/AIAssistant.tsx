@@ -166,13 +166,14 @@ const AIAssistant: React.FC = () => {
         .slice(-10)
         .map(m => ({ role: m.role, content: m.content }));
 
-      const response = await fetch('/api/gemini/chat', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage.content,
           systemPrompt: systemPrompt || `You are TaskMaster, a helpful study assistant for UTD students. User: ${user?.firstName || 'Student'}. Be concise and friendly.`,
           conversationHistory,
+          userId: user?._id, // Pass userId for agentic tool execution
         }),
       });
 
@@ -213,7 +214,7 @@ const AIAssistant: React.FC = () => {
         title="Open TaskMaster AI"
       >
         <Image 
-          src="/favicon.png" 
+          src="/LogoMaster.png" 
           alt="TaskMaster" 
           width={48}
           height={48}
@@ -249,7 +250,7 @@ const AIAssistant: React.FC = () => {
       <div className="flex items-center justify-between px-4 py-3 bg-primary text-white">
         <div className="flex items-center gap-2">
           <div className="relative w-6 h-6">
-            <Image src="/favicon.png" alt="" fill className="object-contain" sizes="24px" />
+            <Image src="/LogoMaster.png" alt="" fill className="object-contain" sizes="24px" />
           </div>
           <span className="font-semibold text-sm">TaskMaster AI</span>
           {contextLoaded && (

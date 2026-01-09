@@ -38,7 +38,11 @@ export const TaskDateTimeInput: React.FC<TaskDateTimeInputProps> = ({
   };
 
   const handleTimeChange = (time: string) => {
-    const date = getDatePart() || new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString()
+      .split("T")[0];
+    const date = getDatePart() || localDate;
     onChange(`${date}T${time}`);
   };
 

@@ -86,6 +86,17 @@ export type Database = {
                     description: string | null;
                     class_id: string | null;
                     user_id: string;
+                    processing_status: string | null;
+                    ai_summary: string | null;
+                    extracted_data: unknown | null;
+                    classification: string | null;
+                    verified_course_number: string | null;
+                    verification_status: string | null;
+                    nebula_course_id: string | null;
+                    verified_course_id: string | null;
+                    course_metadata: unknown | null;
+                    semester: string | null;
+                    professor_name: string | null;
                     created_at: string;
                     updated_at: string;
                 };

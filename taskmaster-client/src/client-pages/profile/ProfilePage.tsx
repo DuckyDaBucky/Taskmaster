@@ -137,7 +137,7 @@ const ProfilePage: React.FC = () => {
             {isEditing && (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors border-2 border-background"
+                className="absolute bottom-0 right-0 w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors border-2 border-background"
                 title="Upload profile picture"
               >
                 <Upload size={18} />
@@ -219,7 +219,7 @@ const ProfilePage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+                      className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
                     >
                       <Upload size={16} />
                       {pfpFile ? "Change Image" : "Upload Image"}
