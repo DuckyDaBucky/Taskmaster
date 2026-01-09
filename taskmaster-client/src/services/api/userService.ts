@@ -124,11 +124,8 @@ async function findSortYears(
 
 
 export const userService = {
-  async addHamizAsFriend(): Promise<any> {
-    return { message: "Hamiz Iqbal added as friend successfully" };
-  },
 
-  async findUsers(userId: string): Promise<{ users: string[] }> {
+  async findUsers(userId: string): Promise<{ users: { _id: string; displayName: string; requestSent?: boolean }[] }> {
     console.log("🎯 findUsers called for userId:", userId);
     
     const { data, error } = await supabase
@@ -319,9 +316,50 @@ export const userService = {
     console.log(`✅ Total results: ${combined.length}`);
     console.log("📋 Result names:", combined.map(u => u.displayName || u.username || u.name || "Unknown User"));
 
-    return {
-      users: combined.map(u => u.displayName || u.username || u.name || "Unknown User")
-    };
+    // Fetch current user's friends_list and outgoing_friend_requests to filter/flag results
+    try {
+      const { data: currentUserRow } = await supabase
+        .from("users")
+        .select("friends_list, outgoing_friend_requests")
+        .eq("id", userId)
+        .single();
+
+      const friendsIds: string[] = Array.isArray(currentUserRow?.friends_list)
+        ? currentUserRow.friends_list
+        : [];
+
+      const outgoingIds: string[] = Array.isArray(currentUserRow?.outgoing_friend_requests)
+        ? currentUserRow.outgoing_friend_requests
+        : [];
+
+      // Exclude users who are already friends with the current user
+      // Also exclude users who are already in the current user's outgoing requests
+      const filtered = (combined || []).filter(u => !friendsIds.includes(u._id) && !outgoingIds.includes(u._id));
+
+      return {
+          users: filtered.map(u => ({
+            _id: u._id,
+            displayName: u.displayName || u.username || u.name || "Unknown User",
+            firstName: (u as any).firstName || (u as any).first_name || "",
+            lastName: (u as any).lastName || (u as any).last_name || "",
+            username: (u as any).username || (u as any).user_name || "",
+            profileImageUrl: (u as any).profileImageUrl || (u as any).pfp || undefined,
+            requestSent: outgoingIds.includes(u._id),
+          }))
+        };
+    } catch (err) {
+      // Fallback: return names without filtering if something goes wrong fetching current user
+      return {
+          users: (combined || []).map(u => ({
+            _id: u._id,
+            displayName: u.displayName || u.username || u.name || "Unknown User",
+            firstName: (u as any).firstName || (u as any).first_name || "",
+            lastName: (u as any).lastName || (u as any).last_name || "",
+            username: (u as any).username || (u as any).user_name || "",
+            profileImageUrl: (u as any).profileImageUrl || (u as any).pfp || undefined,
+          }))
+      };
+    }
   },
 
   // async matchFriends(userId: string): Promise<{ users: string[] }> {
@@ -368,7 +406,7 @@ export const userService = {
     // Get friend profiles
     const { data: friends, error: friendsError } = await supabase
       .from('users')
-      .select('id, first_name, last_name, email, user_name, display_name, pfp, major, school, current_year, search_level, course, section, points, streak, level')
+      .select('id, first_name, last_name, email, user_name, display_name, pfp, major, school, current_year, search_level, search_course, search_section, points, streak, level')
       .in('id', userProfile.friends_list);
 
     if (friendsError) throw new Error(friendsError.message);
@@ -386,8 +424,8 @@ export const userService = {
       year: friend.current_year,
       preferences: {
         searchLevel: friend.search_level,
-        section: friend.section,
-        course: friend.course,
+        section: friend.search_section,
+        course: friend.search_course,
       },
       points: friend.points || 0,
       streak: friend.streak || 0,
@@ -414,38 +452,207 @@ export const userService = {
     return data;
   },
 
-  async sendMatchRequest(fromUserId: string, toUsername: string) {
-    console.log(`🤝 Sending match request from ${fromUserId} to ${toUsername}`);
-    
-    // Find the user by username
-    const { data: targetUser, error: findError } = await supabase
+  async sendFriendRequest(fromUserId: string, toUserId: string) {
+    if (!fromUserId || !toUserId) {
+      throw new Error("Invalid user ids for friend request");
+    }
+
+    // Fetch current outgoing list for the sender
+    const { data: fromUser, error: fromErr } = await supabase
       .from("users")
-      .select("id, friends_list")
-      .eq("username", toUsername)
+      .select("outgoing_friend_requests")
+      .eq("id", fromUserId)
       .single();
 
-    if (findError || !targetUser) {
-      throw new Error(`User ${toUsername} not found`);
-    }
+    if (fromErr) throw new Error(fromErr.message);
 
-    const toUserId = targetUser.id;
-    const currentFriendsList = targetUser.friends_list || [];
+    const outgoing: string[] = Array.isArray(fromUser?.outgoing_friend_requests)
+      ? fromUser.outgoing_friend_requests
+      : [];
 
-    // Add the user to friends list if not already there
-    if (!currentFriendsList.includes(fromUserId)) {
-      currentFriendsList.push(fromUserId);
-      
-      const { error: updateError } = await supabase
+    // Add toUserId to sender's outgoing list if not present
+    if (!outgoing.includes(toUserId)) {
+      outgoing.push(toUserId);
+      const { error: updateErr } = await supabase
         .from("users")
-        .update({ friends_list: currentFriendsList })
-        .eq("id", toUserId);
+        .update({ outgoing_friend_requests: outgoing })
+        .eq("id", fromUserId);
 
-      if (updateError) throw new Error(updateError.message);
-      console.log(`✅ Match request sent successfully to ${toUsername}`);
-    } else {
-      console.log(`ℹ️ ${toUsername} is already in friends list`);
+      if (updateErr) throw new Error(updateErr.message);
     }
 
-    return { success: true, message: `Match request sent to ${toUsername}` };
+    // For every id in the updated outgoing list, ensure the sender is present
+    // in that user's incoming_friend_requests array.
+    for (const recipientId of outgoing) {
+      try {
+        const { data: recipient, error: recErr } = await supabase
+          .from("users")
+          .select("incoming_friend_requests")
+          .eq("id", recipientId)
+          .single();
+
+        if (recErr) continue;
+
+        const incoming: string[] = Array.isArray(recipient?.incoming_friend_requests)
+          ? recipient.incoming_friend_requests
+          : [];
+
+        if (!incoming.includes(fromUserId)) {
+          incoming.push(fromUserId);
+          await supabase
+            .from("users")
+            .update({ incoming_friend_requests: incoming })
+            .eq("id", recipientId);
+        }
+      } catch (err) {
+        // swallow per-recipient errors to continue processing others
+        console.warn("Error updating recipient incoming requests", recipientId, err);
+      }
+    }
+
+    return { success: true };
+  },
+
+  async getIncomingRequests(userId?: string) {
+    const uid = userId || (await getCachedUserId());
+    if (!uid) return [];
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("incoming_friend_requests")
+      .eq("id", uid)
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    const incomingIds: string[] = Array.isArray(user?.incoming_friend_requests)
+      ? user.incoming_friend_requests
+      : [];
+
+    if (incomingIds.length === 0) return [];
+
+    const { data: senders, error: sendersErr } = await supabase
+      .from("users")
+      .select("id, first_name, last_name, display_name, user_name, pfp, email")
+      .in("id", incomingIds);
+
+    if (sendersErr) throw new Error(sendersErr.message);
+
+    return (senders || []).map((s: any) => ({
+      _id: s.id,
+      displayName: s.display_name || s.user_name || `${s.first_name || ""} ${s.last_name || ""}`.trim() || s.email,
+      firstName: s.first_name || "",
+      lastName: s.last_name || "",
+      username: s.user_name || s.display_name || "",
+      profileImageUrl: s.pfp,
+    }));
+  },
+
+  async getOutgoingRequests(userId?: string) {
+    const uid = userId || (await getCachedUserId());
+    if (!uid) return [];
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("outgoing_friend_requests")
+      .eq("id", uid)
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    const outgoingIds: string[] = Array.isArray(user?.outgoing_friend_requests)
+      ? user.outgoing_friend_requests
+      : [];
+
+    if (outgoingIds.length === 0) return [];
+
+    const { data: recipients, error: recErr } = await supabase
+      .from("users")
+      .select("id, first_name, last_name, display_name, user_name, pfp, email")
+      .in("id", outgoingIds);
+
+    if (recErr) throw new Error(recErr.message);
+
+    return (recipients || []).map((s: any) => ({
+      _id: s.id,
+      displayName: s.display_name || s.user_name || `${s.first_name || ""} ${s.last_name || ""}`.trim() || s.email,
+      firstName: s.first_name || "",
+      lastName: s.last_name || "",
+      username: s.user_name || s.display_name || "",
+      profileImageUrl: s.pfp,
+    }));
+  },
+
+  async acceptFriendRequest(currentUserId?: string, fromUserId?: string) {
+    const uid = currentUserId || (await getCachedUserId());
+    if (!uid || !fromUserId) throw new Error("Invalid user ids for acceptFriendRequest");
+
+    // Remove requester from current user's incoming_friend_requests
+    try {
+      const { data: currentRow, error: curErr } = await supabase
+        .from('users')
+        .select('incoming_friend_requests, friends_list')
+        .eq('id', uid)
+        .single();
+
+      if (curErr) throw curErr;
+
+      const incoming: string[] = Array.isArray(currentRow?.incoming_friend_requests)
+        ? currentRow.incoming_friend_requests
+        : [];
+
+      const newIncoming = incoming.filter((id: string) => id !== fromUserId);
+
+      const currentFriends: string[] = Array.isArray(currentRow?.friends_list)
+        ? currentRow.friends_list
+        : [];
+
+      const updatedCurrentFriends = currentFriends.includes(fromUserId)
+        ? currentFriends
+        : [...currentFriends, fromUserId];
+
+      await supabase
+        .from('users')
+        .update({ incoming_friend_requests: newIncoming, friends_list: updatedCurrentFriends })
+        .eq('id', uid);
+    } catch (err) {
+      console.warn('Error updating current user on acceptFriendRequest', err);
+      throw err;
+    }
+
+    // Remove current user from requester's outgoing_friend_requests and add to their friends_list
+    try {
+      const { data: fromRow, error: fromErr } = await supabase
+        .from('users')
+        .select('outgoing_friend_requests, friends_list')
+        .eq('id', fromUserId)
+        .single();
+
+      if (fromErr) throw fromErr;
+
+      const outgoing: string[] = Array.isArray(fromRow?.outgoing_friend_requests)
+        ? fromRow.outgoing_friend_requests
+        : [];
+
+      const newOutgoing = outgoing.filter((id: string) => id !== uid);
+
+      const fromFriends: string[] = Array.isArray(fromRow?.friends_list)
+        ? fromRow.friends_list
+        : [];
+
+      const updatedFromFriends = fromFriends.includes(uid)
+        ? fromFriends
+        : [...fromFriends, uid];
+
+      await supabase
+        .from('users')
+        .update({ outgoing_friend_requests: newOutgoing, friends_list: updatedFromFriends })
+        .eq('id', fromUserId);
+    } catch (err) {
+      console.warn('Error updating requester on acceptFriendRequest', err);
+      throw err;
+    }
+
+    return { success: true };
   },
 };

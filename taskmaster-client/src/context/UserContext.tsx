@@ -33,6 +33,8 @@ interface UserData {
     level?: number;
     password?: string;
     friendsList?: string[];
+    incomingFriendRequests?: string[];
+    outgoingFriendRequests?: string[];
 }
 
 interface UserContextProps {
