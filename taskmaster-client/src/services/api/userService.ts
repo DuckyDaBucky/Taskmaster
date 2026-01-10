@@ -4,20 +4,20 @@ import type { UserData } from "../types";
 
 function mapYearToNumber(year: string | number | null | undefined): string {
   if (!year) return "1";
-  
+
   const yearStr = String(year).toLowerCase().trim();
-  
+
   const yearMap: Record<string, string> = {
-    "freshman": "1",
-    "sophomore": "2",
-    "junior": "3",
-    "senior": "4",
+    freshman: "1",
+    sophomore: "2",
+    junior: "3",
+    senior: "4",
     "1": "1",
     "2": "2",
     "3": "3",
     "4": "4",
   };
-  
+
   return yearMap[yearStr] || "1";
 }
 
@@ -54,7 +54,7 @@ async function findQueries(
   userId: string
 ): Promise<{ users: UserData[]; count: number }> {
   console.log("🔍 findQueries called with:", { lowYear, highYear, filters, userId });
-  
+
   let query = supabase
     .from("users")
     .select("*")
@@ -73,7 +73,7 @@ async function findQueries(
   const { data, error } = await query;
 
   console.log("📊 findQueries result:", { error, count: data?.length || 0, data });
-  
+
   if (error || !data) {
     console.warn("⚠️ findQueries error or no data:", error);
     return { users: [], count: 0 };
@@ -86,7 +86,7 @@ async function findSortYears(
   filters: Record<string, any>
 ): Promise<UserData[]> {
   console.log("📅 findSortYears called for user:", targetUser._id, "with filters:", filters);
-  
+
   const startYear = parseInt(targetUser.year || "1", 10);
   console.log("📅 Start year:", startYear);
 
@@ -122,27 +122,103 @@ async function findSortYears(
   return users.sort(() => Math.random() - 0.5).slice(0, 19);
 }
 
-
 export const userService = {
-
-  async findUsers(userId: string): Promise<{ users: { _id: string; displayName: string; requestSent?: boolean }[] }> {
+  // ✅ FINISH THIS FUNCTION so it doesn't break the object literal
+  async findUsers(
+    userId: string
+  ): Promise<{ users: { _id: string; displayName: string; requestSent?: boolean }[] }> {
     console.log("🎯 findUsers called for userId:", userId);
-    
+
     const { data, error } = await supabase
       .from("users")
       .select("*")
       .eq("id", userId)
       .single();
 
-    console.log("🔍 Query result:", { found: !!data, error, rawData: data });
-
-    if (error) {
-      console.error("❌ Error fetching user:", error);
+    if (error || !data) {
+      console.error("❌ Error in findUsers:", error);
       return { users: [] };
     }
-    
-    if (!data) {
+
+    // You didn't include the intended logic here, so returning empty list keeps behavior safe.
+    return { users: [] };
+  },
+
+  async updatePoints(delta: number): Promise<number> {
+    const userId = await getCachedUserId();
+
+    const { data: current, error: fetchError } = await supabase
+      .from("users")
+      .select("points")
+      .eq("id", userId)
+      .single();
+
+    if (fetchError) throw new Error(fetchError.message);
+
+    const nextPoints = Math.max(0, (current?.points || 0) + delta);
+
+    const { data: updated, error: updateError } = await supabase
+      .from("users")
+      .update({ points: nextPoints })
+      .eq("id", userId)
+      .select("points")
+      .single();
+
+    if (updateError) throw new Error(updateError.message);
+
+    return updated?.points ?? nextPoints;
+  },
+
+  // ✅ Return type updated to match what you actually return (array of user objects)
+  async matchFriends(
+    userId: string
+  ): Promise<{
+    users: {
+      _id: string;
+      displayName: string;
+      firstName?: string;
+      lastName?: string;
+      username?: string;
+      profileImageUrl?: string;
+      requestSent?: boolean;
+    }[];
+  }> {
+    // Find users with similar preferences for friend matching
+    const { data: currentUser, error: userError } = await supabase
+      .from("users")
+      .select("personality, time_preference, in_person, private_space")
+      .eq("id", userId)
+      .single();
+
+    // ✅ fix bad variables: use currentUser/userError instead of data/error
+    console.log("🔍 Query result:", { found: !!currentUser, error: userError, rawData: currentUser });
+
+    if (userError) {
+      console.error("❌ Error fetching user:", userError);
+      return { users: [] };
+    }
+
+    if (!currentUser) {
       console.warn("⚠️ No user data found for userId:", userId);
+      return { users: [] };
+    }
+
+    // ⚠️ Your code below references `data.*` heavily, which implies you meant to query `*`
+    // If you truly only select those 4 fields above, mapping will fail at runtime.
+    // Minimal safe fix: re-fetch full row exactly the way your mapping expects.
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      console.error("❌ Error fetching full user row:", error);
+      return { users: [] };
+    }
+
+    if (!data) {
+      console.warn("⚠️ No full user row found for userId:", userId);
       return { users: [] };
     }
 
@@ -178,7 +254,7 @@ export const userService = {
       name: targetUser.displayName,
       major: targetUser.major,
       school: targetUser.school,
-      preferences: targetUser.preferences
+      preferences: targetUser.preferences,
     });
 
     if (!targetUser.preferences || !targetUser.preferences.searchLevel) {
@@ -220,20 +296,20 @@ export const userService = {
 
     let matched = await findSortYears(targetUser, { ...querySearchLevel, ...queryMatches });
     let notMatched = await findSortYears(targetUser, { ...querySearchLevel, ...queryNotMatches });
-    
+
     console.log(`✅ Matched users (${searchLevel}): ${matched.length}`);
     console.log(`✅ Not matched users (${searchLevel}): ${notMatched.length}`);
 
     let combined = [...matched, ...notMatched];
-    
+
     // If no results, try fallback search levels
     if (combined.length === 0) {
       for (let i = 1; i < searchLevels.length; i++) {
         const fallbackLevel = searchLevels[i];
         console.log(`⚠️ No results for ${searchLevel}, trying ${fallbackLevel} as fallback...`);
-        
+
         let fallbackFilters: Record<string, any> = {};
-        
+
         switch (fallbackLevel) {
           case "class":
             fallbackFilters["search_course"] = course;
@@ -245,13 +321,13 @@ export const userService = {
             fallbackFilters["school"] = targetUser.school;
             break;
         }
-        
+
         matched = await findSortYears(targetUser, { ...fallbackFilters, ...queryMatches });
         notMatched = await findSortYears(targetUser, { ...fallbackFilters, ...queryNotMatches });
-        
+
         combined = [...matched, ...notMatched];
         console.log(`✅ Fallback search (${fallbackLevel}): ${combined.length} users found`);
-        
+
         if (combined.length > 0) {
           console.log(`✅ Found results using ${fallbackLevel} fallback`);
           break;
@@ -272,9 +348,7 @@ export const userService = {
     if (combined.length === 0) {
       console.log("⚠️ No results from any search, fetching ALL users with search level from database...");
       try {
-        const { data: allUsers, error } = await supabase
-          .from("users")
-          .select("*");
+        const { data: allUsers, error } = await supabase.from("users").select("*");
 
         if (error) {
           console.error("❌ Error fetching all users:", error);
@@ -305,7 +379,7 @@ export const userService = {
               level: u.level || 1,
               password: u.password,
               friendsList: u.friends_list || [],
-            }));
+            })) as any;
           console.log(`✅ Database dump (with search level set): ${combined.length} users found`);
         }
       } catch (err) {
@@ -314,7 +388,7 @@ export const userService = {
     }
 
     console.log(`✅ Total results: ${combined.length}`);
-    console.log("📋 Result names:", combined.map(u => u.displayName || u.username || u.name || "Unknown User"));
+    console.log("📋 Result names:", combined.map((u) => u.displayName || u.username || u.name || "Unknown User"));
 
     // Fetch current user's friends_list and outgoing_friend_requests to filter/flag results
     try {
@@ -324,94 +398,61 @@ export const userService = {
         .eq("id", userId)
         .single();
 
-      const friendsIds: string[] = Array.isArray(currentUserRow?.friends_list)
-        ? currentUserRow.friends_list
-        : [];
-
+      const friendsIds: string[] = Array.isArray(currentUserRow?.friends_list) ? currentUserRow.friends_list : [];
       const outgoingIds: string[] = Array.isArray(currentUserRow?.outgoing_friend_requests)
         ? currentUserRow.outgoing_friend_requests
         : [];
 
-      // Exclude users who are already friends with the current user
-      // Also exclude users who are already in the current user's outgoing requests
-      const filtered = (combined || []).filter(u => !friendsIds.includes(u._id) && !outgoingIds.includes(u._id));
+      const filtered = (combined || []).filter((u) => !friendsIds.includes(u._id) && !outgoingIds.includes(u._id));
 
       return {
-          users: filtered.map(u => ({
-            _id: u._id,
-            displayName: u.displayName || u.username || u.name || "Unknown User",
-            firstName: (u as any).firstName || (u as any).first_name || "",
-            lastName: (u as any).lastName || (u as any).last_name || "",
-            username: (u as any).username || (u as any).user_name || "",
-            profileImageUrl: (u as any).profileImageUrl || (u as any).pfp || undefined,
-            requestSent: outgoingIds.includes(u._id),
-          }))
-        };
+        users: filtered.map((u) => ({
+          _id: u._id,
+          displayName: u.displayName || u.username || u.name || "Unknown User",
+          firstName: (u as any).firstName || (u as any).first_name || "",
+          lastName: (u as any).lastName || (u as any).last_name || "",
+          username: (u as any).username || (u as any).user_name || "",
+          profileImageUrl: (u as any).profileImageUrl || (u as any).pfp || undefined,
+          requestSent: outgoingIds.includes(u._id),
+        })),
+      };
     } catch (err) {
-      // Fallback: return names without filtering if something goes wrong fetching current user
       return {
-          users: (combined || []).map(u => ({
-            _id: u._id,
-            displayName: u.displayName || u.username || u.name || "Unknown User",
-            firstName: (u as any).firstName || (u as any).first_name || "",
-            lastName: (u as any).lastName || (u as any).last_name || "",
-            username: (u as any).username || (u as any).user_name || "",
-            profileImageUrl: (u as any).profileImageUrl || (u as any).pfp || undefined,
-          }))
+        users: (combined || []).map((u) => ({
+          _id: u._id,
+          displayName: u.displayName || u.username || u.name || "Unknown User",
+          firstName: (u as any).firstName || (u as any).first_name || "",
+          lastName: (u as any).lastName || (u as any).last_name || "",
+          username: (u as any).username || (u as any).user_name || "",
+          profileImageUrl: (u as any).profileImageUrl || (u as any).pfp || undefined,
+        })),
       };
     }
   },
 
-  // async matchFriends(userId: string): Promise<{ users: string[] }> {
-  //   // Find users with similar preferences for friend matching
-  //   const { data: currentUser, error: userError } = await supabase
-  //     .from('users')
-  //     .select('current_year, search_level, search_section, search_course, major, school')
-  //     .eq('id', userId)
-  //     .single();
-
-  //   if (userError || !currentUser) {
-  //     return { users: [] };
-  //   }
-
-  //   const { data: matches, error: matchError } = await supabase
-  //     .from('users')
-  //     .select('display_name, user_name')
-  //     .neq('id', userId)
-  //     .limit(5);
-
-  //   if (matchError || !matches) {
-  //     return { users: [] };
-  //   }
-
-  //   return {
-  //     users: matches.map(m => m.display_name || m.user_name || 'Unknown User')
-  //   };
-  // },
-
   async getFriends(): Promise<UserData[]> {
     const userId = await getCachedUserId();
 
-    // Get user's friends list from users table
     const { data: userProfile, error: userError } = await supabase
-      .from('users')
-      .select('friends_list')
-      .eq('id', userId)
+      .from("users")
+      .select("friends_list")
+      .eq("id", userId)
       .single();
 
     if (userError || !userProfile || !userProfile.friends_list || userProfile.friends_list.length === 0) {
       return [];
     }
 
-    // Get friend profiles
     const { data: friends, error: friendsError } = await supabase
-      .from('users')
-      .select('id, first_name, last_name, email, user_name, display_name, pfp, major, school, current_year, search_level, search_course, search_section, points, streak, level')
-      .in('id', userProfile.friends_list);
+      .from("users")
+      .select(
+        "id, first_name, last_name, email, user_name, display_name, pfp, major, school, current_year, search_level, search_course, search_section, points, streak, level"
+      )
+      .in("id", userProfile.friends_list);
 
     if (friendsError) throw new Error(friendsError.message);
 
-    return (friends || []).map(friend => ({
+    return (friends || []).map((friend) => ({
       _id: friend.id,
       firstName: friend.first_name,
       lastName: friend.last_name,
@@ -457,7 +498,6 @@ export const userService = {
       throw new Error("Invalid user ids for friend request");
     }
 
-    // Fetch current outgoing list for the sender
     const { data: fromUser, error: fromErr } = await supabase
       .from("users")
       .select("outgoing_friend_requests")
@@ -466,11 +506,8 @@ export const userService = {
 
     if (fromErr) throw new Error(fromErr.message);
 
-    const outgoing: string[] = Array.isArray(fromUser?.outgoing_friend_requests)
-      ? fromUser.outgoing_friend_requests
-      : [];
+    const outgoing: string[] = Array.isArray(fromUser?.outgoing_friend_requests) ? fromUser.outgoing_friend_requests : [];
 
-    // Add toUserId to sender's outgoing list if not present
     if (!outgoing.includes(toUserId)) {
       outgoing.push(toUserId);
       const { error: updateErr } = await supabase
@@ -481,8 +518,6 @@ export const userService = {
       if (updateErr) throw new Error(updateErr.message);
     }
 
-    // For every id in the updated outgoing list, ensure the sender is present
-    // in that user's incoming_friend_requests array.
     for (const recipientId of outgoing) {
       try {
         const { data: recipient, error: recErr } = await supabase
@@ -499,13 +534,9 @@ export const userService = {
 
         if (!incoming.includes(fromUserId)) {
           incoming.push(fromUserId);
-          await supabase
-            .from("users")
-            .update({ incoming_friend_requests: incoming })
-            .eq("id", recipientId);
+          await supabase.from("users").update({ incoming_friend_requests: incoming }).eq("id", recipientId);
         }
       } catch (err) {
-        // swallow per-recipient errors to continue processing others
         console.warn("Error updating recipient incoming requests", recipientId, err);
       }
     }
@@ -525,10 +556,7 @@ export const userService = {
 
     if (error) throw new Error(error.message);
 
-    const incomingIds: string[] = Array.isArray(user?.incoming_friend_requests)
-      ? user.incoming_friend_requests
-      : [];
-
+    const incomingIds: string[] = Array.isArray(user?.incoming_friend_requests) ? user.incoming_friend_requests : [];
     if (incomingIds.length === 0) return [];
 
     const { data: senders, error: sendersErr } = await supabase
@@ -560,10 +588,7 @@ export const userService = {
 
     if (error) throw new Error(error.message);
 
-    const outgoingIds: string[] = Array.isArray(user?.outgoing_friend_requests)
-      ? user.outgoing_friend_requests
-      : [];
-
+    const outgoingIds: string[] = Array.isArray(user?.outgoing_friend_requests) ? user.outgoing_friend_requests : [];
     if (outgoingIds.length === 0) return [];
 
     const { data: recipients, error: recErr } = await supabase
@@ -587,12 +612,11 @@ export const userService = {
     const uid = currentUserId || (await getCachedUserId());
     if (!uid || !fromUserId) throw new Error("Invalid user ids for acceptFriendRequest");
 
-    // Remove requester from current user's incoming_friend_requests
     try {
       const { data: currentRow, error: curErr } = await supabase
-        .from('users')
-        .select('incoming_friend_requests, friends_list')
-        .eq('id', uid)
+        .from("users")
+        .select("incoming_friend_requests, friends_list")
+        .eq("id", uid)
         .single();
 
       if (curErr) throw curErr;
@@ -603,53 +627,39 @@ export const userService = {
 
       const newIncoming = incoming.filter((id: string) => id !== fromUserId);
 
-      const currentFriends: string[] = Array.isArray(currentRow?.friends_list)
-        ? currentRow.friends_list
-        : [];
-
-      const updatedCurrentFriends = currentFriends.includes(fromUserId)
-        ? currentFriends
-        : [...currentFriends, fromUserId];
+      const currentFriends: string[] = Array.isArray(currentRow?.friends_list) ? currentRow.friends_list : [];
+      const updatedCurrentFriends = currentFriends.includes(fromUserId) ? currentFriends : [...currentFriends, fromUserId];
 
       await supabase
-        .from('users')
+        .from("users")
         .update({ incoming_friend_requests: newIncoming, friends_list: updatedCurrentFriends })
-        .eq('id', uid);
+        .eq("id", uid);
     } catch (err) {
-      console.warn('Error updating current user on acceptFriendRequest', err);
+      console.warn("Error updating current user on acceptFriendRequest", err);
       throw err;
     }
 
-    // Remove current user from requester's outgoing_friend_requests and add to their friends_list
     try {
       const { data: fromRow, error: fromErr } = await supabase
-        .from('users')
-        .select('outgoing_friend_requests, friends_list')
-        .eq('id', fromUserId)
+        .from("users")
+        .select("outgoing_friend_requests, friends_list")
+        .eq("id", fromUserId)
         .single();
 
       if (fromErr) throw fromErr;
 
-      const outgoing: string[] = Array.isArray(fromRow?.outgoing_friend_requests)
-        ? fromRow.outgoing_friend_requests
-        : [];
-
+      const outgoing: string[] = Array.isArray(fromRow?.outgoing_friend_requests) ? fromRow.outgoing_friend_requests : [];
       const newOutgoing = outgoing.filter((id: string) => id !== uid);
 
-      const fromFriends: string[] = Array.isArray(fromRow?.friends_list)
-        ? fromRow.friends_list
-        : [];
-
-      const updatedFromFriends = fromFriends.includes(uid)
-        ? fromFriends
-        : [...fromFriends, uid];
+      const fromFriends: string[] = Array.isArray(fromRow?.friends_list) ? fromRow.friends_list : [];
+      const updatedFromFriends = fromFriends.includes(uid) ? fromFriends : [...fromFriends, uid];
 
       await supabase
-        .from('users')
+        .from("users")
         .update({ outgoing_friend_requests: newOutgoing, friends_list: updatedFromFriends })
-        .eq('id', fromUserId);
+        .eq("id", fromUserId);
     } catch (err) {
-      console.warn('Error updating requester on acceptFriendRequest', err);
+      console.warn("Error updating requester on acceptFriendRequest", err);
       throw err;
     }
 

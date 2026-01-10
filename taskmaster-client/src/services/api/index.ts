@@ -104,6 +104,7 @@ class ApiService {
   getIncomingRequests = userService.getIncomingRequests;
   getOutgoingRequests = userService.getOutgoingRequests;
   acceptFriendRequest = userService.acceptFriendRequest;
+  updateUserPoints = userService.updatePoints;
 
   // Activity
   getActivities = activityService.getActivities;

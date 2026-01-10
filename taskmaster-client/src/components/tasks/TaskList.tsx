@@ -1,12 +1,12 @@
 import React from "react";
 import { Edit2, Trash2 } from "lucide-react";
 import type { TasksData, ClassData } from "../../services/types";
-import { getClassColor } from "../../utils/classColors";
+import { calculateEarnedPoints } from "../../lib/gamification";
 
 interface TaskListProps {
   tasks: TasksData[];
   classes: ClassData[];
-  filter: "today" | "upcoming" | "history";
+  filter: "today" | "upcoming" | "overdue" | "unscheduled" | "history";
   onEdit: (task: TasksData) => void;
   onDelete: (taskId: string) => void;
   onToggleComplete?: (taskId: string, completed: boolean) => void;
@@ -22,6 +22,9 @@ export const TaskList: React.FC<TaskListProps> = ({
 }) => {
   const [completingTaskId, setCompletingTaskId] = React.useState<string | null>(null);
   const [selectedHistoryDate, setSelectedHistoryDate] = React.useState<string | null>(null);
+  const [rewardedTaskId, setRewardedTaskId] = React.useState<string | null>(null);
+  const [rewardedPoints, setRewardedPoints] = React.useState<number>(0);
+  const rewardTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -39,23 +42,35 @@ export const TaskList: React.FC<TaskListProps> = ({
     return date >= endOfDay;
   };
 
-  const isOverdue = (deadline?: string) => {
-    if (!deadline) return false;
-    const date = new Date(deadline);
+  const isOverdue = (task: TasksData) => {
+    const isComplete = task.completed || task.status === "completed";
+    if (isComplete) return false;
+    if (task.status === "overdue") return true;
+    if (!task.deadline) return false;
+    const date = new Date(task.deadline);
     return date < startOfDay;
+  };
+
+  const isUnscheduled = (task: TasksData) => {
+    const isComplete = task.completed || task.status === "completed";
+    return !task.deadline && !isComplete;
   };
 
   const todayTasks = tasks
     .filter((task) => task.deadline && isToday(task.deadline))
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime());
 
-  const overdueTasks = tasks
-    .filter((task) => !task.completed && task.deadline && isOverdue(task.deadline))
-    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime());
-
   const upcomingTasks = tasks
     .filter((task) => !task.completed && isUpcoming(task.deadline))
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime());
+
+  const overdueTasks = tasks
+    .filter(isOverdue)
+    .sort((a, b) => taskDateSortValue(a.deadline) - taskDateSortValue(b.deadline));
+
+  const unscheduledTasks = tasks
+    .filter(isUnscheduled)
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   const historyTasks = tasks
     .filter((task) => task.completed || task.status === "completed")
@@ -66,7 +81,25 @@ export const TaskList: React.FC<TaskListProps> = ({
     });
 
   const filteredTasks =
-    filter === "today" ? [...overdueTasks, ...todayTasks] : filter === "upcoming" ? upcomingTasks : historyTasks;
+    filter === "today"
+      ? todayTasks
+      : filter === "upcoming"
+      ? upcomingTasks
+      : filter === "overdue"
+      ? overdueTasks
+      : filter === "unscheduled"
+      ? unscheduledTasks
+      : historyTasks;
+
+  const displayTasks = (() => {
+    if (!rewardedTaskId) return filteredTasks;
+    const rewardedTask = tasks.find((task) => task._id === rewardedTaskId);
+    if (!rewardedTask) return filteredTasks;
+    if (filteredTasks.some((task) => task._id === rewardedTask._id)) {
+      return filteredTasks;
+    }
+    return [rewardedTask, ...filteredTasks];
+  })();
 
   function taskDateSortValue(deadline?: string) {
     if (!deadline) return 0;
@@ -75,10 +108,29 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleToggle = async (task: TasksData) => {
     if (!onToggleComplete) return;
+    const wasComplete = task.completed || task.status === "completed";
+    const points = Number.isFinite(task.points ?? 0) ? (task.points ?? 0) : 0;
+    const earnedPoints = calculateEarnedPoints(points, task.deadline);
+    if (!wasComplete && earnedPoints > 0) {
+      if (rewardTimeoutRef.current) {
+        clearTimeout(rewardTimeoutRef.current);
+      }
+      setRewardedTaskId(task._id);
+      setRewardedPoints(earnedPoints);
+      rewardTimeoutRef.current = setTimeout(() => {
+        setRewardedTaskId(null);
+      }, 1100);
+    }
     setCompletingTaskId(task._id);
     await onToggleComplete(task._id, !task.completed);
     setTimeout(() => setCompletingTaskId(null), 600);
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (rewardTimeoutRef.current) clearTimeout(rewardTimeoutRef.current);
+    };
+  }, []);
 
   React.useEffect(() => {
     if (filter !== "history") return;
@@ -98,7 +150,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     if (next) setSelectedHistoryDate(next);
   }, [filter, historyTasks, selectedHistoryDate]);
 
-  if (filteredTasks.length === 0) {
+  if (displayTasks.length === 0) {
     return (
       <div className="bg-card border border-border rounded-md p-8 text-center text-muted-foreground">
         <p>No tasks found. Create your first task!</p>
@@ -164,15 +216,9 @@ export const TaskList: React.FC<TaskListProps> = ({
 
             return (
               <div key={classId} className="bg-card border border-border rounded-md p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: getClassColor(classId) }}
-                  />
-                  <h4 className="text-sm font-semibold text-foreground">
-                    {taskClass?.name || "Personal"}
-                  </h4>
-                </div>
+                <h4 className="text-sm font-semibold text-foreground mb-3">
+                  {taskClass?.name || "Personal"}
+                </h4>
                 <div className="space-y-2">
                   {classTasks.map((task) => (
                     <div
@@ -180,10 +226,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                       className="flex items-center justify-between p-3 bg-background rounded-md border border-border"
                     >
                       <div className="flex items-center gap-3">
-                        <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: getClassColor(task.class || "personal") }}
-                        />
+                        <div className="w-2 h-2 rounded-full bg-primary/60" />
                         <div>
                           <p className="text-sm text-foreground line-through">
                             {task.title}
@@ -222,121 +265,89 @@ export const TaskList: React.FC<TaskListProps> = ({
     );
   }
 
-  const renderTaskRow = (task: TasksData, highlightOverdue: boolean = false) => {
-    const taskClass = task.class ? classes.find((c) => c._id === task.class) : null;
-    const isTaskOverdue = !task.completed && task.deadline && isOverdue(task.deadline);
-    return (
-      <div
-        key={task._id}
-        className={`bg-card border rounded-md p-4 flex items-center justify-between transition-colors group ${
-          highlightOverdue || isTaskOverdue
-            ? "border-red-500/40 bg-red-500/5 hover:border-red-500/60"
-            : "border-border hover:border-primary/50"
-        }`}
-      >
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => handleToggle(task)}
-            disabled={!onToggleComplete}
-            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all relative group/checkbox ${
-              task.completed
-                ? "bg-green-500 border-green-500"
-                : "border-muted-foreground hover:border-primary"
-            } ${completingTaskId === task._id ? 'animate-bounce' : ''}`}
-          >
-            {task.completed ? (
-              <svg 
-                className="w-3 h-3 text-white" 
-                fill="none" 
-                strokeWidth="2" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <div className="w-2 h-2 rounded-full bg-transparent group-hover/checkbox:bg-primary/30 transition-colors" />
-            )}
-          </button>
-          <div>
-            {isTaskOverdue && (
-              <span className="inline-block px-2 py-0.5 bg-red-500/10 text-red-500 text-xs font-semibold rounded mb-1">
-                OVERDUE
-              </span>
-            )}
-            <h4
-              className={`font-medium ${
-                task.completed
-                  ? "text-muted-foreground line-through"
-                  : isTaskOverdue
-                  ? "text-red-500"
-                  : "text-foreground"
-              }`}
-            >
-              {task.title}
-            </h4>
-            <p className="text-xs text-muted-foreground flex items-center gap-2">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: getClassColor(task.class || "personal") }}
-              />
-              {taskClass?.name || "Personal"} • Due{" "}
-              {task.deadline
-                ? new Date(task.deadline).toLocaleDateString()
-                : "No deadline"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => onEdit(task)}
-            className="p-1 text-muted-foreground hover:text-primary"
-            aria-label="Edit task"
-          >
-            <Edit2 size={16} />
-          </button>
-          <button
-            onClick={() => onDelete(task._id)}
-            className="p-1 text-muted-foreground hover:text-destructive"
-            aria-label="Delete task"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  if (filter === "today") {
-    return (
-      <div className="space-y-4">
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-foreground">Due Today</h4>
-          {todayTasks.length === 0 ? (
-            <div className="bg-card border border-border rounded-md p-4 text-sm text-muted-foreground">
-              No tasks due today.
-            </div>
-          ) : (
-            todayTasks.map((task) => renderTaskRow(task))
-          )}
-        </div>
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-foreground">Overdue</h4>
-          {overdueTasks.length === 0 ? (
-            <div className="bg-card border border-border rounded-md p-4 text-sm text-muted-foreground">
-              No overdue tasks.
-            </div>
-          ) : (
-            overdueTasks.map((task) => renderTaskRow(task, true))
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-3">
-      {filteredTasks.map((task) => renderTaskRow(task))}
+      {displayTasks.map((task) => {
+        const taskClass = task.class ? classes.find((c) => c._id === task.class) : null;
+        return (
+          <div
+            key={task._id}
+            className="bg-card border border-border rounded-md p-4 flex items-center justify-between hover:border-primary/50 transition-colors group relative"
+          >
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => handleToggle(task)}
+                disabled={!onToggleComplete}
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all relative group/checkbox ${
+                  task.completed
+                    ? "bg-green-500 border-green-500"
+                    : "border-muted-foreground hover:border-primary"
+                } ${completingTaskId === task._id ? 'animate-bounce' : ''}`}
+              >
+                {task.completed ? (
+                  <svg 
+                    className="w-3 h-3 text-white" 
+                    fill="none" 
+                    strokeWidth="2" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <div className="w-2 h-2 rounded-full bg-transparent group-hover/checkbox:bg-primary/30 transition-colors" />
+                )}
+              </button>
+              <div>
+                {/* Overdue badge */}
+                {!task.completed && task.deadline && new Date(task.deadline) < new Date() && (
+                  <span className="inline-block px-2 py-0.5 bg-red-500/10 text-red-500 text-xs font-semibold rounded mb-1">
+                    OVERDUE
+                  </span>
+                )}
+                <h4
+                  className={`font-medium flex items-center gap-2 ${
+                    task.completed
+                      ? "text-muted-foreground line-through"
+                      : !task.completed && task.deadline && new Date(task.deadline) < new Date()
+                      ? "text-red-500"
+                      : "text-foreground"
+                  }`}
+                >
+                  <span>{task.title}</span>
+                  {rewardedTaskId === task._id && rewardedPoints > 0 && (
+                    <span className="bg-green-500/10 text-green-600 border border-green-500/30 text-xs font-semibold px-2 py-0.5 rounded-full animate-bounce pointer-events-none">
+                      +{rewardedPoints} pts
+                    </span>
+                  )}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  {taskClass?.name || "Personal"} • Due{" "}
+                  {task.deadline
+                    ? new Date(task.deadline).toLocaleDateString()
+                    : "No deadline"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => onEdit(task)}
+                className="p-1 text-muted-foreground hover:text-primary"
+                aria-label="Edit task"
+              >
+                <Edit2 size={16} />
+              </button>
+              <button
+                onClick={() => onDelete(task._id)}
+                className="p-1 text-muted-foreground hover:text-destructive"
+                aria-label="Delete task"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
