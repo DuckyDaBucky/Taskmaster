@@ -98,10 +98,13 @@ class ApiService {
   deleteEvent = eventService.deleteEvent;
 
   // Users/Friends
-  addHamizAsFriend = userService.addHamizAsFriend;
-  matchFriends = userService.matchFriends;
+  findUsers = userService.findUsers;
   getFriendsFromUserService = userService.getFriends;
   updateUserPoints = userService.updatePoints;
+  sendFriendRequest = userService.sendFriendRequest;
+  getIncomingRequests = userService.getIncomingRequests;
+  getOutgoingRequests = userService.getOutgoingRequests;
+  acceptFriendRequest = userService.acceptFriendRequest;
 
   // Activity
   getActivities = activityService.getActivities;
