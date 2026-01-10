@@ -14,9 +14,10 @@ import { TaskTimeline } from "../../components/tasks/TaskTimeline";
 import { TaskFilters } from "../../components/tasks/TaskFilters";
 import { TaskViewToggle } from "../../components/tasks/TaskViewToggle";
 import type { TasksData, ClassData } from "../../services/types";
+import { calculateEarnedPoints } from "../../lib/gamification";
 
 const TasksPage: React.FC = () => {
-  const { user, isLoadingUser } = useUser();
+  const { user, isLoadingUser, setUserState } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tasks, setTasks] = useState<TasksData[]>([]);
@@ -24,7 +25,7 @@ const TasksPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"today" | "upcoming" | "history">("today");
+  const [filter, setFilter] = useState<"today" | "upcoming" | "overdue" | "unscheduled" | "history">("today");
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
   const [error, setError] = useState<string | null>(null);
 
@@ -92,12 +93,37 @@ const TasksPage: React.FC = () => {
   };
 
   const handleToggleComplete = async (taskId: string, completed: boolean) => {
+    const targetTask = tasks.find((task) => task._id === taskId);
+    if (!targetTask) return;
+    const taskPoints = Number.isFinite(targetTask.points ?? 0) ? (targetTask.points ?? 0) : 0;
+    const earnedPoints = completed
+      ? calculateEarnedPoints(taskPoints, targetTask.deadline)
+      : 0;
+    const status = completed ? 'completed' : 'pending';
+    const previousTasks = tasks;
+
+    setTasks(prev => prev.map(t =>
+      t._id === taskId ? { ...t, completed, status, earnedPoints } : t
+    ));
+
     try {
-      const status = completed ? 'completed' : 'pending';
-      await apiService.updateTask(taskId, { completed, status });
-      setTasks(prev => prev.map(t => 
-        t._id === taskId ? { ...t, completed, status } : t
-      ));
+      await apiService.updateTask(taskId, { completed, status, earnedPoints });
+
+      if (taskPoints > 0 && targetTask) {
+        const previousEarned = Number.isFinite(targetTask.earnedPoints ?? taskPoints)
+          ? targetTask.earnedPoints ?? taskPoints
+          : taskPoints;
+        const pointsDelta = completed ? earnedPoints : -1 * previousEarned;
+
+        if (pointsDelta !== 0) {
+          try {
+            const nextPoints = await apiService.updateUserPoints(pointsDelta);
+            setUserState({ points: nextPoints });
+          } catch (pointsError) {
+            console.error("Error updating points:", pointsError);
+          }
+        }
+      }
       
       // Notify other components
       const { taskEvents } = await import('../../lib/taskEvents');
@@ -109,6 +135,7 @@ const TasksPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Error updating task:", error);
+      setTasks(previousTasks);
       setError(error.message || "Failed to update task");
     }
   };
@@ -131,20 +158,25 @@ const TasksPage: React.FC = () => {
       return date >= endOfDay;
     };
 
-    const isOverdue = (deadline?: string) => {
-      if (!deadline) return false;
-      const date = new Date(deadline);
+    const isOverdueTask = (task: TasksData) => {
+      const isComplete = task.completed || task.status === "completed";
+      if (isComplete) return false;
+      if (task.status === "overdue") return true;
+      if (!task.deadline) return false;
+      const date = new Date(task.deadline);
       return date < startOfDay;
     };
 
-    const dueTodayCount = tasks.filter(t => t.deadline && isToday(t.deadline)).length;
-    const overdueCount = tasks.filter(
-      t => !t.completed && t.deadline && isOverdue(t.deadline)
-    ).length;
+    const isUnscheduledTask = (task: TasksData) => {
+      const isComplete = task.completed || task.status === "completed";
+      return !task.deadline && !isComplete;
+    };
 
     return {
-      today: dueTodayCount + overdueCount,
+      today: tasks.filter(t => t.deadline && isToday(t.deadline)).length,
       upcoming: tasks.filter(t => !t.completed && isUpcoming(t.deadline)).length,
+      overdue: tasks.filter(t => isOverdueTask(t)).length,
+      unscheduled: tasks.filter(t => isUnscheduledTask(t)).length,
       history: tasks.filter(t => t.completed || t.status === "completed").length,
     };
   }, [tasks]);

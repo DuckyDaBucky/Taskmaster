@@ -100,6 +100,7 @@ class ApiService {
   // Users/Friends
   findUsers = userService.findUsers;
   getFriendsFromUserService = userService.getFriends;
+  updateUserPoints = userService.updatePoints;
   sendFriendRequest = userService.sendFriendRequest;
   getIncomingRequests = userService.getIncomingRequests;
   getOutgoingRequests = userService.getOutgoingRequests;

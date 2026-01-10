@@ -125,6 +125,37 @@ async function findSortYears(
 
 export const userService = {
 
+  async updatePoints(delta: number): Promise<number> {
+    const userId = await getCachedUserId();
+
+    const { data: current, error: fetchError } = await supabase
+      .from('users')
+      .select('points')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError) throw new Error(fetchError.message);
+
+    const nextPoints = Math.max(0, (current?.points || 0) + delta);
+
+    const { data: updated, error: updateError } = await supabase
+      .from('users')
+      .update({ points: nextPoints })
+      .eq('id', userId)
+      .select('points')
+      .single();
+
+    if (updateError) throw new Error(updateError.message);
+
+    return updated?.points ?? nextPoints;
+  },
+
+  async matchFriends(userId: string): Promise<{ users: string[] }> {
+    // Find users with similar preferences for friend matching
+    const { data: currentUser, error: userError } = await supabase
+      .from('users')
+      .select('personality, time_preference, in_person, private_space')
+      .eq('id', userId)
   async findUsers(userId: string): Promise<{ users: { _id: string; displayName: string; requestSent?: boolean }[] }> {
     console.log("🎯 findUsers called for userId:", userId);
     
