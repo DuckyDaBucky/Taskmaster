@@ -32,6 +32,7 @@ export interface UserData {
     friendsList?: string[];
     incomingFriendRequests?: string[];
     outgoingFriendRequests?: string[];
+    pfp?: string;
 }
 
 export interface ClassData {

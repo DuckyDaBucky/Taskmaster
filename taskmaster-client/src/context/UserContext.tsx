@@ -13,7 +13,7 @@ import { supabase } from "../lib/supabase";
 import { authService } from "../services/api/authService";
 import { clearAuthCache, setAuthCache } from "../services/api/authCache";
 
-interface UserData {
+export interface UserData {
     _id: string;
     name?: string;
     firstName?: string;
@@ -43,6 +43,7 @@ interface UserData {
     friendsList?: string[];
     incomingFriendRequests?: string[];
     outgoingFriendRequests?: string[];
+    pfp?: string;
 }
 
 interface UserContextProps {

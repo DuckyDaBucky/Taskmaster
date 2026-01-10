@@ -90,7 +90,7 @@ export const Sidebar: React.FC = () => {
           prefetch={true}
           className="flex items-center gap-3 px-2 py-2 mb-2 rounded-md hover:bg-background transition-colors cursor-pointer"
         >
-          {user?.pfp ? (
+          {user?.pfp? (
             <div className="relative w-8 h-8 rounded-full overflow-hidden">
               <Image
                 src={user.pfp}
