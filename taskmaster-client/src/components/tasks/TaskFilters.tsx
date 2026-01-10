@@ -5,19 +5,23 @@
 import React from 'react';
 
 interface TaskFiltersProps {
-  currentFilter: "today" | "upcoming" | "history";
-  onFilterChange: (filter: "today" | "upcoming" | "history") => void;
+  currentFilter: "today" | "upcoming" | "overdue" | "unscheduled" | "history";
+  onFilterChange: (filter: "today" | "upcoming" | "overdue" | "unscheduled" | "history") => void;
   counts: {
     today: number;
     upcoming: number;
+    overdue: number;
+    unscheduled: number;
     history: number;
   };
 }
 
 export const TaskFilters: React.FC<TaskFiltersProps> = ({ currentFilter, onFilterChange, counts }) => {
-  const filters: Array<{ value: "today" | "upcoming" | "history"; label: string }> = [
+  const filters: Array<{ value: "today" | "upcoming" | "overdue" | "unscheduled" | "history"; label: string }> = [
     { value: "today", label: "Today" },
     { value: "upcoming", label: "Upcoming" },
+    { value: "overdue", label: "Overdue" },
+    { value: "unscheduled", label: "Unscheduled" },
     { value: "history", label: "History" },
   ];
 

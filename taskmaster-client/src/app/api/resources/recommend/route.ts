@@ -323,7 +323,7 @@ Return JSON: {"resources":[{"type":"youtube|article|textbook|practice|course|not
 
     if (resources.length > 0) {
       const withValidation = await Promise.all(
-        resources.map(async (resource) => ({
+        resources.map(async (resource: { url: string; }) => ({
           resource,
           ok: await isUrlAlive(resource.url),
         }))
@@ -355,7 +355,7 @@ Return JSON: {"resources":[{"type":"youtube|article|textbook|practice|course|not
 
     if (resources.length > 0) {
       await supabase.from("resource_links").upsert(
-        resources.map((resource) => ({
+        resources.map((resource: { title: any; url: any; type: any; source: any; description: any; }) => ({
           user_id: userId,
           class_id: classId,
           topic,

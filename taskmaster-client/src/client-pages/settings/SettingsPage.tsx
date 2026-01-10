@@ -89,41 +89,24 @@ const SettingsPage: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-
-    setProfileForm({
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      displayName: user.displayName || user.username || "",
-    });
-
-    setPreferences({
-      personality: user.preferences?.personality ?? 0.5,
-      time: user.preferences?.time ?? 0,
-      inPerson: user.preferences?.inPerson ?? 0,
-      privateSpace: user.preferences?.privateSpace ?? 0,
-    });
-
-    setNotifications({
-      emailNotifications: user.settings?.emailNotifications ?? true,
-      pushNotifications: user.settings?.pushNotifications ?? false,
-      weeklyDigest: user.settings?.weeklyDigest ?? true,
-      taskReminders: true,
-      friendRequests: true,
-    });
-
-    const hasOnboarding =
-      !!user.net_id ||
-      !!user.major ||
-      !!user.current_year ||
-      !!user.expected_graduation;
-
-    if (hasOnboarding) {
-      setOnboardingForm({
-        net_id: user.net_id || "",
-        major: user.major || "",
-        current_year: (user.current_year as YearOption) || "",
-        expected_graduation: user.expected_graduation || "",
+    if (user) {
+      setProfileForm({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        displayName: user.displayName || user.username || "",
+      });
+      // setPreferences({
+      //   personality: user.preferences?.personality ?? 0.5,
+      //   time: user.preferences?.time ?? 0,
+      //   inPerson: user.preferences?.inPerson ?? 0,
+      //   privateSpace: user.preferences?.privateSpace ?? 0,
+      // });
+      setNotifications({
+        emailNotifications: user.settings?.emailNotifications ?? true,
+        pushNotifications: user.settings?.pushNotifications ?? false,
+        weeklyDigest: user.settings?.weeklyDigest ?? true,
+        taskReminders: true,
+        friendRequests: true,
       });
     } else {
       loadOnboardingFromDb();
@@ -278,8 +261,8 @@ const SettingsPage: React.FC = () => {
         .eq("id", user._id);
 
       if (error) throw error;
-
-      setUserState({ preferences, settings: notifications });
+      
+      // setUserState({ preferences, settings: notifications });
       showMessage("success", "Preferences saved!");
     } catch (error: unknown) {
       showMessage("error", getErrorMessage(error) || "Failed to save preferences");
