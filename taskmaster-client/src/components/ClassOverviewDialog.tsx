@@ -180,7 +180,7 @@ const dropdownVariants = {
   open: { height: "auto", opacity: 1 },
 };
 
-const dropdownTransition = { duration: 0.25, ease: "easeOut" };
+const dropdownTransition = { duration: 0.25, ease: "easeInOut" } as const;
 
 // --- Sub-components ---
 const DialogHeader: React.FC<{

@@ -117,8 +117,7 @@ const TasksPage: React.FC = () => {
 
         if (pointsDelta !== 0) {
           try {
-            const nextPoints = await apiService.updateUserPoints(pointsDelta);
-            setUserState({ points: nextPoints });
+            setUserState({ points: (user?.points ?? 0) + pointsDelta });
           } catch (pointsError) {
             console.error("Error updating points:", pointsError);
           }

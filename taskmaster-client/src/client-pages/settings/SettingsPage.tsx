@@ -60,12 +60,12 @@ const SettingsPage: React.FC = () => {
         lastName: user.lastName || "",
         displayName: user.displayName || user.username || "",
       });
-      setPreferences({
-        personality: user.preferences?.personality ?? 0.5,
-        time: user.preferences?.time ?? 0,
-        inPerson: user.preferences?.inPerson ?? 0,
-        privateSpace: user.preferences?.privateSpace ?? 0,
-      });
+      // setPreferences({
+      //   personality: user.preferences?.personality ?? 0.5,
+      //   time: user.preferences?.time ?? 0,
+      //   inPerson: user.preferences?.inPerson ?? 0,
+      //   privateSpace: user.preferences?.privateSpace ?? 0,
+      // });
       setNotifications({
         emailNotifications: user.settings?.emailNotifications ?? true,
         pushNotifications: user.settings?.pushNotifications ?? false,
@@ -198,7 +198,7 @@ const SettingsPage: React.FC = () => {
       
       if (error) throw error;
       
-      setUserState({ preferences, settings: notifications });
+      // setUserState({ preferences, settings: notifications });
       showMessage("success", "Preferences saved!");
     } catch (error: any) {
       showMessage("error", error.message || "Failed to save preferences");
