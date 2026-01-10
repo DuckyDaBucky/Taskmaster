@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, X, Edit, Trash2, Upload, Eye } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -8,7 +14,10 @@ import type { ClassData, ResourceData } from "../../services/types";
 import { ProcessingAnimation } from "../../components/ui";
 import { getClassColor } from "../../utils/classColors";
 
-const extractSyllabusDetails = (classItem: ClassData, resources: ResourceData[]) => {
+const extractSyllabusDetails = (
+  classItem: ClassData,
+  resources: ResourceData[]
+) => {
   const syllabusResource = resources.find(
     (resource) =>
       resource.class === classItem._id &&
@@ -21,15 +30,22 @@ const extractSyllabusDetails = (classItem: ClassData, resources: ResourceData[])
   const policies = extracted.course_policies || extracted.coursePolicies || {};
 
   const rawContact = courseInfo.contact_info || classItem.contactInfo || "";
-  const emailMatch = typeof rawContact === "string"
-    ? rawContact.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
-    : null;
-  const phoneMatch = typeof rawContact === "string"
-    ? rawContact.match(/(\+?\d{1,2}\s*)?(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/)
-    : null;
-  const officeLine = typeof rawContact === "string"
-    ? rawContact.split("\n").find((line) => /office|location|room/i.test(line))
-    : null;
+  const emailMatch =
+    typeof rawContact === "string"
+      ? rawContact.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
+      : null;
+  const phoneMatch =
+    typeof rawContact === "string"
+      ? rawContact.match(
+          /(\+?\d{1,2}\s*)?(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/
+        )
+      : null;
+  const officeLine =
+    typeof rawContact === "string"
+      ? rawContact
+          .split("\n")
+          .find((line) => /office|location|room/i.test(line))
+      : null;
   const officeLocationClean = officeLine
     ? officeLine
         .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "")
@@ -45,10 +61,14 @@ const extractSyllabusDetails = (classItem: ClassData, resources: ResourceData[])
     timing: courseInfo.schedule || classItem.timing || "",
     officeHours: courseInfo.professor_office_hours || "",
     location: courseInfo.location || classItem.location || "",
-    contactEmail: courseInfo.contact_email || (emailMatch ? emailMatch[0] : "") || "",
-    contactPhone: courseInfo.contact_phone || (phoneMatch ? phoneMatch[0] : "") || "",
+    contactEmail:
+      courseInfo.contact_email || (emailMatch ? emailMatch[0] : "") || "",
+    contactPhone:
+      courseInfo.contact_phone || (phoneMatch ? phoneMatch[0] : "") || "",
     officeLocation: courseInfo.office_location || officeLocationClean || "",
-    textbooks: policies.textbooks_and_materials || (classItem.textbooks || []).join(", "),
+    textbooks:
+      policies.textbooks_and_materials ||
+      (classItem.textbooks || []).join(", "),
     learningObjectives: policies.learning_objectives || "",
     description: courseInfo.description || classItem.description || "",
     gradingPolicy: policies.grading_policy || classItem.gradingPolicy || "",
@@ -164,7 +184,12 @@ const ClassesPage: React.FC = () => {
   }, [classes]);
 
   const classSections = useMemo(() => {
-    if (classes.length === 0) return [] as Array<{ label: string; sortKey: number; classes: ClassData[] }>;
+    if (classes.length === 0)
+      return [] as Array<{
+        label: string;
+        sortKey: number;
+        classes: ClassData[];
+      }>;
 
     const termMap: Record<string, { label: string; sortKey: number }> = {};
 
@@ -194,8 +219,12 @@ const ClassesPage: React.FC = () => {
         wi: 4,
       };
 
-      const termFirst = cleaned.match(/^(spring|summer|fall|autumn|winter|sp|su|fa|wi)\s*(\d{2,4})/i);
-      const yearFirst = cleaned.match(/(\d{2,4})\s*(spring|summer|fall|autumn|winter|sp|su|fa|wi)/i);
+      const termFirst = cleaned.match(
+        /^(spring|summer|fall|autumn|winter|sp|su|fa|wi)\s*(\d{2,4})/i
+      );
+      const yearFirst = cleaned.match(
+        /(\d{2,4})\s*(spring|summer|fall|autumn|winter|sp|su|fa|wi)/i
+      );
       const compact = cleaned.match(/(\d{2})([sfw])\b/i);
 
       let term: string | null = null;
@@ -221,7 +250,9 @@ const ClassesPage: React.FC = () => {
       if (!termKey) return null;
 
       return {
-        label: `${term.charAt(0).toUpperCase()}${term.slice(1)} ${normalizedYear}`,
+        label: `${term.charAt(0).toUpperCase()}${term.slice(
+          1
+        )} ${normalizedYear}`,
         sortKey: normalizedYear * 10 + termKey,
       };
     };
@@ -261,8 +292,14 @@ const ClassesPage: React.FC = () => {
     };
 
     const sortedClasses = [...classes].sort((a, b) => {
-      const aSemester = termMap[a._id] || parseSemester(a.name) || parseSemester(a.description || "");
-      const bSemester = termMap[b._id] || parseSemester(b.name) || parseSemester(b.description || "");
+      const aSemester =
+        termMap[a._id] ||
+        parseSemester(a.name) ||
+        parseSemester(a.description || "");
+      const bSemester =
+        termMap[b._id] ||
+        parseSemester(b.name) ||
+        parseSemester(b.description || "");
 
       if (aSemester && bSemester) {
         if (aSemester.sortKey !== bSemester.sortKey) {
@@ -277,14 +314,26 @@ const ClassesPage: React.FC = () => {
       return compareByName(a, b);
     });
 
-    const sections: Array<{ label: string; sortKey: number; classes: ClassData[] }> = [];
-    const sectionMap = new Map<string, { label: string; sortKey: number; classes: ClassData[] }>();
-    const uncategorized = { label: "Uncategorized", sortKey: -1, classes: [] as ClassData[] };
+    const sections: Array<{
+      label: string;
+      sortKey: number;
+      classes: ClassData[];
+    }> = [];
+    const sectionMap = new Map<
+      string,
+      { label: string; sortKey: number; classes: ClassData[] }
+    >();
+    const uncategorized = {
+      label: "Uncategorized",
+      sortKey: -1,
+      classes: [] as ClassData[],
+    };
 
     sortedClasses.forEach((course) => {
-      const semester = termMap[course._id]
-        || parseSemester(course.name)
-        || parseSemester(course.description || "");
+      const semester =
+        termMap[course._id] ||
+        parseSemester(course.name) ||
+        parseSemester(course.description || "");
 
       if (!semester) {
         uncategorized.classes.push(course);
@@ -295,7 +344,11 @@ const ClassesPage: React.FC = () => {
       if (existing) {
         existing.classes.push(course);
       } else {
-        const entry = { label: semester.label, sortKey: semester.sortKey, classes: [course] };
+        const entry = {
+          label: semester.label,
+          sortKey: semester.sortKey,
+          classes: [course],
+        };
         sectionMap.set(semester.label, entry);
         sections.push(entry);
       }
@@ -402,7 +455,8 @@ const ClassesPage: React.FC = () => {
               .filter(Boolean)
           : undefined,
         gradingPolicy: formData.gradingPolicy.trim() || undefined,
-        contactInfo: contactInfoParts.length > 0 ? contactInfoParts.join("\n") : undefined,
+        contactInfo:
+          contactInfoParts.length > 0 ? contactInfoParts.join("\n") : undefined,
         description: formData.description.trim() || undefined,
       };
 
@@ -413,9 +467,9 @@ const ClassesPage: React.FC = () => {
       }
 
       if (formData.syllabusResourceId) {
-        await fetch('/api/resources/update-syllabus-details', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch("/api/resources/update-syllabus-details", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             resource_id: formData.syllabusResourceId,
             user_id: user?._id,
@@ -428,7 +482,10 @@ const ClassesPage: React.FC = () => {
               contact_email: formData.contactEmail.trim() || null,
               contact_phone: formData.contactPhone.trim() || null,
               office_location: formData.officeLocation.trim() || null,
-              contact_info: contactInfoParts.length > 0 ? contactInfoParts.join("\n") : null,
+              contact_info:
+                contactInfoParts.length > 0
+                  ? contactInfoParts.join("\n")
+                  : null,
             },
             course_policies: {
               textbooks_and_materials: formData.textbooks.trim() || null,
@@ -503,12 +560,29 @@ const ClassesPage: React.FC = () => {
   };
 
   const handleUploadSyllabus = () => {
+    console.log(
+      "✅ Upload button clicked. fileInputRef:",
+      !!fileInputRef.current
+    );
     fileInputRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("✅ handleFileChange entered", {
+      hasUser: !!user?._id,
+      filesLen: e.target.files?.length,
+    });
+
     const file = e.target.files?.[0];
-    if (!file || !user?._id) return;
+    e.target.value = ""; // resets input after its read
+    if (!file) {
+      console.warn("⛔ handleFileChange returning: no file");
+      return;
+    }
+    if (!user?._id) {
+      console.warn("⛔ handleFileChange returning: no user._id");
+      return;
+    }
 
     const existingIds = new Set(classesRef.current.map((cls) => cls._id));
 
@@ -516,9 +590,23 @@ const ClassesPage: React.FC = () => {
       setIsUploadingSyllabus(true);
       setPendingClassCount((prev) => prev + 1);
       setError(null);
-      
-      await apiService.smartUploadResource(file);
-      
+
+      await new Promise(requestAnimationFrame);
+      const result = await apiService.smartUploadResource(file);
+      console.log("📦 smartUploadResource result:", result);
+
+      if (
+        result &&
+        typeof result === "object" &&
+        "error" in result &&
+        (result as any).error
+      ) {
+        throw new Error((result as any).error);
+      }
+
+      const updatedResources = await apiService.getAllResources();
+      setResources(updatedResources || []);
+
       // Refresh classes to show any updates
       const updatedClasses = await apiService.getAllClasses();
       setClasses(updatedClasses);
@@ -531,7 +619,9 @@ const ClassesPage: React.FC = () => {
           const nextClasses = await apiService.getAllClasses();
           setClasses(nextClasses);
           classesRef.current = nextClasses;
-          const hasNewClass = nextClasses.some((cls) => !existingIds.has(cls._id));
+          const hasNewClass = nextClasses.some(
+            (cls) => !existingIds.has(cls._id)
+          );
           if (hasNewClass) {
             setPendingClassCount((prev) => Math.max(prev - 1, 0));
             return;
@@ -544,10 +634,10 @@ const ClassesPage: React.FC = () => {
         console.error("Error polling for new class:", pollError);
         setPendingClassCount((prev) => Math.max(prev - 1, 0));
       });
-      
+
       // Reset file input
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
     } catch (error: any) {
       console.error("Error uploading syllabus:", error);
@@ -582,7 +672,15 @@ const ClassesPage: React.FC = () => {
             ref={fileInputRef}
             type="file"
             accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
-            onChange={handleFileChange}
+            onChange={(e) => {
+              console.log("✅ file input onChange fired", {
+                filesLen: e.target.files?.length,
+                firstName: e.target.files?.[0]?.name,
+                firstSize: e.target.files?.[0]?.size,
+                firstType: e.target.files?.[0]?.type,
+              });
+              handleFileChange(e);
+            }}
             className="hidden"
           />
           <button
@@ -618,120 +716,143 @@ const ClassesPage: React.FC = () => {
           {classSections.map((section) => (
             <div key={section.label} className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">{section.label}</h2>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {section.label}
+                </h2>
                 <span className="text-xs text-muted-foreground">
-                  {section.classes.length} class{section.classes.length === 1 ? "" : "es"}
+                  {section.classes.length} class
+                  {section.classes.length === 1 ? "" : "es"}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <AnimatePresence>
                   {section.classes.map((course) => (
-              <motion.div
-                layout
-                key={course._id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25 }}
-                onClick={() => router.push(`/classes/${course._id}`)}
-                className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
-              >
-                <div className="h-2" style={{ backgroundColor: getColorClass(course._id) }} />
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      {course.name.split(" ").map((w) => w[0]).join("").substring(0, 6)}
-                    </span>
-                    <div className="relative" ref={showDropdown === course._id ? dropdownRef : null}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowDropdown(showDropdown === course._id ? null : course._id);
-                        }}
-                        className="text-muted-foreground hover:text-foreground transition-colors p-1"
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                      {showDropdown === course._id && (
-                        <div className="absolute right-0 mt-1 w-36 bg-card border border-border rounded-md shadow-lg z-50">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditModal(course);
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors first:rounded-t-md"
+                    <motion.div
+                      layout
+                      key={course._id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.25 }}
+                      onClick={() => router.push(`/classes/${course._id}`)}
+                      className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
+                    >
+                      <div
+                        className="h-2"
+                        style={{ backgroundColor: getColorClass(course._id) }}
+                      />
+                      <div className="p-5">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                            {course.name
+                              .split(" ")
+                              .map((w) => w[0])
+                              .join("")
+                              .substring(0, 6)}
+                          </span>
+                          <div
+                            className="relative"
+                            ref={
+                              showDropdown === course._id ? dropdownRef : null
+                            }
                           >
-                            <Edit size={14} />
-                            Edit Class
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClass(course._id);
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-secondary flex items-center gap-2 transition-colors last:rounded-b-md border-t border-border"
-                          >
-                            <Trash2 size={14} />
-                            Delete
-                          </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDropdown(
+                                  showDropdown === course._id
+                                    ? null
+                                    : course._id
+                                );
+                              }}
+                              className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+                            {showDropdown === course._id && (
+                              <div className="absolute right-0 mt-1 w-36 bg-card border border-border rounded-md shadow-lg z-50">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEditModal(course);
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors first:rounded-t-md"
+                                >
+                                  <Edit size={14} />
+                                  Edit Class
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClass(course._id);
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-secondary flex items-center gap-2 transition-colors last:rounded-b-md border-t border-border"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-bold text-foreground mb-1">{course.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {course.professor || "No professor listed"}
-                  </p>
+                        <h3 className="text-lg font-bold text-foreground mb-1">
+                          {course.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          {course.professor || "No professor listed"}
+                        </p>
 
-                  <div className="space-y-1">
-                    {course.timing && (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-medium">Time:</span> {course.timing}
+                        <div className="space-y-1">
+                          {course.timing && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium">Time:</span>{" "}
+                              {course.timing}
+                            </div>
+                          )}
+                          {course.location && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium">Location:</span>{" "}
+                              {course.location}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    {course.location && (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-medium">Location:</span> {course.location}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                    </motion.div>
+                  ))}
                 </AnimatePresence>
               </div>
             </div>
           ))}
 
-            {Array.from({ length: pendingClassCount }).map((_, index) => (
-              <motion.div
-                layout
-                key={`pending-${index}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25 }}
-                className="bg-card border border-border rounded-md overflow-hidden animate-pulse"
-              >
-                <div className="h-2 bg-muted" />
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Pending
-                    </span>
-                    <div className="text-muted-foreground">
-                      <Eye className="h-4 w-4 animate-spin" />
-                    </div>
+          {Array.from({ length: pendingClassCount }).map((_, index) => (
+            <motion.div
+              layout
+              key={`pending-${index}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              className="bg-card border border-border rounded-md overflow-hidden animate-pulse"
+            >
+              <div className="h-2 bg-muted" />
+              <div className="p-5">
+                <div className="flex justify-between items-start mb-4">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Pending
+                  </span>
+                  <div className="text-muted-foreground">
+                    <Eye className="h-4 w-4 animate-spin" />
                   </div>
-                  <div className="h-4 w-2/3 rounded bg-muted/60 mb-3" />
-                  <div className="h-3 w-1/2 rounded bg-muted/40 mb-2" />
-                  <div className="h-3 w-1/3 rounded bg-muted/40" />
                 </div>
-              </motion.div>
-            ))}
+                <div className="h-4 w-2/3 rounded bg-muted/60 mb-3" />
+                <div className="h-3 w-1/2 rounded bg-muted/40 mb-2" />
+                <div className="h-3 w-1/3 rounded bg-muted/40" />
+              </div>
+            </motion.div>
+          ))}
         </div>
       )}
 
@@ -935,7 +1056,10 @@ const ClassesPage: React.FC = () => {
                 <textarea
                   value={formData.learningObjectives}
                   onChange={(e) =>
-                    setFormData({ ...formData, learningObjectives: e.target.value })
+                    setFormData({
+                      ...formData,
+                      learningObjectives: e.target.value,
+                    })
                   }
                   placeholder="List the key outcomes for this course"
                   rows={3}
@@ -980,7 +1104,10 @@ const ClassesPage: React.FC = () => {
                 <textarea
                   value={formData.attendancePolicy}
                   onChange={(e) =>
-                    setFormData({ ...formData, attendancePolicy: e.target.value })
+                    setFormData({
+                      ...formData,
+                      attendancePolicy: e.target.value,
+                    })
                   }
                   placeholder="Attendance expectations and requirements"
                   rows={3}
@@ -1037,7 +1164,7 @@ const ClassesPage: React.FC = () => {
       {/* Processing Animation Modal */}
       {isUploadingSyllabus && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4">
-          <ProcessingAnimation 
+          <ProcessingAnimation
             isProcessing={isUploadingSyllabus}
             className="w-full max-w-md"
           />
