@@ -1,0 +1,126 @@
+/**
+ * API Services - Central Export
+ * 
+ * All database operations go through these services.
+ * Services use Supabase client directly.
+ */
+
+import { authService } from "./authService";
+import { taskService } from "./taskService";
+import { classService } from "./classService";
+import { resourceService } from "./resourceService";
+import { flashcardService } from "./flashcardService";
+import { learnService } from "./learnService";
+import { notesService } from "./notesService";
+import { eventService } from "./eventService";
+import { userService } from "./userService";
+import { activityService } from "./activityService";
+import { chatService } from "./chatService";
+import { nebulaService } from "./nebulaService";
+import { courseCatalogService } from "./courseCatalogService";
+import { askTaskmasterService } from "./askTaskmasterService";
+
+// Individual service exports (preferred)
+export {
+  authService,
+  taskService,
+  classService,
+  resourceService,
+  flashcardService,
+  learnService,
+  notesService,
+  eventService,
+  userService,
+  activityService,
+  chatService,
+  nebulaService,
+  courseCatalogService,
+  askTaskmasterService,
+};
+
+/**
+ * Legacy ApiService class
+ * Provides a single object with all methods for backward compatibility.
+ * New code should import individual services instead.
+ */
+class ApiService {
+  // Auth
+  login = authService.login;
+  signup = authService.signup;
+  getUserMe = authService.getUserMe;
+  updateProfile = authService.updateProfile;
+  getLoginDates = authService.getLoginDates;
+
+  // Tasks
+  getAllTasks = taskService.getAllTasks;
+  getTasksByClassId = taskService.getTasksByClassId;
+  createTask = taskService.createTask;
+  updateTask = taskService.updateTask;
+  deleteTask = taskService.deleteTask;
+
+  // Classes
+  getAllClasses = classService.getAllClasses;
+  getClassesByUserId = classService.getClassesByUserId;
+  getPersonalClassId = classService.getPersonalClassId;
+  createClass = classService.createClass;
+  updateClass = classService.updateClass;
+  deleteClass = classService.deleteClass;
+  uploadSyllabus = classService.uploadSyllabus;
+
+  // Resources
+  getAllResources = resourceService.getAllResources;
+  getResourcesByClassId = resourceService.getResourcesByClassId;
+  createResource = resourceService.createResource;
+  smartUploadResource = resourceService.smartUploadResource;
+  deleteResource = resourceService.deleteResource;
+
+  // Flashcards
+  getAllFlashcards = flashcardService.getAllFlashcards;
+  getFlashcardsByClassId = flashcardService.getFlashcardsByClassId;
+  generateFlashcards = flashcardService.generateFlashcards;
+  createManualFlashcards = flashcardService.createManualFlashcards;
+  deleteFlashcardSet = flashcardService.deleteFlashcardSet;
+
+  // Learn
+  getLearnQueue = learnService.getLearnQueue;
+  submitLearnAttempt = learnService.submitAttempt;
+  getLearnProgress = learnService.getProgressForSet;
+
+  // Notes
+  getAllNotes = notesService.getAllNotes;
+  generateNotes = notesService.generateNotes;
+  deleteNote = notesService.deleteNote;
+
+  // Events
+  createEvent = eventService.createEvent;
+  getEvents = eventService.getEvents;
+  updateEvent = eventService.updateEvent;
+  deleteEvent = eventService.deleteEvent;
+
+  // Users/Friends
+  findUsers = userService.findUsers;
+  getFriendsFromUserService = userService.getFriends;
+  sendFriendRequest = userService.sendFriendRequest;
+  getIncomingRequests = userService.getIncomingRequests;
+  getOutgoingRequests = userService.getOutgoingRequests;
+  acceptFriendRequest = userService.acceptFriendRequest;
+
+  // Activity
+  getActivities = activityService.getActivities;
+
+  // Chat
+  getMessages = chatService.getMessages;
+  sendMessage = chatService.sendMessage;
+  getOrCreateChat = chatService.getOrCreateChat;
+  getUserChats = chatService.getUserChats;
+  getFriends = chatService.getFriends;
+
+  // AskTaskmaster
+  getAskTaskmasterConversations = askTaskmasterService.getConversations;
+  createAskTaskmasterConversation = askTaskmasterService.createConversation;
+  getAskTaskmasterMessages = askTaskmasterService.getMessages;
+  addAskTaskmasterMessage = askTaskmasterService.addMessage;
+  updateAskTaskmasterTitle = askTaskmasterService.updateConversationTitle;
+}
+
+export const apiService = new ApiService();

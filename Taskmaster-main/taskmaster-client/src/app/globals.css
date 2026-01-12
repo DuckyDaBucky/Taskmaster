@@ -1,0 +1,149 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "react-big-calendar/lib/css/react-big-calendar.css";
+@import "../styles/calendar.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Default (Electric) - Fallback */
+    --bg-app: #020617;
+    /* Slate 950 */
+    --bg-surface: #0f172a;
+    /* Slate 900 */
+    --border: #1e293b;
+    /* Slate 800 */
+    --primary: #3b82f6;
+    /* Blue 500 */
+    --accent: #06b6d4;
+    /* Cyan 500 */
+    --text-primary: #f8fafc;
+    /* Slate 50 */
+    --text-primary: #f8fafc;
+    /* Slate 50 */
+    --text-secondary: #94a3b8;
+    /* Slate 400 */
+
+    /* Semantic Colors */
+    --color-success: #10b981;
+    /* Green 500 */
+    --color-warning: #f59e0b;
+    /* Amber 500 */
+    --color-destructive: #ef4444;
+    /* Red 500 */
+  }
+
+  [data-theme="default"] {
+    --bg-app: #020617;
+    --bg-surface: #0f172a;
+    --border: #1e293b;
+    --primary: #3b82f6;
+    --accent: #06b6d4;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+  }
+
+  [data-theme="light"] {
+    --bg-app: #f8fafc;
+    /* Slate 50 */
+    --bg-surface: #ffffff;
+    /* White */
+    --border: #e2e8f0;
+    /* Slate 200 */
+    --primary: #3b82f6;
+    /* Blue 500 */
+    --accent: #06b6d4;
+    /* Cyan 500 */
+    --text-primary: #0f172a;
+    /* Slate 900 */
+    --text-secondary: #64748b;
+    /* Slate 500 */
+  }
+
+  [data-theme="dark"] {
+    --bg-app: #020617;
+    /* Slate 950 */
+    --bg-surface: #0f172a;
+    /* Slate 900 */
+    --border: #1e293b;
+    /* Slate 800 */
+    --primary: #3b82f6;
+    /* Blue 500 */
+    --accent: #06b6d4;
+    /* Cyan 500 */
+    --text-primary: #f8fafc;
+    /* Slate 50 */
+    --text-secondary: #94a3b8;
+    /* Slate 400 */
+  }
+
+  [data-theme="frost"] {
+    --bg-app: #1e1b4b;
+    /* Deepest Indigo */
+    --bg-surface: #312e81;
+    /* Dark Indigo */
+    --border: #4338ca;
+    /* Indigo 600 */
+    --primary: #a5b4fc;
+    /* Indigo 300 */
+    --accent: #e0e7ff;
+    /* Indigo 100 */
+    --text-primary: #e0e7ff;
+    --text-secondary: #818cf8;
+  }
+
+  [data-theme="retro"] {
+    --bg-app: #244855;
+    --bg-surface: #2d5a6a;
+    --border: #90aead;
+    --primary: #e64833;
+    --accent: #fbe9d0;
+    --text-primary: #fbe9d0;
+    /* Cream text for contrast */
+    --text-secondary: #90aead;
+  }
+
+  [data-theme="aqua"] {
+    --bg-app: #003135;
+    --bg-surface: #024950;
+    --border: #0fa4af;
+    --primary: #0fa4af;
+    --accent: #964734;
+    --text-primary: #e0f2f1;
+    --text-secondary: #80cbc4;
+  }
+
+  [data-theme="earth"] {
+    --bg-app: #3e362e;
+    --bg-surface: #52463a;
+    --border: #865d36;
+    --primary: #ac8968;
+    --accent: #a69080;
+    --text-primary: #f5f5f5;
+    --text-secondary: #d7ccc8;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* Force grid pattern */
+    background-image: linear-gradient(to right, #80808012 1px, transparent 1px),
+      linear-gradient(to bottom, #80808012 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
+
+/* Flashcard 3D Flip Animation */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
