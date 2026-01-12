@@ -1,0 +1,361 @@
+import React, { useState, useEffect } from "react";
+import { useTheme, Theme } from "../../context/ThemeContext";
+import { useUser } from "../../context/UserContext";
+import { supabase } from "../../lib/supabase";
+import { User, Palette, Bell, Shield, Trash2, Calendar } from "lucide-react";
+
+import SettingsMessage from "./components/SettingsMessage";
+import ProfileSection from "./components/ProfileSection";
+import AppearanceSection from "./components/AppearanceSection";
+import StudyPreferencesSection from "./components/StudyPreferencesSection";
+import OnboardingSection from "./components/OnboardingSection";
+import NotificationsSection from "./components/NotificationsSection";
+import DangerZoneSection from "./components/DangerZoneSection";
+
+
+type YearOption =
+  | "Freshman"
+  | "Sophomore"
+  | "Junior"
+  | "Senior"
+  | "Graduate"
+  | "Other";
+
+type OnboardingForm = {
+  net_id: string;
+  major: string;
+  current_year: YearOption | "";
+  expected_graduation: string;
+};
+
+const SettingsPage: React.FC = () => {
+  const { theme, setTheme } = useTheme();
+  const { user, setUserState, logout } = useUser();
+
+  interface OutlookCalendar {
+    calendar_id: string;
+    name: string;
+    selected: boolean;
+  }
+  
+  // Profile editing
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+    displayName: "",
+  });
+
+  const [preferences, setPreferences] = useState({
+    personality: 0.5,
+    time: 0,
+    inPerson: 0,
+    privateSpace: 0,
+  });
+
+  const [notifications, setNotifications] = useState({
+    emailNotifications: true,
+    pushNotifications: false,
+    weeklyDigest: true,
+    taskReminders: true,
+    friendRequests: true,
+  });
+  
+  const [outlookCalendars, setOutlookCalendars] = useState<OutlookCalendar[]>([]);
+  const [outlookSelection, setOutlookSelection] = useState<Record<string, boolean>>({});
+  const [isLoadingOutlook, setIsLoadingOutlook] = useState(false);
+  const [isSavingOutlook, setIsSavingOutlook] = useState(false);
+  const [outlookConnected, setOutlookConnected] = useState(false);
+
+  const showMessage = (type: "success" | "error", text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const getErrorMessage = (err: unknown) =>
+    err instanceof Error ? err.message : "Something went wrong";
+
+  const [onboardingForm, setOnboardingForm] = useState<OnboardingForm>({
+    net_id: "",
+    major: "",
+    current_year: "",
+    expected_graduation: "",
+  });
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        displayName: user.displayName || user.username || "",
+      });
+      // setPreferences({
+      //   personality: user.preferences?.personality ?? 0.5,
+      //   time: user.preferences?.time ?? 0,
+      //   inPerson: user.preferences?.inPerson ?? 0,
+      //   privateSpace: user.preferences?.privateSpace ?? 0,
+      // });
+      setNotifications({
+        emailNotifications: user.settings?.emailNotifications ?? true,
+        pushNotifications: user.settings?.pushNotifications ?? false,
+        weeklyDigest: user.settings?.weeklyDigest ?? true,
+        taskReminders: true,
+        friendRequests: true,
+      });
+    } else {
+      loadOnboardingFromDb();
+    }
+  }, [user]);
+
+  const loadOutlookCalendars = async (refresh: boolean = false) => {
+    setIsLoadingOutlook(true);
+    try {
+      const response = await fetch(
+        `/api/outlook/calendars${refresh ? "?refresh=1" : ""}`
+      );
+      if (!response.ok) {
+        setOutlookConnected(false);
+        setOutlookCalendars([]);
+        setOutlookSelection({});
+        return;
+      }
+      const data = await response.json();
+      const calendars = data.calendars || [];
+      setOutlookCalendars(calendars);
+      setOutlookConnected(true);
+      const selectionState: Record<string, boolean> = {};
+      calendars.forEach((calendar: OutlookCalendar) => {
+        selectionState[calendar.calendar_id] = calendar.selected;
+      });
+      setOutlookSelection(selectionState);
+    } catch (error) {
+      setOutlookConnected(false);
+    } finally {
+      setIsLoadingOutlook(false);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("outlook") === "connected") {
+      showMessage("success", "Outlook connected successfully!");
+      params.delete("outlook");
+      const query = params.toString();
+      const next = query ? `?${query}` : "";
+      window.history.replaceState({}, "", `${window.location.pathname}${next}`);
+      loadOutlookCalendars(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user?._id) {
+      loadOutlookCalendars();
+    }
+  }, [user?._id]);
+
+  const handleConnectOutlook = () => {
+    window.location.href = "/api/auth/microsoft/start";
+  };
+
+  const handleSaveOutlookSelection = async () => {
+    setIsSavingOutlook(true);
+    try {
+      const selectedCalendarIds = Object.entries(outlookSelection)
+        .filter(([, selected]) => selected)
+        .map(([calendarId]) => calendarId);
+
+      const response = await fetch("/api/outlook/calendars", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selectedCalendarIds }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save calendar selection");
+      }
+
+      showMessage("success", "Calendar selection saved!");
+      await loadOutlookCalendars();
+    } catch (error: any) {
+      showMessage("error", error.message || "Failed to save selection");
+    } finally {
+      setIsSavingOutlook(false);
+    }
+  };
+
+  const loadOnboardingFromDb = async () => {
+    if (!user?._id) return;
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("net_id, major, current_year, expected_graduation")
+      .eq("id", user._id)
+      .single();
+
+    if (error) {
+      console.error("Failed to load onboarding fields:", error.message);
+      return;
+    }
+
+    const next = {
+      net_id: data?.net_id ?? "",
+      major: data?.major ?? "",
+      current_year: (data?.current_year as YearOption) || "",
+      expected_graduation: data?.expected_graduation ?? "",
+    };
+
+    setOnboardingForm(next);
+
+    // Optional but recommended: keep UserContext in sync so other pages can use it too
+    setUserState(next);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user?._id) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          first_name: profileForm.firstName,
+          last_name: profileForm.lastName,
+          display_name: profileForm.displayName,
+        })
+        .eq("id", user._id);
+
+      if (error) throw error;
+
+      setUserState({
+        firstName: profileForm.firstName,
+        lastName: profileForm.lastName,
+        displayName: profileForm.displayName,
+      });
+      setIsEditingProfile(false);
+      showMessage("success", "Profile updated!");
+    } catch (error: unknown) {
+      showMessage("error", getErrorMessage(error) || "Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    if (!user?._id) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          personality: preferences.personality,
+          time_preference: preferences.time,
+          in_person: preferences.inPerson,
+          settings: notifications,
+        })
+        .eq("id", user._id);
+
+      if (error) throw error;
+      
+      // setUserState({ preferences, settings: notifications });
+      showMessage("success", "Preferences saved!");
+    } catch (error: unknown) {
+      showMessage("error", getErrorMessage(error) || "Failed to save preferences");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveOnboarding = async () => {
+    if (!user?._id) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          net_id: onboardingForm.net_id.trim(),
+          major: onboardingForm.major.trim(),
+          current_year: onboardingForm.current_year.trim(),
+          expected_graduation: onboardingForm.expected_graduation.trim(),
+        })
+        .eq("id", user._id);
+
+      if (error) throw error;
+
+      setUserState(onboardingForm);
+      showMessage("success", "Onboarding info updated!");
+    } catch (error: unknown) {
+      showMessage("error", getErrorMessage(error) || "Failed to update onboarding info");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleThemeChange = async (newTheme: Theme) => {
+    setTheme(newTheme);
+    if (user?._id) {
+      await supabase
+        .from("users")
+        .update({ theme: newTheme })
+        .eq("id", user._id);
+    }
+  };
+
+  const timeOptions = [
+    { value: 0, label: "Morning (6am-12pm)" },
+    { value: 1, label: "Afternoon (12pm-6pm)" },
+    { value: 2, label: "Evening (6pm-12am)" },
+    { value: 3, label: "Night (12am-6am)" },
+  ];
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6 pb-12">
+      <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+
+      <SettingsMessage message={message} />
+
+      <ProfileSection
+        user={user}
+        isEditing={isEditingProfile}
+        setIsEditing={setIsEditingProfile}
+        form={profileForm}
+        setForm={setProfileForm}
+        onSave={handleSaveProfile}
+        isSaving={isSaving}
+      />
+
+      <AppearanceSection theme={theme} onThemeChange={handleThemeChange} />
+
+      <StudyPreferencesSection
+        preferences={preferences}
+        setPreferences={setPreferences}
+        timeOptions={timeOptions}
+        onSave={handleSavePreferences}
+        isSaving={isSaving}
+      />
+
+      <OnboardingSection
+        form={onboardingForm}
+        setForm={setOnboardingForm}
+        onSave={handleSaveOnboarding}
+        isSaving={isSaving}
+      />
+
+      <NotificationsSection
+        notifications={notifications}
+        setNotifications={setNotifications}
+        onSave={handleSavePreferences}
+        isSaving={isSaving}
+      />
+
+      <DangerZoneSection onLogout={logout} />
+    </div>
+  );
+};
+
+export default SettingsPage;

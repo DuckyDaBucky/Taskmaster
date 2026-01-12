@@ -1,0 +1,18 @@
+# Local development docs and notes
+.local-docs/
+*.local.md
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
