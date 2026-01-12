@@ -58,7 +58,7 @@ const extractSyllabusDetails = (classItem: ClassData, resources: ResourceData[])
 };
 
 const ClassesPage: React.FC = () => {
-  const { user } = useUser();
+  const { user, isLoadingUser } = useUser();
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [resources, setResources] = useState<ResourceData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,14 +114,16 @@ const ClassesPage: React.FC = () => {
     };
   }, [showDropdown]);
 
-  const fetchClasses = useCallback(async () => {
+  const fetchClasses = useCallback(async (options?: { silent?: boolean }) => {
     if (!user?._id) {
       setIsLoading(false);
       return;
     }
 
     try {
-      setIsLoading(true);
+      if (!options?.silent) {
+        setIsLoading(true);
+      }
       const [userClasses, userResources] = await Promise.all([
         apiService.getAllClasses(),
         apiService.getAllResources(),
@@ -134,7 +136,9 @@ const ClassesPage: React.FC = () => {
       console.error("Error fetching classes:", error);
       setError("Failed to load classes");
     } finally {
-      setIsLoading(false);
+      if (!options?.silent) {
+        setIsLoading(false);
+      }
     }
   }, [user?._id]);
 
@@ -145,10 +149,10 @@ const ClassesPage: React.FC = () => {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        fetchClasses();
+        fetchClasses({ silent: true });
       }
     };
-    const handleFocus = () => fetchClasses();
+    const handleFocus = () => fetchClasses({ silent: true });
 
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibility);
@@ -502,13 +506,42 @@ const ClassesPage: React.FC = () => {
     }
   };
 
+  const openSyllabusPicker = () => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.value = "";
+    if (typeof (input as any).showPicker === "function") {
+      (input as any).showPicker();
+    } else {
+      input.click();
+    }
+  };
+
   const handleUploadSyllabus = () => {
-    fileInputRef.current?.click();
+    if (isLoadingUser) {
+      setError("Loading your account. Try again in a moment.");
+      return;
+    }
+    if (!user?._id) {
+      setError("Please sign in to upload a syllabus.");
+      return;
+    }
+    setError(null);
+    openSyllabusPicker();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     const file = e.target.files?.[0];
-    if (!file || !user?._id) return;
+    if (!file) return;
+    if (!user?._id) {
+      setError("Please sign in to upload a syllabus.");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
 
     const existingIds = new Set(classesRef.current.map((cls) => cls._id));
 
@@ -519,20 +552,34 @@ const ClassesPage: React.FC = () => {
       
       await apiService.smartUploadResource(file);
       
-      // Refresh classes to show any updates
-      const updatedClasses = await apiService.getAllClasses();
+      // Refresh classes + resources so semester grouping is correct immediately
+      const [updatedClasses, updatedResources] = await Promise.all([
+        apiService.getAllClasses(),
+        apiService.getAllResources(),
+      ]);
       setClasses(updatedClasses);
       classesRef.current = updatedClasses;
+      setResources(updatedResources || []);
 
       const pollForNewClass = async () => {
         const maxAttempts = 12;
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
           await new Promise((resolve) => setTimeout(resolve, 2000));
-          const nextClasses = await apiService.getAllClasses();
+          const [nextClasses, nextResources] = await Promise.all([
+            apiService.getAllClasses(),
+            apiService.getAllResources(),
+          ]);
           setClasses(nextClasses);
           classesRef.current = nextClasses;
-          const hasNewClass = nextClasses.some((cls) => !existingIds.has(cls._id));
-          if (hasNewClass) {
+          setResources(nextResources || []);
+          const newClasses = nextClasses.filter((cls) => !existingIds.has(cls._id));
+          if (newClasses.length > 0) {
+            const allClassified = newClasses.every(
+              (cls) => !!extractSyllabusDetails(cls, nextResources || []).currentTerm
+            );
+            if (!allClassified) {
+              continue;
+            }
             setPendingClassCount((prev) => Math.max(prev - 1, 0));
             return;
           }
@@ -582,11 +629,20 @@ const ClassesPage: React.FC = () => {
             ref={fileInputRef}
             type="file"
             accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+            id="syllabus-upload"
+            onChangeCapture={(event) => {
+              event.stopPropagation();
+            }}
             onChange={handleFileChange}
-            className="hidden"
+            className="sr-only"
           />
           <button
-            onClick={handleUploadSyllabus}
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              handleUploadSyllabus();
+            }}
             disabled={isUploadingSyllabus}
             className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
           >
@@ -594,6 +650,7 @@ const ClassesPage: React.FC = () => {
             {isUploadingSyllabus ? "Uploading..." : "Upload Syllabus"}
           </button>
           <button
+            type="button"
             onClick={handleOpenCreateModal}
             className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md text-sm font-medium transition-colors flex items-center gap-2"
           >
@@ -625,82 +682,85 @@ const ClassesPage: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <AnimatePresence>
-                  {section.classes.map((course) => (
-              <motion.div
-                layout
-                key={course._id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25 }}
-                onClick={() => router.push(`/classes/${course._id}`)}
-                className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
-              >
-                <div className="h-2" style={{ backgroundColor: getColorClass(course._id) }} />
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      {course.name.split(" ").map((w) => w[0]).join("").substring(0, 6)}
-                    </span>
-                    <div className="relative" ref={showDropdown === course._id ? dropdownRef : null}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowDropdown(showDropdown === course._id ? null : course._id);
-                        }}
-                        className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                  {section.classes.map((course) => {
+                    const cardDetails = extractSyllabusDetails(course, resources);
+                    return (
+                      <motion.div
+                        layout
+                        key={course._id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.25 }}
+                        onClick={() => router.push(`/classes/${course._id}`)}
+                        className="bg-card border border-border rounded-md overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
                       >
-                        <MoreVertical size={16} />
-                      </button>
-                      {showDropdown === course._id && (
-                        <div className="absolute right-0 mt-1 w-36 bg-card border border-border rounded-md shadow-lg z-50">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditModal(course);
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors first:rounded-t-md"
-                          >
-                            <Edit size={14} />
-                            Edit Class
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClass(course._id);
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-secondary flex items-center gap-2 transition-colors last:rounded-b-md border-t border-border"
-                          >
-                            <Trash2 size={14} />
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-bold text-foreground mb-1">{course.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {course.professor || "No professor listed"}
-                  </p>
+                        <div className="h-2" style={{ backgroundColor: getColorClass(course._id) }} />
+                        <div className="p-5">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                              {course.name.split(" ").map((w) => w[0]).join("").substring(0, 6)}
+                            </span>
+                            <div className="relative" ref={showDropdown === course._id ? dropdownRef : null}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowDropdown(showDropdown === course._id ? null : course._id);
+                                }}
+                                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                              >
+                                <MoreVertical size={16} />
+                              </button>
+                              {showDropdown === course._id && (
+                                <div className="absolute right-0 mt-1 w-36 bg-card border border-border rounded-md shadow-lg z-50">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenEditModal(course);
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors first:rounded-t-md"
+                                  >
+                                    <Edit size={14} />
+                                    Edit Class
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteClass(course._id);
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-secondary flex items-center gap-2 transition-colors last:rounded-b-md border-t border-border"
+                                  >
+                                    <Trash2 size={14} />
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <h3 className="text-lg font-bold text-foreground mb-1">{course.name}</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {course.professor || "No professor listed"}
+                          </p>
 
-                  <div className="space-y-1">
-                    {course.timing && (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-medium">Time:</span> {course.timing}
-                      </div>
-                    )}
-                    {course.location && (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-medium">Location:</span> {course.location}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                          <div className="space-y-1">
+                            {cardDetails.timing && (
+                              <div className="text-xs text-muted-foreground">
+                                <span className="font-medium">Time:</span> {cardDetails.timing}
+                              </div>
+                            )}
+                            {cardDetails.location && (
+                              <div className="text-xs text-muted-foreground">
+                                <span className="font-medium">Location:</span> {cardDetails.location}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </AnimatePresence>
               </div>
             </div>

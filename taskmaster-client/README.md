@@ -47,12 +47,12 @@ AZURE_DOC_INTEL_KEY=your-di-key
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run start` | Start production server |
-| `npm run lint` | Run ESLint |
+| Command         | Description              |
+| --------------- | ------------------------ |
+| `npm run dev`   | Start development server |
+| `npm run build` | Build for production     |
+| `npm run start` | Start production server  |
+| `npm run lint`  | Run ESLint               |
 
 ## Project Structure
 
@@ -71,6 +71,7 @@ src/
 ## AI Capabilities
 
 The chatbot can:
+
 - **Create Flashcards** - "Make flashcards about Exam 3"
 - **Complete Tasks** - "I finished my homework"
 - **Query Documents** - "What's the grading policy?"
@@ -80,6 +81,7 @@ The chatbot can:
 ## Documentation
 
 See the main [Documentation](../Documentation) folder for:
+
 - [Getting Started](../Documentation/01-Getting-Started.md)
 - [Architecture Overview](../Documentation/02-Architecture.md)
 - [Azure RAG Pipeline](../Documentation/09-Azure-RAG-Pipeline.md)

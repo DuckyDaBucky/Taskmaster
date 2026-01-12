@@ -169,7 +169,7 @@ export const resourceService = {
 
     // 4. Trigger document processing (non-blocking)
     if (!options?.skipProcessing) {
-      resourceService.triggerProcessing(resource.id, userId, urlData.publicUrl, classId).catch(e => {
+      resourceService.triggerProcessing(resource.id, userId, urlData.publicUrl, classId, file.name).catch(e => {
         console.error("Processing trigger failed:", e);
       });
     }
@@ -198,6 +198,7 @@ export const resourceService = {
     userId: string,
     fileUrl: string,
     classId?: string,
+    fileName?: string,
   ): Promise<void> {
     try {
       const endpoint = '/api/documents/analyze-azure';
@@ -209,6 +210,7 @@ export const resourceService = {
           resource_id: resourceId,
           user_id: userId,
           file_url: fileUrl,
+          file_name: fileName,
           class_id: classId,
         }),
       });

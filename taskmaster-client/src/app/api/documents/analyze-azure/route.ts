@@ -242,34 +242,42 @@ export async function POST(req: NextRequest) {
 
     // 4. Hydrate Database
     const { course_info, tasks, key_topics } = structuredData;
+    const courseNumber = (course_info?.course_number || '').trim() || null;
+    const courseName = (course_info?.course_name || '').trim() || null;
+    const fallbackClassName = (courseName || file_name || 'Uploaded Syllabus').trim();
     let classId: string | null = null;
     let createdTaskCount = 0;
 
 
     if (supabase && user_id) {
       // A. Class Creation/Linking
-      if (course_info?.course_number) {
-        const normalizedNumber = course_info.course_number.replace(/\s+/g, '').toUpperCase();
+      if (courseNumber || courseName || file_name) {
+        const normalizedNumber = courseNumber ? courseNumber.replace(/\s+/g, '').toUpperCase() : null;
+        const normalizedName = courseName ? courseName.replace(/\s+/g, '').toUpperCase() : null;
 
         const { data: userClasses, error: classesError } = await supabase
           .from('classes')
           .select('id, name')
           .eq('user_id', user_id);
 
-
-        const existingClass = userClasses?.find(c =>
-          (c.name || '').toUpperCase().replace(/\s+/g, '').includes(normalizedNumber)
-        );
+        const existingClass = userClasses?.find(c => {
+          const cleaned = (c.name || '').toUpperCase().replace(/\s+/g, '');
+          if (normalizedNumber && cleaned.includes(normalizedNumber)) return true;
+          if (normalizedName && cleaned.includes(normalizedName)) return true;
+          return false;
+        });
 
         if (existingClass) {
           classId = existingClass.id;
         } else {
-          const name = `${course_info.course_number}: ${course_info.course_name || 'Course'}`;
+          const name = courseNumber
+            ? `${courseNumber}: ${courseName || 'Course'}`
+            : fallbackClassName;
           const { data: newClass } = await supabase.from('classes').insert({
             user_id,
             name: name.substring(0, 100),
-            professor: course_info.professor,
-            description: course_info.description,
+            professor: course_info?.professor || null,
+            description: course_info?.description || null,
             topics: key_topics || [],
             is_personal: false
           }).select('id').single();

@@ -87,7 +87,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({
 
       if (!mountedRef.current) return;
 
-      if (userData && userData.username !== "user") {
+      if (userData) {
         setUser(userData);
         if (userData.theme && typeof window !== "undefined") {
           localStorage.setItem("appTheme", userData.theme);
